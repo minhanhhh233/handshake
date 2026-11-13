@@ -129,6 +129,8 @@ Created by `scripts/seed_demo.py`. All names are fictional.
 | Approver 2 | Antti Laine |
 | Mandate 2 | Cap `500.00`; forbidden allergens `["AM"]`, states `CONTAINS` and `MAY_CONTAIN`, `unknown` = `reject` |
 
+Mandate 2 otherwise follows mandate 1 (all categories, `official_rules_only`, weekdays 1 to 6) and has no preferred labels. Approver contacts are `maria@example.com` and `antti@example.com`. `seed_demo.py` is idempotent: it reuses customers and agents by name and replaces a mandate only when its content differs, so re-running it restores the demo mandates. Agent keys are generated when an agent is created (or with `--rotate-keys`), stored as hashes, and written in clear only to the git-ignored `keys/demo_agents.json`; they are printed only with `--show-keys`.
+
 Set mandate 1's cap just below the live cost of 1,000 L of the cheapest shortlist product, so the example request needs approval. On 2026-11-14 that cost was 1010.00 EUR excl. tax (464306; document 06, section 4.2), so the cap is `1000.00` (Q-03).
 
 The main scenario does not split: 1,000 L of 464306 is filled by one product, because its stock is reported as 9999999999 (no fill limit, Q-15). No hold is pre-created, so A-24 is not used. The optional split scenario below uses real stock instead.

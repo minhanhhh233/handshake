@@ -110,9 +110,18 @@ Notes:
 ```python
 def evaluate(offer: Offer, mandate: Mandate, agent_status: str,
              facts: dict[str, ProductFacts], week_total: Decimal,
-             now: datetime) -> Evaluation:
+             now: datetime, requirements: dict[int, Requirements] | None = None) -> Evaluation:
     """Pure function. Returns outcome and list of reasons."""
 ```
+
+Implementation notes (phase 2):
+
+- `requirements` (request line number to the agent's `requirements`) was added because R5 checks each line against its own request line; `None` skips R5. `week_total` is accepted and ignored while R7 is cut.
+- Reasons are ordered by rule number, then `line_no`, offer-level reasons first.
+- A line whose product is missing from `facts` fails closed: it is treated as unknown category, no allergen data and no claims.
+- A `substitute` line without `differences` counts as source `null`, so `official_rules_only` sends it for approval.
+- Only the R3 and R6 messages are fixed by this document; the R1, R4, R5, R8 and R9 wording is the implementation's (R9 names the weekday, the date and the allowed days).
+- `mandate_product_reasons(facts, mandate)` (R2, R3, R4 for one product) lives in `handshake/policy.py` and is shared by the offer builder's static filter (document 06, section 6, step 2).
 
 ## 4. Ranking options (P1)
 

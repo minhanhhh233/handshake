@@ -102,7 +102,7 @@ scripts/
   load_data.py
   seed_code_lookup.py  inferred code names for code_lookup (T-007, A-06)
   record_fixtures.py   records live price and availability answers into tests/fixtures/upstream/ (T-005)
-  seed_demo.py    customers, agents, mandates for the demo
+  seed_demo.py    customers, agents, mandates for the demo; agent keys go to the git-ignored keys/demo_agents.json
   reset_demo.py
   gen_keys.py     creates the Ed25519 key pair
 sql/

@@ -4,7 +4,7 @@ Pure parts (no I/O), reusable and unit-tested without a database:
 
 - `convert()`               quantity conversion method and litres/kilograms per sales unit
 - `sales_units_needed()`    sales units to order for a base quantity (lot size rounding)
-- `mandate_product_reasons()` mandate rules R2, R3, R4 for one product (policy engine reuses it)
+- `mandate_product_reasons()` mandate rules R2, R3, R4 for one product (defined in `policy`)
 
 Database parts:
 
@@ -46,11 +46,12 @@ from .models import (
     PriceValid,
     ProductFacts,
     Quantity,
-    Reason,
     Totals,
     UpstreamFacts,
     money,
 )
+# Pure mandate rules R2/R3/R4 live in the policy engine; re-exported here (T-201).
+from .policy import ALLERGEN_NAMES, allergen_label, mandate_product_reasons
 
 log = logging.getLogger("handshake.offers")
 
@@ -61,20 +62,6 @@ CONVERSION_TOLERANCE = Decimal("0.02")
 _CENT = Decimal("0.01")
 _BASIS = Decimal("0.0001")
 _QTY = Decimal("0.001")
-
-#: GS1 allergen names for messages (document 06, section 3.3; inferred, A-06).
-ALLERGEN_NAMES = {
-    "AM": "milk", "ML": "lactose", "AW": "cereals containing gluten", "UW": "wheat",
-    "AE": "eggs", "AN": "tree nuts", "AP": "peanuts", "AY": "soybeans", "AF": "fish",
-    "AC": "crustaceans", "UM": "molluscs", "AS": "sesame", "BM": "mustard", "BC": "celery",
-    "AU": "sulphites", "NL": "lupin",
-}
-
-
-def allergen_label(code: str) -> str:
-    name = ALLERGEN_NAMES.get(code)
-    return f"{name} ({code})" if name else code
-
 
 # ================================================================ pure: quantity conversion
 
@@ -159,53 +146,6 @@ def round_down_to_step(
         return Decimal(0)
     step = _lot_step(allowed_lot_size, variable_unit)
     return (Decimal(units) / step).to_integral_value(rounding=ROUND_FLOOR) * step
-
-
-# ================================================================ pure: mandate R2, R3, R4
-
-
-def mandate_product_reasons(facts: ProductFacts, mandate: Mandate) -> list[Reason]:
-    """Mandate rules that look at one product only: R2, R3, R4 (document 05, section 3).
-
-    Pure, no I/O. Returns every firing reason (R4 may have effect `needs_approval`);
-    `line_no` is left unset for the caller to fill in.
-    """
-    reasons: list[Reason] = []
-    pid = facts.product_id
-    allowed = mandate.allowed_categories
-    if allowed is not None and facts.category_code not in allowed:
-        reasons.append(Reason(
-            rule="R2", code="category_not_allowed", effect="rejected",
-            message=(f"Product {pid} is in category {facts.category_code}, which this mandate "
-                     f"does not allow."),
-            details={"product_id": pid, "category": facts.category_code,
-                     "allowed_categories": list(allowed)},
-        ))
-    fa = mandate.forbidden_allergens
-    statements = facts.allergens if facts.has_allergen_data else {}
-    for code in fa.codes:
-        state = statements.get(code)
-        if state is not None and state in fa.states:
-            verb = "contains" if state == "CONTAINS" else "may contain"
-            msg = f"Product {pid} {verb} {allergen_label(code)}, which this mandate forbids."
-            if code == "AM" and "FREE_FROM_LACTOSE" in facts.claims:
-                msg += " Lactose-free is not milk-free."
-            reasons.append(Reason(
-                rule="R3", code="forbidden_allergen", effect="rejected", message=msg,
-                details={"product_id": pid, "allergen": code, "state": state},
-            ))
-        elif state is None and fa.unknown != "allow":
-            effect = "rejected" if fa.unknown == "reject" else "needs_approval"
-            consequence = ("rejects" if effect == "rejected"
-                           else "needs approval for")
-            reasons.append(Reason(
-                rule="R4", code="allergen_data_missing", effect=effect,
-                message=(f"Product {pid} has no allergen statement for {allergen_label(code)}; "
-                         f"this mandate {consequence} products whose status for a forbidden "
-                         f"allergen is unknown."),
-                details={"product_id": pid, "allergen": code, "state": None},
-            ))
-    return reasons
 
 
 # ================================================================ catalog

@@ -405,6 +405,15 @@ Response (all three):
 
 Errors: `400`, `403`, `404`, `409 offer_expired`, `409 offer_consumed`, `409 idempotency_conflict`.
 
+Implementation notes (phase 2):
+
+- The idempotency lookup runs before the offer is checked, so a repeat of a successful request returns the stored response even though the offer is now consumed. The key is checked again inside the order transaction after the offer row is locked, so two concurrent requests with one key produce one order.
+- `request_sha256` is computed over the validated request (sorted keys, compact JSON, defaults included), not the raw bytes.
+- Only completed outcomes (201, 202, 200 rejected) are stored. Error responses are not, so the same key can be retried after a 409.
+- The response's `X-Trace-Id` is the offer's trace.
+- Event bodies with audience `both` carry no `approval_id` and no order `note`; `order.submitted` carries `reference` only.
+- When an approval expires, `decided_at` is the approval's `expires_at`, not the moment the expiry was noticed. Lazy expiry runs on `GET /v1/orders/{order_id}`.
+
 ### `GET /v1/orders/{order_id}`
 
 Agent authentication; own orders only. Returns the order object above with current `status`: `pending_approval`, `confirmed`, `declined`, `expired` or `rejected`. When decided, `approval` carries `status` (`approved`, `declined`, `expired`), `decided_at` and, if the approver wrote one, `comment`.
@@ -444,7 +453,7 @@ All require `X-Admin-Key`.
 |---|---|
 | `PUT /v1/admin/agents/{agent_id}/mandate` | Replace the agent's mandate. Body is a mandate document without `mandate_id` and `version`; the gateway assigns the next version. |
 | `GET /v1/admin/agents/{agent_id}/mandate` | Read the full mandate including approver contacts. |
-| `GET /v1/admin/events?trace_id=&limit=` | Read events. |
+| `GET /v1/admin/events?trace_id=&limit=` | Read events. With `trace_id`, in `seq` order; without it, the most recent events across all traces, newest first. `limit` 1 to 500, default 100. |
 | `GET /v1/admin/orders/{order_id}/approval-link` | Returns the approval URL. Used by the console in demo mode. |
 | `POST /v1/admin/reset` | Demo only (`DEMO_MODE=true`). Deletes offers, holds, orders, approvals and events; keeps products, customers, agents and mandates. |
 

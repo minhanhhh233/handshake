@@ -302,6 +302,7 @@ CREATE TABLE events (
 - `mandates.version` increases by one on each replacement.
 - `orders.offer_id` is unique: one offer yields at most one order.
 - Agent keys, approval tokens and the admin key are never stored in clear text. `receipt_token` is stored in clear because it only grants read access to one receipt.
+- The approval token is not random: it is base64url (no padding) of HMAC-SHA256 keyed with `ADMIN_KEY` over the `approval_id` (43 characters). Only `token_sha256` is stored, yet the admin console can rebuild the approval link (`GET /v1/admin/orders/{order_id}/approval-link`). Rotating `ADMIN_KEY` invalidates every outstanding approval link.
 
 ## 4. Available quantity
 

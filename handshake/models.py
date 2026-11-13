@@ -34,12 +34,17 @@ def money(value: Decimal | str | int | float) -> str:
 
 
 def _money_in(v: Any) -> str:
-    if isinstance(v, (Decimal, int, float)):
-        return money(v)
-    if isinstance(v, str):
-        Decimal(v)  # raises on garbage
-        return v
-    raise ValueError("money must be a decimal string")
+    try:
+        if isinstance(v, (Decimal, int, float)) and not isinstance(v, bool):
+            return money(v)
+        if isinstance(v, str):
+            d = Decimal(v)
+            if not d.is_finite():
+                raise ValueError
+            return v
+    except (ArithmeticError, ValueError):
+        pass  # decimal.InvalidOperation is not a ValueError; report it as one below
+    raise ValueError("money must be a decimal string such as \"1000.00\"")
 
 
 #: Money: a decimal string, for example "1234.50". Totals always have two places.
