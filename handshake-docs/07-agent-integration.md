@@ -115,6 +115,15 @@ The model is not told the category code in advance. The first `search_products` 
 
 It takes `--scenario` with values `milk_order`, `milk_split` (optional; see document 09, section 6) and `allergy_guard`.
 
+Implementation notes (phase 3):
+
+- Both agents read `/.well-known/handshake.json` first (section 7, rule 1); this is not a model tool.
+- `milk_order` lists 464306 first, then the other shortlist products found in the first page of search results. The client caps search at 20 items, and on the real catalog 469363 is on the second page, so the line has 7 candidates, not 8. `milk_split` always sends 469363 then 464306.
+- Scripted agent key precedence: `--key`, then `--agent` from `keys/demo_agents.json`, then `HANDSHAKE_AGENT_KEY`, then nordlys. `--poll-interval` cannot go below 5 seconds from the command line.
+- `allergy_guard` is task T-405 (phase 4).
+- Claude agent: `get_order` spacing is enforced in the tool executor (it waits out the rest of the 5 seconds); the 120-second polling budget starts when an order comes back `pending_approval`, after which `get_order` tells the model the budget is used up and to report "still pending". The 20-call cap stops the loop without a final model turn. `--category-hint` (off by default) adds "Milk and milk drinks are category 10400." to the `search_products` description. The agent reads the repository's `.env` itself because it does not import the gateway package; variables already set win.
+- Model: `ANTHROPIC_MODEL`, default `claude-opus-5-5`; effort `ANTHROPIC_EFFORT`, default `medium`; server-side refusal fallback on by default (`ANTHROPIC_FALLBACKS=off` disables it). Tools and the stable system prompt are cached; the "Today is" line comes after the cache breakpoint.
+
 ## 6. MCP server (P1)
 
 **Cut for the deadline (document 08, section 0).** T-502 is not built. This section stays as the design; in the pitch it is shown on a slide.

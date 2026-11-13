@@ -113,6 +113,11 @@ New question raised by T-005:
 - The upstream cache is per process; several gateway containers may each call upstream.
 - Category, unit and some allergen names are inferred.
 
+### 3.0 From the phase 3 live run and security review (2026-11-14)
+
+- **The approver's comment reaches the agent model unwrapped** (`approval.comment` in `GET /v1/orders/{id}`). The approver is the authenticated holder of a single-use link and the gateway enforces policy on every order, so the security review did not count it as exploitable; supplier text, by contrast, is always wrapped.
+- **Agent wording seen in the first live run (prompt quality, not policy):** after a confirmed order the Claude agent suggested "split the amount into two orders" to stay under the cap, and called delivery reliability an "on-time delivery score" (it is a fill rate, A-16). The gateway decides what is allowed, and without R7 splitting is a known limitation, but an agent advising it is a poor look in the demo. To be addressed in rehearsal (doc 07 section 4.2 prompt and the tool descriptions); the prompt in doc 07 is unchanged so far.
+
 ### 3.1 From the end-of-phase-2 code review (2026-11-14), recorded, not fixed
 
 The review covered phases 1 and 2 (offer locking, idempotency, hold transitions, policy determinism, secrets) and ran a 60-round thread probe: no duplicate order and no over-reservation. Findings that could lose or duplicate an order, leak a secret or break the demo were fixed; the rest are accepted here.

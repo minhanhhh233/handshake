@@ -471,6 +471,16 @@ Server-rendered HTML, outside `/v1`.
 
 Approving after `approval.expires_at`, or a second use of the token, shows an explanatory page and changes nothing.
 
+Implementation notes (phase 3):
+
+- The approval form has no `action` attribute, so it posts to its own URL and the token is never written into the page. A POST redirects (303) to `/approve/{token}/done`, with `?outcome=already_decided` or `?outcome=expired` when nothing was changed; the result page reads the current state, so refreshing is safe.
+- A `GET` on an overdue token shows the expired explanation but changes nothing; expiry is applied on `POST`, on the approval-link endpoint and on the agent's `GET /v1/orders/{order_id}`.
+- Approval responses send `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and a Content Security Policy without scripts and with `form-action 'self'`.
+- The approver's comment is stored as untrusted text and returned to the agent in `approval.comment`; event bodies carry only `has_comment`.
+- `GET /console?key=` sets an HttpOnly, SameSite=Strict cookie (an HMAC of the admin key, never the key itself; Secure when `PUBLIC_BASE_URL` is https; path `/console`) and redirects to `/console` without the query string. The page refreshes every 3 seconds from `/console/live`, an HTML fragment authenticated by the same cookie. QR codes and approval links appear only when `DEMO_MODE` is true; otherwise pending approvals are listed without them.
+- QR codes and approval links are built from `PUBLIC_BASE_URL`, so moving from a tunnel to Modal is a configuration change.
+- `GET /v1/admin/orders/{order_id}/approval-link` returns `{order_id, approval_url, status, expires_at}`. A test harness approves by fetching it with `X-Admin-Key` and posting `decision=approve` to the URL.
+
 ## 9. Operation summary
 
 | Operation | Method and path | Auth | Priority |

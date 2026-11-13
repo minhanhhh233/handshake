@@ -91,6 +91,7 @@ handshake/
   config.py       settings from environment
   ids.py          prefixed identifier generation
   timeutil.py     the single clock; UTC storage, Europe/Helsinki display, upstream date parsing
+  demo.py         reset(conn): deletes trading rows, keeps catalog, parties and mandates
   mandates.py     mandate storage: current mandate, replace with next version
   api/deps.py     authentication dependencies (agent bearer key, admin key)
 modal_app.py      Modal entry point
@@ -103,6 +104,7 @@ scripts/
   seed_code_lookup.py  inferred code names for code_lookup (T-007, A-06)
   record_fixtures.py   records live price and availability answers into tests/fixtures/upstream/ (T-005)
   seed_demo.py    customers, agents, mandates for the demo; agent keys go to the git-ignored keys/demo_agents.json
+  reset_demo.py   handshake.demo.reset() then the seed; refuses databases named *test* without --force
   reset_demo.py
   gen_keys.py     creates the Ed25519 key pair
 sql/
