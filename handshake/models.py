@@ -429,11 +429,15 @@ class Excluded(_Model):
     reason: ExcludedReason
     message: str
     available_date: date | None = None
+    order_by: Timestamp | None = None
     policy_reason: Reason | None = None
 
     @model_serializer(mode="wrap")
     def _omit_none(self, handler):  # type: ignore[no-untyped-def]
-        return {k: v for k, v in handler(self).items() if v is not None}
+        # not_deliverable_by_date always states available_date and order_by, even when
+        # null, so the agent can propose a later date (document 03, section 5; Q-11).
+        keep = {"available_date", "order_by"} if self.reason == "not_deliverable_by_date" else set()
+        return {k: v for k, v in handler(self).items() if v is not None or k in keep}
 
 
 class OfferResponse(_Model):

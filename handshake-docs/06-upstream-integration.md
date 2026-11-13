@@ -103,7 +103,7 @@ Observed live formats (Q-04, Q-05, answered 2026-11-14): date-times such as `clo
 
 - Parse dates with a tolerant ISO 8601 parser and treat values without an offset as Europe/Helsinki.
 - Normalise `logisticModel` case-insensitively: a value containing `stock` becomes `stock`, one containing `terminal` becomes `terminal`, anything else becomes `unknown` with assurance `unconfirmed` (A-19).
-- Treat `availableAmount >= 999999` as unknown quantity regardless of `logisticModel`.
+- Treat `availableAmount >= 999999` (this includes the 9999999999 that some Stock products report) as unknown quantity regardless of `logisticModel`: no fill limit and no hold arithmetic. Assurance still follows `logisticModel`, so such a Stock product is `confirmed` (Q-15).
 - Store the raw response in the snapshot tables.
 
 ## 2. Upstream adapter
@@ -268,14 +268,14 @@ For each request line:
 2. **Static filter.** Drop candidates that fail `requirements` (`fails_requirements`), or that the mandate would reject under R2, R3 or R4 with effect rejected (`forbidden_by_mandate`). Record each in `excluded[]`; for `forbidden_by_mandate`, include the policy reason object so the agent can explain the refusal.
 3. **Upstream facts.** One adapter call for all remaining candidates across all lines.
 4. **Dynamic filter.** Drop candidates with `price_unavailable`, `sales_blocked`, `out_of_stock`, `not_deliverable_by_date` or `no_quantity_conversion`.
-5. **Capacity.** For Stock products, capacity in sales units is effective available quantity (document 04, section 4). For Terminal or unknown, capacity is unlimited and assurance is `unconfirmed`.
+5. **Capacity.** For Stock products with a known amount (below 999999), capacity in sales units is effective available quantity (document 04, section 4). For a Stock product with an amount of 999999 or more, capacity is unlimited and assurance stays `confirmed` (Q-15). For Terminal or unknown `logisticModel`, capacity is unlimited and assurance is `unconfirmed`.
 6. **Order of use.** P0: requested, then alternates in the agent's order, then substitutes by source (official first). P1: by descending score within each role (document 05, section 4).
 7. **Fill.** Take from each candidate in order until the requested base quantity is met. With `fulfilment: exact`, only the first surviving candidate is used.
 8. **Result.** If nothing can be filled, the request fails with `422 no_candidates`. If partly filled, the offer is issued with `complete: false` and the shortfall is visible as requested versus offered.
 
 Then, in one transaction: insert the offer, its lines and holds; write `offer.requested` and `offer.issued` events; sign the payload; return.
 
-`expires_at` = the earliest of issue time plus `OFFER_TTL_SECONDS` and each line's `order_by`. If any `order_by` is already in the past, that candidate is excluded with `not_deliverable_by_date` (Q-11).
+`expires_at` = the earliest of issue time plus `OFFER_TTL_SECONDS` and each line's `order_by`. If any `order_by` is already in the past, that candidate is excluded with `not_deliverable_by_date` (Q-11). Every `not_deliverable_by_date` entry in `excluded[]` carries `available_date` and `order_by` as described in document 03, section 5.
 
 Deposits listed in the product file are not added to totals (A-21, Q-12).
 

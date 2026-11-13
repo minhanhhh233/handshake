@@ -2,6 +2,39 @@
 
 Six build phases and a demo-prep phase. Each phase ends in something that runs. The acceptance scenario works end to end after phase 3.
 
+## 0. Deadline, scope and schedule (revised 2026-11-14)
+
+This section overrides the hours and the cut order below where they disagree.
+
+**Deadline.** Everything is submitted by **Sunday 15 November 2026, 10:00 Europe/Helsinki**. Feature freeze is **Sunday 00:00**.
+
+**Cut now:** T-501 (ranked options), T-502 (MCP server), T-503 (rules R7 and R10), T-504 (rate limiting). These are cuts 1 to 3 of section 6, applied deliberately. No replay mode.
+
+**Priority order:**
+
+1. Phase 1 (lookup and offers)
+2. Phase 2 (mandate and orders)
+3. Phase 3 (approval and agent)
+4. From phase 4, only T-401 (event log with hash chain), T-402 (receipt), T-403 (receipt page) and T-405 (`allergy_guard`)
+5. T-404 (split with gateway substitutes) and T-406 (comparison fields) only if everything above is done by **Saturday 20:00**
+
+**Targets (Saturday 14 November):**
+
+| Milestone | Target |
+|---|---|
+| Phases 1 and 2 "Done when" | 12:00 |
+| Phase 3 "Done when" | 18:00 |
+| Phase 4 subset (T-401, T-402, T-403, T-405) | 20:00 |
+| Optional T-404, T-406 | before 24:00 freeze |
+| Feature freeze | Sunday 00:00 |
+| Phase 6 demo preparation and submission | Sunday 00:00 to 10:00 |
+
+Any phase running more than an hour behind its target is reported at once. Phase 5's remaining tasks (T-505 anonymous demo step, T-506 OpenAPI tidy-up) are done during phase 6 if time allows.
+
+**Hosting.** Development and tests run against a local MariaDB in Docker. Deployment to Modal waits for a hosted database (Q-01); nothing in phases 1 to 3 depends on it.
+
+**Ways of working.** Each phase is built by parallel sub-agents on tasks that are independent in section 4, never two on the same file, against the shared contracts in `handshake/models.py` and `handshake/errors.py`.
+
 Hours assume about 30 working hours and a team of three or four (A-15). Scale them to the real deadline.
 
 ## 1. Roles
@@ -88,12 +121,12 @@ Done when: the example request runs from one prompt to a confirmed order, with a
 
 | Task | Owner | Requirement |
 |---|---|---|
-| T-401 Hash chaining in the event writer; chain verification helper | BE-B | FR-61 |
+| T-401 Hash chaining in the event writer; chain verification helper (kept; see section 0) | BE-B | FR-61 |
 | T-402 `GET /v1/orders/{order_id}/receipt` with signed receipt | BE-B | FR-62 |
 | T-403 Receipt page, buyer and Valio Aimo views | FE | FR-62 |
-| T-404 Split across alternates and substitutes; `differences`; official substitution rules | BE-A | FR-19, FR-50, FR-51 |
+| T-404 Split across alternates and substitutes; `differences`; official substitution rules (only if time allows; section 0) | BE-A | FR-19, FR-50, FR-51 |
 | T-405 Scripted agent scenario `allergy_guard`; second seeded agent | AG | FR-37 |
-| T-406 Comparison fields on offer lines and in search | BE-A | FR-06, FR-40 |
+| T-406 Comparison fields on offer lines and in search (only if time allows; section 0) | BE-A | FR-06, FR-40 |
 
 Done when: a split offer shows roles and differences, the milk-allergy order is rejected with the correct reason, and the receipt timeline renders.
 
@@ -101,10 +134,10 @@ Done when: a split offer shows roles and differences, the milk-allergy order is 
 
 | Task | Owner | Requirement |
 |---|---|---|
-| T-501 Ranking and up to three options with score breakdown | BE-A | FR-20, FR-41 |
-| T-502 MCP server | AG | FR-72 |
-| T-503 Rules R7 and R10 | BE-B | |
-| T-504 Rate limiting | BE-B | NFR-02 |
+| ~~T-501 Ranking and up to three options with score breakdown~~ (cut) | BE-A | FR-20, FR-41 |
+| ~~T-502 MCP server~~ (cut) | AG | FR-72 |
+| ~~T-503 Rules R7 and R10~~ (cut) | BE-B | |
+| ~~T-504 Rate limiting~~ (cut) | BE-B | NFR-02 |
 | T-505 Anonymous-versus-authenticated demo step | AG | FR-05 |
 | T-506 OpenAPI descriptions and examples tidy-up | BE-A | FR-71 |
 
@@ -153,7 +186,7 @@ BE-B can build T-201 and T-202 against the shared models before any offer exists
 
 ## 6. Cut order
 
-If time runs short, cut in this order. Each cut removes the listed tasks and nothing else breaks.
+If time runs short, cut in this order. Each cut removes the listed tasks and nothing else breaks. Cuts 1 to 3 were applied on 2026-11-14 (section 0); cuts 4 and 6 apply automatically if T-404 and T-406 are not done by Saturday 20:00.
 
 | Cut | Tasks | Effect on the demo |
 |---|---|---|

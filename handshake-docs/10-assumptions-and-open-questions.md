@@ -83,18 +83,20 @@ When an item is resolved: record the answer here with the date, then update the 
 |---|---|---|---|
 | Q-02 | 2026-11-14 | Live answers for 16 Nov 2026 are in document 06, section 4.2. All eight products are priced (`error: false`, `netPriceFound: true`) and all have `availableDate` 2026-11-16. Five are Stock, three are Terminal. Of the Stock products, 469363 reports 384 units and 462775 reports 51; 464398, 464201 and 464306 report `availableAmount` 9999999999, which is above the 999999 threshold and therefore "quantity unknown" under document 06, section 1.4. No product reports a known quantity of 1,000 L; the cheapest, 464306, can fill 1,000 L alone only if 9999999999 means "ample". See Q-15. | T-005: `/api/price` and `/api/availability`, called 2026-11-14 00:11 |
 | Q-04 | 2026-11-14 | `closingTime`, `timeNow`, `requestedDate`, `pricingDate`, `validFrom` and `validTo` are ISO 8601 date-times with a numeric offset **without a colon**, for example `2026-11-15T17:00:00+0200`. `availableDate` is a plain date, `2026-11-16`. An open-ended `validTo` is `9999-12-31T00:00:00+0200`. Python 3.12 `datetime.fromisoformat` parses all of them. | T-005 |
+| Q-03 | 2026-11-14 | The demo spend cap is **1000.00 EUR excl. tax**. The cheapest way to buy 1,000 L is 1010.00 EUR (464306), and every other product or mix costs more, so the example request always needs approval. 464306's price is valid from 2026-09-01 to 2026-12-31, which covers Sunday 15 and Monday 16 November. | Team decision on the T-005 prices |
 | Q-05 | 2026-11-14 | `logisticModel` is exactly `Stock` or `Terminal`. Terminal in the shortlist: 465039, 464179, 463038. Terminal products report `availableAmount` 999999, as documented. | T-005 |
 
 Observations from T-005 that bear on questions still open:
 
-- **Q-11.** The availability answer does not depend on `requestedDate`: requesting 2026-11-16 and 2026-11-23 returned identical bodies (`availableDate` 2026-11-16 for every product). So `closingTime` is the cut-off for `availableDate`, not for the requested date. All three Terminal products return `closingTime` 2026-11-12T15:00+0200, which had already passed when called. Under the current default (exclude candidates whose cut-off has passed), every Terminal shortlist product is excluded with `not_deliverable_by_date`. Stock products have `closingTime` 2026-11-15T17:00+0200, so offers for Monday 16 November cannot be issued after Sunday 17:00.
+- **Q-11.** Decision 2026-11-14: keep the rule (a passed cut-off excludes the candidate). When every candidate fails on the delivery date, the `422 no_candidates` body names the earliest date known for each excluded product (document 03, section 5), so the agent can propose it.
+- **Q-11 (observation).** The availability answer does not depend on `requestedDate`: requesting 2026-11-16 and 2026-11-23 returned identical bodies (`availableDate` 2026-11-16 for every product). So `closingTime` is the cut-off for `availableDate`, not for the requested date. All three Terminal products return `closingTime` 2026-11-12T15:00+0200, which had already passed when called. Under the current default (exclude candidates whose cut-off has passed), every Terminal shortlist product is excluded with `not_deliverable_by_date`. Stock products have `closingTime` 2026-11-15T17:00+0200, so offers for Monday 16 November cannot be issued after Sunday 17:00.
 - **Q-06.** No rate-limit headers were returned. Each call took about 130 ms.
 
 New question raised by T-005:
 
 | ID | Question | Owner | Needed by | Default until answered | Affects |
 |---|---|---|---|---|---|
-| Q-15 | Stock products may report `availableAmount` 9999999999 (not the Terminal sentinel 999999). Does it mean "ample stock" (assurance `confirmed`, no fill limit) or "unknown"? | Ask Valio Aimo mentors | Phase 1 | Treat the quantity as unknown (no fill limit, no hold arithmetic); assurance follows `logisticModel`, so Stock stays `confirmed` (FR-18) | 04 §4; 06 §1.4, §6; 09 §5 |
+| Q-15 | Stock products may report `availableAmount` 9999999999 (not the Terminal sentinel 999999). Does it mean "ample stock" or "unknown"? | Ask Valio Aimo mentors | Phase 1 | **Decided 2026-11-14 for the prototype:** any `availableAmount` of 999999 or more means no fill limit and no hold arithmetic. Assurance follows `logisticModel` only, so such a Stock product stays `confirmed` (FR-18); Terminal stays `unconfirmed`. | 04 §4; 06 §1.4, §6; 09 §5 |
 
 ## 3. Known limitations (accepted, not open)
 
@@ -103,7 +105,10 @@ New question raised by T-005:
 - Contract pricing per customer is not demonstrated.
 - No key rotation or agent key revocation flow beyond suspending an agent.
 - No notification channel for approvers other than the demo QR code.
-- Without rule R7, the per-order cap can be avoided by splitting orders.
+- Without rule R7, the per-order cap can be avoided by splitting orders. R7 and R10 were cut for the deadline (document 08, section 0).
+- No rate limiting (T-504 cut). Candidate limits (25 per line, 10 lines) still apply.
+- No MCP server (T-502 cut) and one option per offer request (T-501 cut).
+- The live demo cannot show an `unconfirmed` (Terminal) line: every Terminal shortlist product's cut-off has passed (Q-11). The behaviour is covered by test F-04.
 - The upstream cache is per process; several gateway containers may each call upstream.
 - Category, unit and some allergen names are inferred.
 
@@ -112,4 +117,5 @@ New question raised by T-005:
 | Date | Item | Change |
 |---|---|---|
 | 2026-11-13 | All | First version |
+| 2026-11-14 | Q-03, Q-15, Q-11 | Cap set to 1000.00 EUR; Q-15 default adopted; Q-11 rule kept, earliest date added to 422; scope cut recorded under known limitations |
 | 2026-11-14 | Q-02, Q-04, Q-05, A-05, A-19 | Answered from live calls in T-005; observations on Q-06 and Q-11 recorded; Q-15 added |

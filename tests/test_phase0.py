@@ -151,12 +151,25 @@ def test_loader_transform_follows_documented_mapping():
 
 
 @pytest.mark.db
-def test_loader_end_to_end_on_synthetic_file(clean_db, tmp_path, monkeypatch):
+def test_loader_end_to_end_on_synthetic_file(test_engine, tmp_path):
+    """Runs the loader against its own scratch schema so the shared test catalog survives."""
+    from sqlalchemy import create_engine
+
+    from .conftest import SCHEMA, _statements
+
+    scratch = test_engine.url.set(database="handshake_test_loader")
+    with test_engine.begin() as conn:
+        conn.exec_driver_sql("DROP DATABASE IF EXISTS handshake_test_loader")
+        conn.exec_driver_sql("CREATE DATABASE handshake_test_loader CHARACTER SET utf8mb4")
+    eng = create_engine(scratch)
+    with eng.begin() as conn:
+        for stmt in _statements(SCHEMA.read_text(encoding="utf-8")):
+            conn.exec_driver_sql(stmt)
     p = tmp_path / "products.json"
     p.write_text(json.dumps(SYNTHETIC), encoding="utf-8")
     rel = tmp_path / "rel.csv"
     rel.write_text("productId,deliveryReliability\n900001,0.995\n", encoding="utf-8")
-    url = str(clean_db.url.render_as_string(hide_password=False))
+    url = scratch.render_as_string(hide_password=False)
     env = {**__import__("os").environ, "DATABASE_URL": url}
     out = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "load_data.py"), "--products", str(p),
@@ -164,7 +177,10 @@ def test_loader_end_to_end_on_synthetic_file(clean_db, tmp_path, monkeypatch):
         capture_output=True, text=True, env=env,
     )
     assert "2 products loaded" in out.stdout, out.stdout + out.stderr
-    with clean_db.connect() as conn:
+    with eng.connect() as conn:
         rel_val = conn.exec_driver_sql(
             "SELECT delivery_reliability FROM products WHERE product_id='900001'").scalar_one()
+    eng.dispose()
+    with test_engine.begin() as conn:
+        conn.exec_driver_sql("DROP DATABASE handshake_test_loader")
     assert rel_val == Decimal("0.995")

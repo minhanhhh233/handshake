@@ -88,6 +88,7 @@ Notes:
 - R8: `official_rules_only` passes substitutes whose `substitution_source` is `valio_aimo_substitution_rule`. `any_meeting_requirements` passes all substitutes. `none` passes none. Lines with role `alternate` never fire R8, because the agent listed them itself.
 - Evaluation always uses the mandate that is current at evaluation time, and records its version on the order.
 - Without R7, an agent could stay under the per-order cap by placing several small orders. State this limitation if R7 is not built.
+- **Cut for the deadline (document 08, section 0).** R7 and R10 (T-503) are not built. Their mandate fields are accepted and stored but not evaluated, and the order-splitting limitation applies.
 
 ### Reason object
 
@@ -134,7 +135,7 @@ Options:
 | `better` | Fill by ascending comparison price (cheapest), if different from `best` |
 | `good` | Fill using the fewest distinct products, if different from the others |
 
-Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order.
+Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order. **Cut for the deadline (document 08, section 0).** T-501 is not built, so only the P0 behaviour exists and `preferences` has no effect.
 
 ## 5. Signing
 

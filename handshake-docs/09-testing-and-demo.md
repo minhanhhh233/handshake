@@ -123,13 +123,15 @@ Created by `scripts/seed_demo.py`. All names are fictional.
 | Customer 1 | Nordlys Hotels |
 | Agent 1 | "Nordlys purchasing agent" |
 | Approver 1 | Maria Virtanen |
-| Mandate 1 | Cap placeholder `1000.00` EUR per order (Q-03); all categories; no forbidden allergens; `official_rules_only`; weekdays 1 to 6 |
+| Mandate 1 | Cap `1000.00` EUR per order excl. tax (Q-03, confirmed); all categories; no forbidden allergens; `official_rules_only`; weekdays 1 to 6 |
 | Customer 2 | Koivula School Kitchens |
 | Agent 2 | "Koivula purchasing agent" |
 | Approver 2 | Antti Laine |
 | Mandate 2 | Cap `500.00`; forbidden allergens `["AM"]`, states `CONTAINS` and `MAY_CONTAIN`, `unknown` = `reject` |
 
-Set mandate 1's cap just below the live cost of 1,000 L of the cheapest shortlist product, so the example request needs approval. On 2026-11-14 that cost was 1010.00 EUR excl. tax (464306; document 06, section 4.2). If live stock means no split occurs naturally, pre-create a committed hold on the first-choice product in `seed_demo.py` so that it has less than 1,000 L available, and say so in the demo (A-24).
+Set mandate 1's cap just below the live cost of 1,000 L of the cheapest shortlist product, so the example request needs approval. On 2026-11-14 that cost was 1010.00 EUR excl. tax (464306; document 06, section 4.2), so the cap is `1000.00` (Q-03).
+
+The main scenario does not split: 1,000 L of 464306 is filled by one product, because its stock is reported as 9999999999 (no fill limit, Q-15). No hold is pre-created, so A-24 is not used. The optional split scenario below uses real stock instead.
 
 ## 6. Demo script
 
@@ -139,13 +141,18 @@ About three minutes; confirm the allowed length and format with the organisers (
 |---|---|---|---|
 | 1 | Type the brief's example request, word for word | The request | The brief is met as written |
 | 2 | Agent calls `get_mandate`, then `search_products` | Structured results with claims and allergens | Core 1 |
-| 3 | Agent calls `request_offer` | Signed offer, expiry countdown, lines with roles and stock assurance | Core 2; exception handling if split |
+| 3 | Agent calls `request_offer` | Signed offer for 1,000 units of 464306, expiry countdown, stock assurance `confirmed` | Core 2 |
 | 4 | Run `verify_offer.py` | "Signature valid", then "Signature invalid" for the tampered copy | Trust protocol |
 | 5 | Agent calls `dry_run_order` | `needs_approval: spend_cap_exceeded` | Core 3, guardrails |
 | 6 | Agent calls `place_order`; scan the QR on the console | Approval page on the phone; tap Approve | Core 3, human sign-off |
 | 7 | Agent polls; order `confirmed` | Receipt timeline | Traceability |
 | 8 | Run the anonymous search | Same products, no prices, no stock | Data ownership |
 | 9 (optional) | Run `allergy_guard` | Refusal: "Lactose-free is not milk-free." | Unknown is not safe |
+| 10 (optional) | Run `scripted.py --scenario milk_split`: 1,000 L with 469363 listed first, then 464306, `substitution: allowed` | Split offer: 384 units of 469363 (`requested`, the real stock figure) plus 616 units of 464306 (`alternate`) | Exception handling on real partial availability |
+
+The split in step 10 comes from the agent's own alternates (T-106), so it works even if T-404 (gateway-added substitutes) is not built. It consumes 384 units of 469363 for the rest of the run, so run `reset_demo.py` before repeating it.
+
+**No unconfirmed-stock step in the live demo.** Every Terminal product in the shortlist has an upstream cut-off of 12 November 15:00 that has already passed, and the gateway does not offer past a cut-off (Q-11). An `unconfirmed` line therefore cannot appear on real data. The behaviour is covered by test F-04 and is answered verbally (section 8, "What about products where you do not know the stock?").
 
 ### Fallbacks
 

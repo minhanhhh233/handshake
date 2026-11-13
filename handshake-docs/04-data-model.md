@@ -315,7 +315,7 @@ effective_available = upstream.available_amount
                                    OR (status = 'held' AND expires_at > NOW())))
 ```
 
-For a Terminal product the upstream amount is unknown, so no subtraction is done and the line is marked `unconfirmed`. Holds are still recorded for audit.
+For a Terminal product the upstream amount is unknown, so no subtraction is done and the line is marked `unconfirmed`. The same applies to any product whose upstream amount is 999999 or more, except that a Stock product keeps assurance `confirmed` (Q-15). Holds are still recorded for audit.
 
 Committed holds are subtracted because the challenge has no upstream order API; upstream never learns about Handshake orders (A-01, A-18).
 

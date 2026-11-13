@@ -91,6 +91,8 @@ handshake/
   config.py       settings from environment
   ids.py          prefixed identifier generation
   timeutil.py     the single clock; UTC storage, Europe/Helsinki display, upstream date parsing
+  mandates.py     mandate storage: current mandate, replace with next version
+  api/deps.py     authentication dependencies (agent bearer key, admin key)
 modal_app.py      Modal entry point
 pyproject.toml    dependencies (extras: agent, mcp, deploy, dev)
 .env.example      local configuration template; the real .env is git-ignored
@@ -106,7 +108,9 @@ scripts/
 sql/
   schema.sql      DDL from document 04
 tests/
-  conftest.py     wipes and rebuilds the TEST_DATABASE_URL schema from sql/schema.sql
+  conftest.py     wipes and rebuilds the TEST_DATABASE_URL schema from sql/schema.sql; copies the catalog once from the dev database
+  factories.py    customers, agents and mandates for tests
+  fakes.py        FakeUpstream and make_facts(); tests never call the live upstream
   fixtures/       recorded upstream responses (not committed if they contain challenge data; see README)
 data/             challenge files, git-ignored
 ```

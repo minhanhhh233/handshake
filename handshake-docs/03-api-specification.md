@@ -48,6 +48,8 @@ A policy `rejected` outcome is not an HTTP error. It is a successful evaluation 
 
 60 requests per minute per agent key, 20 per minute per IP for anonymous callers. Offer requests additionally count candidates (NFR-02).
 
+**Cut for the deadline (document 08, section 0).** Rate limiting (T-504) is not implemented in the prototype. `429 rate_limited` stays reserved. The candidate limits (25 per line, 10 lines) are enforced by validation.
+
 ## 2. Discovery
 
 ### `GET /.well-known/handshake.json`
@@ -199,7 +201,7 @@ Request:
 | `lines[].requirements` | Optional. Applied to every product used to fill the line, including substitutes. |
 | `lines[].fulfilment` | `exact` (one product or fail) or `allow_split` (default). |
 | `lines[].substitution` | `none` (default) or `allowed`. When allowed, the gateway may add products not in `product_ids`. |
-| `max_options` | 1 to 3, default 1. Values above 1 are a P1 feature. |
+| `max_options` | 1 to 3, default 1. Values above 1 are a P1 feature. **Cut for the deadline (document 08, section 0).** Ranked options (T-501) are not built: the gateway accepts 1 to 3 and always returns one option, `best`, filled in the agent's preference order, with no `score`. |
 
 Response `201`:
 
@@ -221,6 +223,8 @@ Response `201`:
 ```
 
 `excluded[].reason` values: `price_unavailable`, `sales_blocked`, `not_deliverable_by_date`, `no_quantity_conversion`, `fails_requirements`, `forbidden_by_mandate`, `out_of_stock`.
+
+When the reason is `not_deliverable_by_date`, the item always carries `available_date` (the earliest date upstream reports, or `null` if none is known) and `order_by` (the upstream cut-off for that date, or `null`). If the cut-off has already passed, `available_date` is `null`, because upstream gives no later date (Q-11), and the message says so. The agent can propose `available_date` to the user when it is later than the requested date.
 
 Each excluded item also carries a plain-language `message` and `request_line` (the 1-based request line it was a candidate for, since one product ID can appear in several lines). When the reason is `forbidden_by_mandate`, it carries `policy_reason`, a reason object as defined in document 05, section 3. A `422 no_candidates` error body includes the same `excluded[]` array.
 

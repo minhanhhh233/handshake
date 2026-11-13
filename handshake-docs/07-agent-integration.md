@@ -112,9 +112,11 @@ The model is not told the category code in advance. The first `search_products` 
 - as the end-to-end integration test (document 09);
 - as the live fallback if the model or network is slow.
 
-It takes `--scenario` with values `milk_order` and `allergy_guard`.
+It takes `--scenario` with values `milk_order`, `milk_split` (optional; see document 09, section 6) and `allergy_guard`.
 
 ## 6. MCP server (P1)
+
+**Cut for the deadline (document 08, section 0).** T-502 is not built. This section stays as the design; in the pitch it is shown on a slide.
 
 `mcp_server/server.py` registers the eight tools from section 2 with the same names and schemas and delegates to `handshake_client`. Configuration is `HANDSHAKE_BASE_URL` and `HANDSHAKE_AGENT_KEY`. It runs locally over stdio for the demo.
 
