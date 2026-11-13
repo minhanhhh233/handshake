@@ -31,6 +31,7 @@ testpaths = ["tests"]
 markers = [
     "db: needs a reachable MariaDB (TEST_DATABASE_URL)",
     "live: calls the live upstream or deployed gateway",
+    "browser: drives a real browser with Playwright (skipped if not installed)",
 ]
 addopts = "-m 'not live'"
 
