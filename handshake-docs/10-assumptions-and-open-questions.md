@@ -16,7 +16,7 @@ When an item is resolved: record the answer here with the date, then update the 
 | A-01 | The challenge has no upstream order API. An order is "confirmed" when Handshake records it; nothing is written to Valio Aimo. | If an order API exists, add an upstream call on confirmation and drop committed holds from the availability arithmetic. | 01 §2, 02 §5, 04 §4, 05 §6 |
 | A-02 | The upstream `customer` value does not change prices or availability. Contract pricing is described in the pitch, not demonstrated. Tiered visibility means anonymous versus authenticated. | If customer-specific data appears, pass `customers.upstream_customer` and add a demo step. | 01 FR-05, 06 §1 |
 | A-18 | Upstream `availableAmount` is not reduced by Handshake orders, so Handshake subtracts its own holds. | If upstream stock changes during the event, holds may double-count; acceptable for the prototype. | 04 §4 |
-| A-19 | `logisticModel` contains the words "Stock" or "Terminal" in some casing. Anything else is treated as unknown and unconfirmed. | Wrong assurance labels. Confirm with Q-05. | 06 §1.4 |
+| A-19 | `logisticModel` contains the words "Stock" or "Terminal" in some casing. Anything else is treated as unknown and unconfirmed. **Confirmed 2026-11-14 (Q-05):** the live values are exactly `Stock` and `Terminal`. | Wrong assurance labels. | 06 §1.4 |
 | A-21 | Deposits (returnable packaging) are not added to offer totals. | Totals understate the real invoice for 506 products with deposits. See Q-12. | 06 §6 |
 
 ### Money and quantity
@@ -25,7 +25,7 @@ When an item is resolved: record the answer here with the date, then update the 
 |---|---|---|---|
 | A-03 | Spend caps compare the order total excluding tax, as is usual in B2B purchasing. | Change the comparison field in rule R6 and R7. | 05 §2, §3 |
 | A-04 | Products are ordered in whole sales units. An `allowedLotSize` of 0.01 (16,872 products) is treated as "any whole number" unless `variableUnit` is true. | Quantity rounding is wrong for weight-sold products. See Q-08. | 06 §5 |
-| A-05 | `catalogPrice.value / comparisonPrice.value` gives the litres or kilograms in one sales unit accurately enough for ordering. | Wrong sales-unit counts. Cross-check against product volume in T-005. | 06 §5 |
+| A-05 | `catalogPrice.value / comparisonPrice.value` gives the litres or kilograms in one sales unit accurately enough for ordering. **Checked 2026-11-14 (T-005):** for the six shortlist products with a volume in the product data, the ratio is within 0.07% of it. 465039 and 463038 (cases) have no volume in the product data, so only the ratio works for them (5.0073 L and 19.9427 L for a 5 L and a 20 L case; the gap comes from the comparison price being rounded to cents). | Wrong sales-unit counts. | 06 §5 |
 
 ### Product data
 
@@ -77,6 +77,25 @@ When an item is resolved: record the answer here with the date, then update the 
 | Q-13 | May the code repository be public for judging if it contains no challenge data or keys? | FE; ask organisers | Phase 6 | Keep the repository private; share access on request | README |
 | Q-14 | Does Valio Aimo want substitutions limited to its own substitution rules, or is "same category, same claims" acceptable as a second tier? | Ask Valio Aimo mentors | Phase 4 | Both tiers; second tier needs approval by default | 05 §3, 06 §6 |
 
+### 2.1 Answers
+
+| ID | Date | Answer | Source |
+|---|---|---|---|
+| Q-02 | 2026-11-14 | Live answers for 16 Nov 2026 are in document 06, section 4.2. All eight products are priced (`error: false`, `netPriceFound: true`) and all have `availableDate` 2026-11-16. Five are Stock, three are Terminal. Of the Stock products, 469363 reports 384 units and 462775 reports 51; 464398, 464201 and 464306 report `availableAmount` 9999999999, which is above the 999999 threshold and therefore "quantity unknown" under document 06, section 1.4. No product reports a known quantity of 1,000 L; the cheapest, 464306, can fill 1,000 L alone only if 9999999999 means "ample". See Q-15. | T-005: `/api/price` and `/api/availability`, called 2026-11-14 00:11 |
+| Q-04 | 2026-11-14 | `closingTime`, `timeNow`, `requestedDate`, `pricingDate`, `validFrom` and `validTo` are ISO 8601 date-times with a numeric offset **without a colon**, for example `2026-11-15T17:00:00+0200`. `availableDate` is a plain date, `2026-11-16`. An open-ended `validTo` is `9999-12-31T00:00:00+0200`. Python 3.12 `datetime.fromisoformat` parses all of them. | T-005 |
+| Q-05 | 2026-11-14 | `logisticModel` is exactly `Stock` or `Terminal`. Terminal in the shortlist: 465039, 464179, 463038. Terminal products report `availableAmount` 999999, as documented. | T-005 |
+
+Observations from T-005 that bear on questions still open:
+
+- **Q-11.** The availability answer does not depend on `requestedDate`: requesting 2026-11-16 and 2026-11-23 returned identical bodies (`availableDate` 2026-11-16 for every product). So `closingTime` is the cut-off for `availableDate`, not for the requested date. All three Terminal products return `closingTime` 2026-11-12T15:00+0200, which had already passed when called. Under the current default (exclude candidates whose cut-off has passed), every Terminal shortlist product is excluded with `not_deliverable_by_date`. Stock products have `closingTime` 2026-11-15T17:00+0200, so offers for Monday 16 November cannot be issued after Sunday 17:00.
+- **Q-06.** No rate-limit headers were returned. Each call took about 130 ms.
+
+New question raised by T-005:
+
+| ID | Question | Owner | Needed by | Default until answered | Affects |
+|---|---|---|---|---|---|
+| Q-15 | Stock products may report `availableAmount` 9999999999 (not the Terminal sentinel 999999). Does it mean "ample stock" (assurance `confirmed`, no fill limit) or "unknown"? | Ask Valio Aimo mentors | Phase 1 | Treat the quantity as unknown (no fill limit, no hold arithmetic); assurance follows `logisticModel`, so Stock stays `confirmed` (FR-18) | 04 §4; 06 §1.4, §6; 09 §5 |
+
 ## 3. Known limitations (accepted, not open)
 
 - No payment, invoicing or credit checks.
@@ -93,3 +112,4 @@ When an item is resolved: record the answer here with the date, then update the 
 | Date | Item | Change |
 |---|---|---|
 | 2026-11-13 | All | First version |
+| 2026-11-14 | Q-02, Q-04, Q-05, A-05, A-19 | Answered from live calls in T-005; observations on Q-06 and Q-11 recorded; Q-15 added |

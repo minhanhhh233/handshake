@@ -97,7 +97,8 @@ def by_language(items: Any) -> dict[str, str]:
 
 
 def classification(rec: dict, name: str) -> list[dict]:
-    for c in rec.get("classifications") or []:
+    groups = rec.get("classifications") or (rec.get("synkkaData") or {}).get("classifications")
+    for c in groups or []:
         if isinstance(c, dict) and c.get("name") == name:
             return [v for v in (c.get("values") or []) if isinstance(v, dict)]
     return []
@@ -116,7 +117,7 @@ def to_kg(value: Decimal, unit: str | None) -> Decimal | None:
 
 def unit_size(units: list[dict], unit_code: str) -> Decimal | None:
     for u in units:
-        if str(first(u, "unit", "unitCode", "code", default="")).upper() == unit_code.upper():
+        if str(first(u, "unitId", "unit", "unitCode", "code", default="")).upper() == unit_code.upper():
             return dec(first(u, "sizeInBaseUnits", "size_in_base_units", "quantity",
                              "baseUnitQuantity"))
     return None
@@ -131,8 +132,7 @@ def conversions(synkka: dict) -> dict[str, dict[str, Decimal]]:
     for c in raw:
         if not isinstance(c, dict):
             continue
-        level = str(first(c, "level", "type", "unitType", "tradeItemUnitDescriptor",
-                          default="")).upper()
+        level = str(first(c, "synkkaPackagingType", "level", "type", default="")).upper()
         slot = out.setdefault(level, {})
         for key in ("volume", "netVolume", "netContent"):
             v = c.get(key)
@@ -212,7 +212,7 @@ def transform(rec: dict) -> dict[str, Any]:
 
     subs = []
     for s in rec.get("substitutions") or []:
-        sid = s if isinstance(s, (str, int)) else first(s, "productId", "id", "substituteProductId")
+        sid = s if isinstance(s, (str, int)) else first(s, "substituteProduct", "productId", "id")
         if sid is not None:
             subs.append(str(sid))
 
@@ -245,15 +245,14 @@ def transform(rec: dict) -> dict[str, Any]:
             "net_volume_l_per_sales_unit": per_sales_unit(rec, synkka, units, "L"),
             "net_weight_kg_per_sales_unit": per_sales_unit(rec, synkka, units, "KG"),
             "units_json": json.dumps(units, default=str, ensure_ascii=False),
-            "nutrition_json": json.dumps(first(synkka, "nutritionalValues", "nutrition",
-                                               "nutrients") or rec.get("nutrition"),
-                                         default=str, ensure_ascii=False)
-            if (first(synkka, "nutritionalValues", "nutrition", "nutrients")
-                or rec.get("nutrition")) else None,
-            "ingredient_origins_json": json.dumps(first(synkka, "ingredients",
-                                                        "ingredientOrigins"),
-                                                  default=str, ensure_ascii=False)
-            if first(synkka, "ingredients", "ingredientOrigins") else None,
+            # Raw synkkaData.nutritionalContent and synkkaData.ingredients; the catalog
+            # shapes them for the API (document 03, section 3).
+            "nutrition_json": json.dumps(synkka["nutritionalContent"], default=str,
+                                         ensure_ascii=False)
+            if synkka.get("nutritionalContent") else None,
+            "ingredient_origins_json": json.dumps(synkka["ingredients"], default=str,
+                                                  ensure_ascii=False)
+            if synkka.get("ingredients") else None,
             "untrusted_text_json": json.dumps(untrusted, ensure_ascii=False)
             if untrusted else None,
         },

@@ -71,3 +71,16 @@ def load_settings() -> Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return load_settings()
+
+
+@lru_cache(maxsize=1)
+def tls_context():  # noqa: ANN201
+    """TLS context backed by the operating system's certificate store (verification on).
+
+    Some development machines intercept TLS with a locally trusted CA that certifi lacks.
+    """
+    import ssl
+
+    import truststore
+
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

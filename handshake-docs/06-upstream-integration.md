@@ -99,7 +99,7 @@ Any of `catalogPrice`, `comparisonPrice`, `tax` may be null. A candidate with a 
 | `availableAmount` | Quantity in `salesUnit`; always 999999 for Terminal; 0 means not available | Fill limit for Stock products |
 | `availableDate` | Earliest date the amount is available; may differ from the requested date | Later than `delivery_date`: excluded with `not_deliverable_by_date` |
 
-The string formats of `closingTime`, `availableDate`, `validFrom`, `validTo` and `timeNow`, and the exact values of `logisticModel`, are not specified upstream (Q-04, Q-05). The adapter MUST:
+Observed live formats (Q-04, Q-05, answered 2026-11-14): date-times such as `closingTime`, `timeNow`, `validFrom` and `validTo` look like `2026-11-15T17:00:00+0200` (offset without a colon); `availableDate` is a plain date; `logisticModel` is `Stock` or `Terminal`. Stock products may report `availableAmount` 9999999999 (Q-15). The answer does not vary with `requestedDate` (see Q-11 in document 10). The adapter MUST still:
 
 - Parse dates with a tolerant ISO 8601 parser and treat values without an offset as Europe/Helsinki.
 - Normalise `logisticModel` case-insensitively: a value containing `stock` becomes `stock`, one containing `terminal` becomes `terminal`, anything else becomes `unknown` with assurance `unconfirmed` (A-19).
@@ -211,18 +211,20 @@ Without `q`, order by `delivery_reliability DESC` (nulls last), then `product_id
 
 ### 4.2 Demo shortlist
 
-These eight products are the first to check against the live APIs (Q-02). They are plain lactose-free milks in 1 litre or 10 litre formats.
+These eight products are plain lactose-free milks in 1 litre or 10 litre formats. Live answers for delivery on 16 November 2026, called on 2026-11-14 (Q-02). Prices are EUR per sales unit excluding tax; tax is 13.5% for all eight. "Cost of 1,000 L" is whole sales units at the catalog price, excluding tax.
 
-| Product ID | English name | Sales unit | Case size |
-|---|---|---|---|
-| 464398 | Valio Eila® semi skimmed milk drink 1 l UHT lactose free | ST | 10 |
-| 464201 | Valio semi skimmed milk 1 l lactose free UHT | ST | 10 |
-| 465039 | Valio Eila® semi skimmed milk drink 1 l lactose free | KI | 5 |
-| 464306 | Valio Hyvä suomalainen Arki® Eila® semi skimmed milk drink 1 l lactose free | ST | 20 |
-| 469363 | Arla Semi skimmed milkdrink 1 L UHT lactose free Suomesta | ST | 12 |
-| 462775 | Arla Milkdrink 1L lactose free fat free UHT Suomesta | ST | 12 |
-| 464179 | Arla 10 L Novobox Suomi semi skimmed lactose free milk drink ESL | ST | 1 (sold singly) |
-| 463038 | Valio Eila® semi skimmed milk drink 10 l novobox lactose free | KI | 2 |
+| Product ID | English name | Sales unit | Case size | Price | Per L | Model | Available | Cut-off | Cost of 1,000 L |
+|---|---|---|---|---|---|---|---|---|---|
+| 464398 | Valio Eila® semi skimmed milk drink 1 l UHT lactose free | ST | 10 | 1.65 | 1.65 | Stock | 9999999999 (Q-15) | 15 Nov 17:00 | 1650.00 |
+| 464201 | Valio semi skimmed milk 1 l lactose free UHT | ST | 10 | 1.56 | 1.56 | Stock | 9999999999 (Q-15) | 15 Nov 17:00 | 1560.00 |
+| 465039 | Valio Eila® semi skimmed milk drink 1 l lactose free | KI | 5 | 6.86 | 1.37 | Terminal | unknown | 12 Nov 15:00 (passed) | 1372.00 |
+| 464306 | Valio Hyvä suomalainen Arki® Eila® semi skimmed milk drink 1 l lactose free | ST | 20 | 1.01 | 1.01 | Stock | 9999999999 (Q-15) | 15 Nov 17:00 | 1010.00 |
+| 469363 | Arla Semi skimmed milkdrink 1 L UHT lactose free Suomesta | ST | 12 | 2.48 | 2.48 | Stock | 384 | 15 Nov 17:00 | 2480.00 |
+| 462775 | Arla Milkdrink 1L lactose free fat free UHT Suomesta | ST | 12 | 2.57 | 2.57 | Stock | 51 | 15 Nov 17:00 | 2570.00 |
+| 464179 | Arla 10 L Novobox Suomi semi skimmed lactose free milk drink ESL | ST | 1 (sold singly) | 27.22 | 2.72 | Terminal | unknown | 12 Nov 15:00 (passed) | 2722.00 |
+| 463038 | Valio Eila® semi skimmed milk drink 10 l novobox lactose free | KI | 2 | 31.31 | 1.57 | Terminal | unknown | 12 Nov 15:00 (passed) | 1596.81 |
+
+Delivery reliability is 1.000 where present (464398, 464201, 465039, 464306). All eight have a carbon value of 1.1 kg CO2e per kg.
 
 Product 464306 has four official substitutes: 465039, 464398, 469363 and 464201.
 

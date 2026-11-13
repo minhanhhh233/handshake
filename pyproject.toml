@@ -17,6 +17,7 @@ dependencies = [
     "segno>=1.6",
     "ijson>=3.3",
     "tzdata>=2024.1",
+    "truststore>=0.9",
 ]
 
 [project.optional-dependencies]

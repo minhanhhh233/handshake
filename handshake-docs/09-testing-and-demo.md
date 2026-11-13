@@ -129,7 +129,7 @@ Created by `scripts/seed_demo.py`. All names are fictional.
 | Approver 2 | Antti Laine |
 | Mandate 2 | Cap `500.00`; forbidden allergens `["AM"]`, states `CONTAINS` and `MAY_CONTAIN`, `unknown` = `reject` |
 
-Set mandate 1's cap just below the live cost of 1,000 L of the cheapest shortlist product, so the example request needs approval. If live stock means no split occurs naturally, pre-create a committed hold on the first-choice product in `seed_demo.py` so that it has less than 1,000 L available, and say so in the demo (A-24).
+Set mandate 1's cap just below the live cost of 1,000 L of the cheapest shortlist product, so the example request needs approval. On 2026-11-14 that cost was 1010.00 EUR excl. tax (464306; document 06, section 4.2). If live stock means no split occurs naturally, pre-create a committed hold on the first-choice product in `seed_demo.py` so that it has less than 1,000 L available, and say so in the demo (A-24).
 
 ## 6. Demo script
 

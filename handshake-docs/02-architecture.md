@@ -65,7 +65,7 @@ The policy engine MUST have no I/O. The orders module gathers its inputs and per
 | Hosting | Modal, one ASGI web endpoint | Verify decorator and secret syntax against current Modal docs (A-14) |
 | Database | MariaDB 10.6 or later | System-versioned tables are required (Q-01) |
 | DB access | SQLAlchemy 2 Core with PyMySQL | Synchronous; one connection pool per container |
-| HTTP client | httpx | For upstream calls, with timeouts |
+| HTTP client | httpx with `truststore` | For upstream calls, with timeouts. TLS is verified against the operating system's certificate store, which also works where TLS is intercepted by a locally trusted CA. |
 | Signing | PyJWT with the `cryptography` backend, algorithm EdDSA (Ed25519) | No hand-written cryptography |
 | Templates | Jinja2 | Human pages |
 | Agent | Anthropic Python SDK, tool use | Model set by `ANTHROPIC_MODEL` |
@@ -99,6 +99,7 @@ agent/
 scripts/
   load_data.py
   seed_code_lookup.py  inferred code names for code_lookup (T-007, A-06)
+  record_fixtures.py   records live price and availability answers into tests/fixtures/upstream/ (T-005)
   seed_demo.py    customers, agents, mandates for the demo
   reset_demo.py
   gen_keys.py     creates the Ed25519 key pair

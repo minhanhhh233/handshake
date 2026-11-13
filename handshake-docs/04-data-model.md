@@ -330,16 +330,17 @@ Committed holds are subtracted because the challenge has no upstream order API; 
 | `brand` | `synkkaData.brand` |
 | `vendor_name`, `category_code`, `sales_unit`, `base_unit`, `allowed_lot_size`, `country_of_origin`, `temperature_condition` | Same-named top-level fields (`category`, `salesUnit`, `baseUnit`, `allowedLotSize`, `countryOfOrigin`, `temperatureCondition`) |
 | `variable_unit` | `synkkaData.variableUnit` |
-| `product_claims` | `classifications[name = nutritionalClaim].values[].id` |
+| `product_claims` | `synkkaData.classifications[name = nutritionalClaim].values[].id` (the `classifications` array sits under `synkkaData`, as in the next three rows) |
 | `product_allergens` | `classifications[name = allergen].values[]` with `unit` as state (`CONTAINS`, `MAY_CONTAIN`); `classifications[name = nonAllergen].values[]` as `FREE_FROM` |
 | `has_allergen_data` | TRUE when either group has at least one value |
 | `product_labels` | `classifications[name = packagingMarkedLabel].values[].id`, excluding `warmTemperature`, `coolTemperature`, `freezeTemperature` |
-| `product_substitutions` | `substitutions[]` |
-| `net_volume_l_per_sales_unit`, `net_weight_kg_per_sales_unit` | Derived from `synkkaData.unitConversions` and `units`; NULL when not derivable (see document 06, section 5) |
+| `product_substitutions` | `substitutions[].substituteProduct` (each entry is `{ "product", "substituteProduct" }`) |
+| `net_volume_l_per_sales_unit`, `net_weight_kg_per_sales_unit` | Derived from `synkkaData.unitConversions` (level in `synkkaPackagingType`; volume in `LTR` or `MLT`; weight in `GRM`) and top-level `units[]` (`unitId`, `sizeInBaseUnits`); NULL when not derivable (see document 06, section 5) |
+| `nutrition_json`, `ingredient_origins_json` | `synkkaData.nutritionalContent` and `synkkaData.ingredients`, stored as received |
 | `delivery_reliability` | Reliability CSV, column `deliveryReliability` |
 | `carbon_kg_co2e_per_kg` | Carbon CSV, column `AVG kg CO2-eq/kg` |
-| `untrusted_text_json` | `marketingTexts`, `keyIngredients`, `preparationInstructions`, `usageInstructions`, `storageInstructions` |
+| `untrusted_text_json` | `synkkaData.marketingTexts`, `keyIngredients`, `preparationInstructions`, `usageInstructions` and `storageInstructions`, each a list of `{ "value", "language" }` |
 
 If one product has both an allergen and a non-allergen statement for the same code, the stricter state wins: `CONTAINS` over `MAY_CONTAIN` over `FREE_FROM`.
 
-Expected row counts after loading: 17,546 products; 250 substitution rules; 4,425 products with reliability; 11,033 with a carbon value; 9,436 products with `has_allergen_data = TRUE`.
+Expected row counts after loading (all five confirmed on 2026-11-14): 17,546 products; 250 substitution rules; 4,425 products with reliability; 11,033 with a carbon value; 9,436 products with `has_allergen_data = TRUE`.
