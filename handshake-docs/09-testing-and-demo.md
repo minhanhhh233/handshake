@@ -90,7 +90,7 @@ One test per row. "Base" is an offer of one requested line in category `10400`, 
 |---|---|---|
 | API-01 | `GET /v1/products?category=10400&claims=FREE_FROM_LACTOSE&limit=50` | 35 items |
 | API-02 | Same, anonymous | 35 items; no price or availability fields anywhere |
-| API-03 | `GET /v1/products?exclude_allergens=AM&category=10400` | No item has `AM` in state `CONTAINS` or `MAY_CONTAIN`; every item has `AM` `FREE_FROM` |
+| API-03 | `GET /v1/products?exclude_allergens=AM&category=10400` | No item has `AM` in state `CONTAINS` or `MAY_CONTAIN`; every item has `AM` `FREE_FROM`. In the real data no product in 10400 states `AM` `FREE_FROM`, so the list is empty; the test also checks `exclude_allergens=AM,AE` across the whole catalog for a non-empty case. |
 | API-04 | `GET /v1/products/464306` | `substitutes` has four IDs; `untrusted_text.notice` present |
 | API-05 | `POST /v1/offers` without a key | `401 unauthenticated` |
 | API-06 | `POST /v1/offers` with 26 product IDs in one line | `400 invalid_request` |

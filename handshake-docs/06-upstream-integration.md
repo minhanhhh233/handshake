@@ -119,6 +119,14 @@ def get_facts(product_ids: list[str], delivery_date: date) -> dict[str, Upstream
 - Each call writes one `price_quotes` or `availability_snapshots` row per product and an `upstream.queried` event.
 - Never called from the search endpoints (FR-02).
 
+Implementation notes (phase 1):
+
+- `comparison_unit` is taken only when `comparisonPrice` is present. Currency comes from `catalogPrice.currency`, falling back to the response's top-level `currency`.
+- An answer that is not valid JSON, or not an object, raises `upstream_unavailable` without a retry.
+- A product upstream did not return gets no snapshot rows; that empty result is cached for the TTL like any other.
+- The `upstream.queried` event is written for every `get_facts` call, including when everything came from cache. Its `actor_id` is null; the agent's ID is in the body, with `delivery_date`, `product_ids`, `fetched`, `cache_hit`, `missing`, `price_quote_ids` and `availability_snapshot_ids`.
+- `availability_snapshots.available_amount` stores the raw upstream amount (9999999999 included); only the in-memory value becomes "unknown".
+
 ## 3. Data files
 
 | File | Rows | Key | Notes |
@@ -204,7 +212,7 @@ Without `q`, order by `delivery_reliability DESC` (nulls last), then `product_id
 
 - Search by category `10400` and claim `FREE_FROM_LACTOSE`. This returns 35 products.
 - Do not search by name alone. Finnish lactose-free milk is labelled "milk drink" (maitojuoma), so many products do not contain the phrase "lactose free milk".
-- The 35 include sour milk (piimä), coffee milk, a latte drink and portion packs. For plain milk, pass `name_excludes=sour,piimä,coffee,kahvi,latte,portion,annos,café,cafe`. 26 products remain.
+- The 35 include sour milk (piimä), coffee milk, a latte drink and portion packs. For plain milk, pass `name_excludes=sour,piimä,coffee,kahvi,latte,portion,annos,café,cafe`. 26 products remain. One of them is 463380 "Arla Cafè milk" (grave accent), which is a coffee milk; add `cafè` to the list to exclude it as well (25 remain).
 - `LOW_LACTOSE` is a different claim and does not satisfy a lactose-free requirement (A-08).
 - All 35 carry allergen `AM` with state `CONTAINS`. Lactose-free is not milk-free.
 - Delivery reliability is present for about half of them and is 0.99 or higher in every case.
@@ -273,7 +281,7 @@ For each request line:
 7. **Fill.** Take from each candidate in order until the requested base quantity is met. With `fulfilment: exact`, only the first surviving candidate is used.
 8. **Result.** If nothing can be filled, the request fails with `422 no_candidates`. If partly filled, the offer is issued with `complete: false` and the shortfall is visible as requested versus offered.
 
-Then, in one transaction: insert the offer, its lines and holds; write `offer.requested` and `offer.issued` events; sign the payload; return.
+`offer.requested` is written in its own transaction before the upstream call, so a failed attempt (503 or 422) still appears in the trace. Then, in one transaction: insert the offer, its lines and holds; write `offer.issued`; sign the payload; return. Validation, unknown-product and mandate errors (400, 403) are raised before `offer.requested` and leave no event. If no candidate survives the static filter, the gateway returns 422 without calling upstream. Holds are read `FOR UPDATE` in the build transaction and compared with the application clock.
 
 `expires_at` = the earliest of issue time plus `OFFER_TTL_SECONDS` and each line's `order_by`. If any `order_by` is already in the past, that candidate is excluded with `not_deliverable_by_date` (Q-11). Every `not_deliverable_by_date` entry in `excluded[]` carries `available_date` and `order_by` as described in document 03, section 5.
 

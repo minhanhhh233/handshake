@@ -177,7 +177,7 @@ def verify(jws: str, base_url: str) -> dict:
     return json.loads(payload)
 ```
 
-Confirm the exact PyJWT calls against the installed version (A-14).
+Confirmed with PyJWT 2.10 (A-14). The reference client (`agent/handshake_client.py`) additionally refuses a header `typ` other than the expected one and any key that is not OKP/Ed25519. It fetches the key set at the path of `jwks_uri` through its configured base URL, so it also works behind a test client; the issuer check compares the payload's `issuer` with the discovery document's `api_base` minus `/v1`. Both well-known documents are served with `Cache-Control: public, max-age=300`.
 
 ### 5.4 Binding rule
 

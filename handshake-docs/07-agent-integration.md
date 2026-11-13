@@ -32,7 +32,8 @@ Client behaviour that is not left to the model:
 - One `trace_id` per task, sent as `X-Trace-Id` on every call.
 - `place_order` generates the `Idempotency-Key` from the trace ID and offer ID, so a retried tool call cannot create a second order.
 - `search_products` returns at most 20 items and drops `untrusted_text` before the result reaches the model.
-- `get_product` wraps `untrusted_text` in a clearly delimited block labelled as untrusted supplier text.
+- `get_product` wraps `untrusted_text` in a clearly delimited block labelled as untrusted supplier text. The client replaces `untrusted_text` with a key `untrusted_supplier_text` holding the JSON between `<<<UNTRUSTED SUPPLIER TEXT` and `END UNTRUSTED SUPPLIER TEXT>>>` markers; any `<<<` or `>>>` inside the supplier text is broken up so it cannot close the block.
+- `place_order`'s `Idempotency-Key` is the first 40 hex characters of `sha256("{trace_id}:{offer_id}")`.
 
 ## 3. Signature verification
 

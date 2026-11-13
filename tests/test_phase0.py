@@ -157,10 +157,11 @@ def test_loader_end_to_end_on_synthetic_file(test_engine, tmp_path):
 
     from .conftest import SCHEMA, _statements
 
-    scratch = test_engine.url.set(database="handshake_test_loader")
+    scratch_name = f"{test_engine.url.database}_loader"
+    scratch = test_engine.url.set(database=scratch_name)
     with test_engine.begin() as conn:
-        conn.exec_driver_sql("DROP DATABASE IF EXISTS handshake_test_loader")
-        conn.exec_driver_sql("CREATE DATABASE handshake_test_loader CHARACTER SET utf8mb4")
+        conn.exec_driver_sql(f"DROP DATABASE IF EXISTS `{scratch_name}`")
+        conn.exec_driver_sql(f"CREATE DATABASE `{scratch_name}` CHARACTER SET utf8mb4")
     eng = create_engine(scratch)
     with eng.begin() as conn:
         for stmt in _statements(SCHEMA.read_text(encoding="utf-8")):
@@ -182,5 +183,5 @@ def test_loader_end_to_end_on_synthetic_file(test_engine, tmp_path):
             "SELECT delivery_reliability FROM products WHERE product_id='900001'").scalar_one()
     eng.dispose()
     with test_engine.begin() as conn:
-        conn.exec_driver_sql("DROP DATABASE handshake_test_loader")
+        conn.exec_driver_sql(f"DROP DATABASE `{scratch_name}`")
     assert rel_val == Decimal("0.995")
