@@ -386,10 +386,20 @@ def place_order(req: OrderRequest, *, agent_id: str, customer_id: str, agent_sta
     if stored is not None:
         return _replay(stored, sha)
 
-    _check_offer(req.offer_id, agent_id)
-
     try:
+        _check_offer(req.offer_id, agent_id)
         return _create(req, agent_id, customer_id, agent_status, key, sha)
+    except HandshakeError as e:
+        # A same-key request that overlapped the original sees the offer as consumed. Return
+        # the original's stored result instead of offer_consumed, so a retrying agent is not
+        # led to order again (code review, Important #1).
+        if e.code != "offer_consumed":
+            raise
+        with db.connection() as conn:
+            stored = _stored(conn, agent_id, key)
+        if stored is not None:
+            return _replay(stored, sha)
+        raise
     except IntegrityError:
         # A concurrent request won the race on the idempotency key or on orders.offer_id.
         with db.connection() as conn:

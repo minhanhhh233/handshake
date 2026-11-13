@@ -31,6 +31,10 @@ This section overrides the hours and the cut order below where they disagree.
 
 Any phase running more than an hour behind its target is reported at once. Phase 5's remaining tasks (T-505 anonymous demo step, T-506 OpenAPI tidy-up) are done during phase 6 if time allows.
 
+**Phase 3 must-do (from the end-of-phase-2 code review).** The approval page puts the approval token in the URL path, and the console takes the admin key as `?key=`. Before these ship: (1) the request log must redact `/approve/<token>` and never log query strings; (2) uvicorn's access log must be off (or redacted) locally and on Modal; (3) prefer a cookie or POST form over `?key=` where the page allows it.
+
+**Deployment checklist.** The Modal secret must contain non-empty `ADMIN_KEY` and `SIGNING_KEY_PEM`; without `ADMIN_KEY` every order that needs approval fails (document 10, section 3.1).
+
 **Hosting.** Development and tests run against a local MariaDB in Docker. Deployment to Modal waits for a hosted database (Q-01); nothing in phases 1 to 3 depends on it.
 
 **Ways of working.** Each phase is built by parallel sub-agents on tasks that are independent in section 4, never two on the same file, against the shared contracts in `handshake/models.py` and `handshake/errors.py`.

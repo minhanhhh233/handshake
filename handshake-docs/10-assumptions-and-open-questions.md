@@ -113,6 +113,21 @@ New question raised by T-005:
 - The upstream cache is per process; several gateway containers may each call upstream.
 - Category, unit and some allergen names are inferred.
 
+### 3.1 From the end-of-phase-2 code review (2026-11-14), recorded, not fixed
+
+The review covered phases 1 and 2 (offer locking, idempotency, hold transitions, policy determinism, secrets) and ran a 60-round thread probe: no duplicate order and no over-reservation. Findings that could lose or duplicate an order, leak a secret or break the demo were fixed; the rest are accepted here.
+
+- **Deadlocks surface as 500.** Two offer requests for the same Stock product at the same moment, parallel dry-runs on one trace, or an offer request racing an accepted order's hold commit can make MariaDB abort one transaction (error 1213). Integrity holds (the probe never over-reserved or lost an order), but the losing caller gets a 500 and must retry. A one-retry wrapper on 1213/1205 in `db.transaction()` or a per-product named lock would fix it. Not reachable in the single-agent demo.
+- **Order at the expiry instant can over-reserve.** An order checked a few milliseconds before its offer's `expires_at`, racing an offer request for the same product a few milliseconds after it, can count the first offer's holds as expired and reserve the same units twice. Needs two requests within milliseconds of the expiry moment.
+- **Crash tracebacks print SQL parameters.** An unhandled database error during order insertion prints its parameters (including the clear `receipt_token`) to the server's standard error. Operators see it; agents do not. Fix: `hide_parameters=True` on the engine.
+- **Any constraint violation on order insert is reported as `offer_consumed`.** For example an event sequence collision; the transaction rolls back, so nothing is lost, but the agent is told its offer is gone while it is still active.
+- **Missing `ADMIN_KEY` breaks approval.** The approval token is derived from `ADMIN_KEY`; if it is empty, every `needs_approval` order fails with 500. There is no start-up check. Covered by the deployment checklist (document 08, section 0).
+- **Rotating `ADMIN_KEY` invalidates every pending approval link** (document 04, section 3).
+- **Dry-run can answer for an offer consumed a moment earlier,** because the offer check and the evaluation run in separate transactions. Harmless: dry-run changes nothing.
+- **No automated concurrency test.** Concurrency was checked with a manual probe, not in the test suite.
+
+Fixed from the review: a same-key order request that overlapped the original returned `409 offer_consumed` instead of the original's stored response (one round in ten under a thread probe). A retrying agent could then have requested a new offer and ordered twice. It now replays the stored response (regression test `test_overlapping_same_key_request_replays_instead_of_offer_consumed`; probe: 30 of 30 rounds give the same order to all four requests).
+
 ## 4. Change log
 
 | Date | Item | Change |

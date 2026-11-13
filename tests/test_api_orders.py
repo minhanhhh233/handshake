@@ -304,3 +304,28 @@ def test_integrity_race_returns_stored_result(client, catalog, clean_db, monkeyp
     r = order(client, p, off["offer_id"], key="race-key-1")
     assert r.status_code == 202 and r.json()["order_id"] == first["order_id"]
     assert scalar("SELECT COUNT(*) FROM orders") == 1
+
+
+def test_overlapping_same_key_request_replays_instead_of_offer_consumed(
+        client, catalog, clean_db, monkeypatch):
+    """Code review Important #1: a same-key request whose first idempotency lookup ran before
+    the original committed must get the stored result, not 409 offer_consumed."""
+    p = make_party()
+    off = new_offer(client, p)
+    first = order(client, p, off["offer_id"], key="overlap-key-1")
+    assert first.status_code == 202
+    real = orders._stored
+    calls = {"n": 0}
+
+    def stale_first_lookup(conn, agent_id, key, **kw):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real(conn, agent_id, key, **kw)
+
+    monkeypatch.setattr(orders, "_stored", stale_first_lookup)
+    r = order(client, p, off["offer_id"], key="overlap-key-1")
+    assert r.status_code == 202, r.text
+    assert r.json()["order_id"] == first.json()["order_id"]
+    assert scalar("SELECT COUNT(*) FROM orders") == 1
+    # A different key on the consumed offer is still refused.
+    monkeypatch.setattr(orders, "_stored", real)
+    assert order(client, p, off["offer_id"], key="overlap-key-2").json()["code"] == "offer_consumed"
