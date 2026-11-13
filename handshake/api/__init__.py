@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import logging
 import sys
 import time
@@ -36,6 +37,15 @@ class _JsonFormatter(logging.Formatter):
         return json.dumps(d)
 
 
+_SECRET_PATH = re.compile(r"^(/approve/)[^/?#]+")
+
+
+def safe_path(path: str) -> str:
+    """Path for logs. Approval tokens live in the path and are redacted; query strings (which
+    may carry `?key=` or `?t=`) are never logged (document 08, section 0, phase 3 must-do)."""
+    return _SECRET_PATH.sub(r"\1[redacted]", path)
+
+
 def _configure_logging() -> None:
     root = logging.getLogger("handshake")
     if not root.handlers:
@@ -43,6 +53,9 @@ def _configure_logging() -> None:
         h.setFormatter(_JsonFormatter())
         root.addHandler(h)
         root.setLevel(logging.INFO)
+    # uvicorn's access log prints the raw path and query string, which would expose approval
+    # tokens and `?key=<ADMIN_KEY>`. Our own request log (path redacted, no query) replaces it.
+    logging.getLogger("uvicorn.access").disabled = True
 
 
 def trace_id_of(request: Request) -> str:
@@ -83,7 +96,7 @@ def create_app() -> FastAPI:
             "request",
             extra={
                 "trace_id": request.state.trace_id,
-                "path": f"{request.method} {request.url.path}",
+                "path": f"{request.method} {safe_path(request.url.path)}",
                 "status": response.status_code,
                 "duration_ms": round((time.perf_counter() - start) * 1000, 1),
             },
