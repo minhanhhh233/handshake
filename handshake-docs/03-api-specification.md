@@ -80,7 +80,7 @@ No authentication.
 
 ### `GET /v1/health`
 
-Returns `{ "status": "ok", "database": "ok", "time": "<timestamp>" }`. Does not call upstream.
+Returns `{ "status": "ok", "database": "ok", "time": "<timestamp>" }`. Does not call upstream. If the database cannot be reached it returns `503` with `{ "status": "degraded", "database": "unavailable", ... }`.
 
 ## 3. Products
 
@@ -222,7 +222,7 @@ Response `201`:
 
 `excluded[].reason` values: `price_unavailable`, `sales_blocked`, `not_deliverable_by_date`, `no_quantity_conversion`, `fails_requirements`, `forbidden_by_mandate`, `out_of_stock`.
 
-Each excluded item also carries a plain-language `message`. When the reason is `forbidden_by_mandate`, it carries `policy_reason`, a reason object as defined in document 05, section 3. A `422 no_candidates` error body includes the same `excluded[]` array.
+Each excluded item also carries a plain-language `message` and `request_line` (the 1-based request line it was a candidate for, since one product ID can appear in several lines). When the reason is `forbidden_by_mandate`, it carries `policy_reason`, a reason object as defined in document 05, section 3. A `422 no_candidates` error body includes the same `excluded[]` array.
 
 #### Offer object
 
@@ -293,7 +293,7 @@ Field rules:
 
 - `role` is `requested` (first product ID), `alternate` (another ID the agent listed) or `substitute` (added by the gateway).
 - `substitute_for` is set for `substitute` lines and names the requested product.
-- `differences` is set for `alternate` and `substitute` lines: `{ "price_per_base_unit_percent": 4.2, "claims_lost": [], "claims_gained": [], "labels_lost": ["EU_ORGANIC_FARMING"], "labels_gained": [], "origin_changed": false, "delivery_reliability_delta": -0.01, "source": "valio_aimo_substitution_rule" }`. `source` is `valio_aimo_substitution_rule` or `same_category_same_claims`.
+- `differences` is set for `alternate` and `substitute` lines: `{ "price_per_base_unit_percent": 4.2, "claims_lost": [], "claims_gained": [], "labels_lost": ["EU_ORGANIC_FARMING"], "labels_gained": [], "origin_changed": false, "delivery_reliability_delta": -0.01, "source": "valio_aimo_substitution_rule" }`. `source` is `valio_aimo_substitution_rule` or `same_category_same_claims` for `substitute` lines, and `null` for `alternate` lines (the agent listed them itself).
 - `availability.assurance` is `confirmed` when `logistic_model` is `stock`, `unconfirmed` when `terminal` (FR-18).
 - `availability.order_by` is the upstream cut-off time. `expires_at` is the earlier of issue time plus `OFFER_TTL_SECONDS` and `order_by`.
 - The offer never states how much stock exists beyond what is offered (FR-14).

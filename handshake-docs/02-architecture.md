@@ -86,20 +86,26 @@ handshake/
   orders.py
   events.py
   models.py       Pydantic schemas shared by API and policy
+  errors.py       error codes and problem+json bodies (document 03, section 1.2)
   db.py           engine, session helper
   config.py       settings from environment
   ids.py          prefixed identifier generation
+  timeutil.py     the single clock; UTC storage, Europe/Helsinki display, upstream date parsing
 modal_app.py      Modal entry point
+pyproject.toml    dependencies (extras: agent, mcp, deploy, dev)
+.env.example      local configuration template; the real .env is git-ignored
 mcp_server/
 agent/
 scripts/
   load_data.py
+  seed_code_lookup.py  inferred code names for code_lookup (T-007, A-06)
   seed_demo.py    customers, agents, mandates for the demo
   reset_demo.py
   gen_keys.py     creates the Ed25519 key pair
 sql/
   schema.sql      DDL from document 04
 tests/
+  conftest.py     wipes and rebuilds the TEST_DATABASE_URL schema from sql/schema.sql
   fixtures/       recorded upstream responses (not committed if they contain challenge data; see README)
 data/             challenge files, git-ignored
 ```

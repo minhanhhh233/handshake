@@ -1,0 +1,30 @@
+# Challenge data set: never commit (README, data handling rules; NFR-08)
+data/
+
+# Recorded upstream fixtures contain challenge data: never commit (doc 09 §1)
+tests/fixtures/upstream/
+
+# Secrets and keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keys/
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
