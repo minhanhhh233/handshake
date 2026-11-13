@@ -162,7 +162,7 @@ Returns the item above plus:
 #### Implementation notes (phase 1)
 
 - Paging: without `q` (or with `q` under 3 characters) the cursor is a keyset on reliability then `product_id`. With a full-text `q` the results are ordered by relevance and the cursor is an opaque offset. A cursor from one mode is rejected with `400 invalid_request` in the other.
-- `name_excludes` is case-insensitive but accent-sensitive (the column collation ignores accents, so the code compares explicitly).
+- `name_excludes` is case- and accent-insensitive (explicit collation `utf8mb4_unicode_ci`): `cafe` also excludes "Cafè" and "Café".
 - `ingredient_origins` has one entry per (ingredient, origin); ingredients without an origin are omitted.
 - Numbers from the product file are returned as JSON numbers; whole numbers as integers except `case_size_in_base_units`, which is a float (for example `20.0`).
 - `category.name` and `sales_unit.name` come from `code_lookup` (for example "Milk and milk drinks", "Piece"); the example above is illustrative.
@@ -318,7 +318,7 @@ Errors: `400`, `401`, `422 no_candidates`, `503 upstream_unavailable`.
 
 - Unknown product IDs in `product_ids` give `400 invalid_request`; `detail` and `errors[]` list them. An agent with no mandate gets `403 forbidden`.
 - Money with fewer than two decimals upstream is padded: `tax_rate_percent` is `"13.50"`.
-- `line_total_incl_tax` is sales units times upstream `catalogPrice.valueWithTax`, rounded half-up to cents (document 06, section 1.3).
+- `line_total_incl_tax` = `line_total_excl_tax` x (1 + `tax_rate_percent` / 100), rounded half-up to cents once per line; `totals.tax` is the sum of line taxes (A-25). Upstream `valueWithTax` is not used for totals. For 1,000 x 464306 at 1.01: excl. 1010.00, tax 136.35, incl. 1146.35.
 - Several request lines share a product's capacity: a later line gets only what earlier lines left.
 - Extra exclusion cases: a unit price of 0 or less, or no tax rate and no price including tax, gives `price_unavailable`; a schedule line without `availableDate`, or stock fully used by holds or earlier lines, gives `out_of_stock` (the message never states an amount, FR-14).
 - `claims_source.price.fetched_at` and `.availability.fetched_at` are the earliest `fetched_at` among the facts used.

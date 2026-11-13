@@ -546,7 +546,10 @@ def _offer_line(line_no: int, fl: FilledLine, request_unit: str) -> OfferLine:
         comparison_price=comparison_price,
         tax_rate_percent=money(prep.tax_rate),
         line_total_excl_tax=money(fl.units * prep.unit_excl),
-        line_total_incl_tax=money(fl.units * prep.unit_incl),
+        # Invoice rounding (A-25): excl. total x (1 + rate), rounded once per line.
+        # Upstream valueWithTax is kept in the price snapshot only.
+        line_total_incl_tax=money(
+            Decimal(money(fl.units * prep.unit_excl)) * (1 + prep.tax_rate / 100)),
         price_valid=PriceValid(from_=price.valid_from, to=price.valid_to),
         availability=LineAvailability(
             available_date=av.available_date, order_by=av.closing_time,

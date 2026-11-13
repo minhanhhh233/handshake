@@ -106,14 +106,16 @@ def test_api04_detail_substitutes_and_untrusted_text(client):
     assert d["allowed_lot_size"] == 0.01 and d["temperature_condition"] == 4
 
 
-def test_name_excludes_leaves_26_plain_milks(client):
+def test_name_excludes_leaves_25_plain_milks(client):
+    # Accent-insensitive: "cafe" also drops 463380 "Arla Cafè milk" (doc 06, section 4.1).
     r = client.get(f"{LACTOSE_FREE_MILK}&name_excludes={PLAIN_MILK_EXCLUDES}")
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert len(items) == 26
+    assert len(items) == 25
+    assert "463380" not in {i["product_id"] for i in items}
     for item in items:
         names = f"{item['name']['en']} {item['name']['fi']}".lower()
-        assert not any(t in names for t in PLAIN_MILK_EXCLUDES.split(","))
+        assert not any(t in names for t in PLAIN_MILK_EXCLUDES.split(",") if t != "cafe")
 
 
 def test_paging_walks_all_35_without_duplicates(client):

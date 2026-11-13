@@ -25,6 +25,7 @@ When an item is resolved: record the answer here with the date, then update the 
 |---|---|---|---|
 | A-03 | Spend caps compare the order total excluding tax, as is usual in B2B purchasing. | Change the comparison field in rule R6 and R7. | 05 §2, §3 |
 | A-04 | Products are ordered in whole sales units. An `allowedLotSize` of 0.01 (16,872 products) is treated as "any whole number" unless `variableUnit` is true. | Quantity rounding is wrong for weight-sold products. See Q-08. | 06 §5 |
+| A-25 | Tax is computed per line as invoices usually do: line total incl. tax = line total excl. tax x (1 + `taxRate` / 100), rounded half-up to cents once per line; order tax = sum of line taxes. Upstream `valueWithTax` is a per-unit price already rounded to cents (464306: 1.01 excl. becomes 1.15 incl.), so multiplying it by the units overstates tax (140.00 instead of 136.35 on 1010.00); it is kept in the price snapshot only. Valio Aimo's invoice rounding is not confirmed. | Totals including tax differ from Valio Aimo's invoice by a few cents per line. | 03 §5, 06 §1.3 |
 | A-05 | `catalogPrice.value / comparisonPrice.value` gives the litres or kilograms in one sales unit accurately enough for ordering. **Checked 2026-11-14 (T-005):** for the six shortlist products with a volume in the product data, the ratio is within 0.07% of it. 465039 and 463038 (cases) have no volume in the product data, so only the ratio works for them (5.0073 L and 19.9427 L for a 5 L and a 20 L case; the gap comes from the comparison price being rounded to cents). | Wrong sales-unit counts. | 06 §5 |
 
 ### Product data
@@ -117,5 +118,6 @@ New question raised by T-005:
 | Date | Item | Change |
 |---|---|---|
 | 2026-11-13 | All | First version |
+| 2026-11-14 | A-25 | Per-line tax rounding adopted; upstream valueWithTax kept in snapshots only |
 | 2026-11-14 | Q-03, Q-15, Q-11 | Cap set to 1000.00 EUR; Q-15 default adopted; Q-11 rule kept, earliest date added to 422; scope cut recorded under known limitations |
 | 2026-11-14 | Q-02, Q-04, Q-05, A-05, A-19 | Answered from live calls in T-005; observations on Q-06 and Q-11 recorded; Q-15 added |

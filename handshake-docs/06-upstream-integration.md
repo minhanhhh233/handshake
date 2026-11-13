@@ -60,9 +60,9 @@ Values are placeholders. Field meanings from the upstream documentation:
 | Field | Meaning | Handshake use |
 |---|---|---|
 | `catalogPrice.value` | Price per sales unit before tax | `unit_price_excl_tax` |
-| `catalogPrice.valueWithTax` | Same with tax | Line total including tax |
+| `catalogPrice.valueWithTax` | Same with tax, rounded to cents per unit | Stored in the snapshot only. Line totals including tax are computed from the line total excluding tax and `tax.taxRate` (A-25) |
 | `comparisonPrice.value`, `comparisonUnit` | Price per kilogram or litre; unit is `KG` or `L` | `comparison_price`; quantity conversion (section 5) |
-| `tax.taxRate` | Percent | `tax_rate_percent` |
+| `tax.taxRate` | Percent | `tax_rate_percent`; line total incl. tax = line total excl. tax x (1 + rate / 100), rounded once per line (A-25) |
 | `validFrom`, `validTo` | Price validity period | `price_valid` |
 | `listPrice` | Price before customer-specific price or discount | Stored in the snapshot only |
 | `netPriceFound` | True when a customer-specific net price was found | Stored in the snapshot only |
@@ -212,7 +212,7 @@ Without `q`, order by `delivery_reliability DESC` (nulls last), then `product_id
 
 - Search by category `10400` and claim `FREE_FROM_LACTOSE`. This returns 35 products.
 - Do not search by name alone. Finnish lactose-free milk is labelled "milk drink" (maitojuoma), so many products do not contain the phrase "lactose free milk".
-- The 35 include sour milk (piimä), coffee milk, a latte drink and portion packs. For plain milk, pass `name_excludes=sour,piimä,coffee,kahvi,latte,portion,annos,café,cafe`. 26 products remain. One of them is 463380 "Arla Cafè milk" (grave accent), which is a coffee milk; add `cafè` to the list to exclude it as well (25 remain).
+- The 35 include sour milk (piimä), coffee milk, a latte drink and portion packs. For plain milk, pass `name_excludes=sour,piimä,coffee,kahvi,latte,portion,annos,café,cafe`. 25 products remain. `name_excludes` matching is case- and accent-insensitive, so `cafe` also excludes 463380 "Arla Cafè milk" (grave accent), a coffee milk. (The original count of 26 came from accent-sensitive matching.)
 - `LOW_LACTOSE` is a different claim and does not satisfy a lactose-free requirement (A-08).
 - All 35 carry allergen `AM` with state `CONTAINS`. Lactose-free is not milk-free.
 - Delivery reliability is present for about half of them and is 0.99 or higher in every case.

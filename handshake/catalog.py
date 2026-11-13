@@ -220,11 +220,11 @@ def search(
                      f"p.product_id AND a.allergen = :alg{i} AND a.state = 'FREE_FROM')")
         params[f"alg{i}"] = code
     for i, term in enumerate(name_excludes or []):
-        # Case-insensitive but accent-sensitive (the column collation is accent-insensitive,
-        # which would let "café" also drop "Cafè"). LOWER + binary compare = plain substring.
-        where.append(f"LOWER(COALESCE(p.name_en, '')) COLLATE utf8mb4_bin NOT LIKE :nx{i} "
-                     f"AND LOWER(COALESCE(p.name_fi, '')) COLLATE utf8mb4_bin NOT LIKE :nx{i}")
-        params[f"nx{i}"] = f"%{_like_escape(term.lower())}%"
+        # Case- and accent-insensitive: "cafe" also excludes "Café" and "Cafè". The collation
+        # is explicit so the result does not depend on the server's default.
+        where.append(f"COALESCE(p.name_en, '') COLLATE utf8mb4_unicode_ci NOT LIKE :nx{i} "
+                     f"AND COALESCE(p.name_fi, '') COLLATE utf8mb4_unicode_ci NOT LIKE :nx{i}")
+        params[f"nx{i}"] = f"%{_like_escape(term)}%"
 
     if fulltext:
         offset = 0

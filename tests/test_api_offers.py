@@ -143,7 +143,9 @@ def test_realistic_1000_litres_of_464306(client, catalog, clean_db):
                                  "to": "2026-12-31T00:00:00+0200"}
     t = offer["totals"]
     assert t["excl_tax"] == "1010.00"
-    assert t["tax"] == "140.00" and t["incl_tax"] == "1150.00"  # 1000 * 1.15 incl. per unit
+    # A-25: 1010.00 x 1.135 rounded once per line; upstream valueWithTax is not used.
+    assert ln["line_total_incl_tax"] == "1146.35"
+    assert t["tax"] == "136.35" and t["incl_tax"] == "1146.35"
     assert offer["claims_source"]["attributes"] == {
         "source": "gs1_synkka_via_valio_aimo", "assurance": "supplier_declared"}
     assert offer["fulfilment"] == [{"request_line": 1, "requested": {"value": 1000, "unit": "L"},
