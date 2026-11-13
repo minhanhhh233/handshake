@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% block style %}
+.page { max-width: 40rem; margin: 0 auto; padding: 48px 16px; }
+h1 { font-size: 1.875rem; line-height: 1.2; }
+p { margin-top: 12px; color: var(--slate); }
+{% endblock %}
+{% block body %}
+<main class="page">
+  <h1>The console needs the admin key.</h1>
+  <p>Open <span class="mono">/console?key=</span> followed by the admin key. The key is swapped for a session cookie and removed from the address bar.</p>
+</main>
+{% endblock %}

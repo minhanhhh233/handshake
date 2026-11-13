@@ -1,0 +1,106 @@
+{% extends "_base.html" %}
+{% block style %}{% include "_approve.css" %}{% endblock %}
+{% block body %}
+<main class="page">
+  <p class="brand"><strong>Handshake</strong> approval request for {{ approver_name }}</p>
+
+  <header>
+    <h1>Approve this order?</h1>
+    <p class="lede">Your purchasing agent wants to place an order for {{ customer_name }}{% if meter %}, but the total is over your limit{% else %}, but it needs your approval{% endif %}.</p>
+    <p class="deadline">Decide by <strong>{{ expires_at|when }}</strong>. After that the order is cancelled and the stock is released.</p>
+  </header>
+
+  {% if meter %}
+  <section class="section meter" aria-labelledby="meter-h">
+    <h2 id="meter-h" class="visually-hidden">Order total against your limit</h2>
+    <p class="meter-sentence"><span class="mono">{{ meter.total }}</span>&nbsp;{{ meter.currency }} is <strong class="over"><span class="mono">{{ meter.over }}</span> over</strong> your <span class="mono">{{ meter.cap }}</span>&nbsp;{{ meter.currency }} limit.</p>
+    <div class="bar" role="img" aria-label="Total {{ meter.total }} {{ meter.currency }} against a limit of {{ meter.cap }} {{ meter.currency }}; {{ meter.over }} over.">
+      <div class="bar-fill" style="width: {{ meter.cap_pct }}%"></div>
+      <div class="bar-over" style="left: {{ meter.cap_pct }}%; width: {{ meter.over_pct }}%"></div>
+      <div class="bar-cap" style="left: {{ meter.cap_pct }}%"><span class="bar-cap-label">Your limit <span class="mono">{{ meter.cap }}</span></span></div>
+    </div>
+    <div class="bar-scale" aria-hidden="true"><span class="mono">0</span><span class="end mono">{{ meter.total }}</span></div>
+    {% if other_reasons %}
+    <h2 style="margin-top: 22px">It also needs approval because</h2>
+    <ul class="reasons">
+      {% for r in other_reasons %}<li>{{ r.message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p class="fine">Amounts exclude tax. The limit comes from your mandate{% if mandate_version %} (version {{ mandate_version }}){% endif %}.</p>
+  </section>
+  {% else %}
+  <section class="section" aria-labelledby="why-h">
+    <h2 id="why-h">Why it needs your approval</h2>
+    <ul class="reasons">
+      {% for r in reasons %}<li>{{ r.message }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="section" aria-labelledby="order-h">
+    <h2 id="order-h">The order</h2>
+    <dl class="facts">
+      <dt>Customer</dt><dd>{{ customer_name }}</dd>
+      <dt>Asked by</dt><dd>{{ agent_name }}</dd>
+      <dt>Delivery</dt><dd>{{ delivery_date|long_date }}</dd>
+      {% if reference %}<dt>Reference</dt><dd>{{ reference }}</dd>{% endif %}
+    </dl>
+  </section>
+
+  <section class="section" aria-labelledby="lines-h">
+    <h2 id="lines-h">What it orders</h2>
+    <ul class="lines">
+      {% for ln in lines %}
+      <li class="line">
+        <p class="line-name">{{ ln.name }}</p>
+        <div class="line-row">
+          <span class="line-qty">{{ ln.qty|qty }} {{ ln.sales_unit }}{% if ln.base_qty is not none %}, {{ ln.base_qty|qty }} {{ ln.base_unit }}{% endif %}{% if ln.unit_price %} at <span class="mono">{{ ln.unit_price|money }}</span>{% endif %}</span>
+          <span class="line-total mono">{{ ln.total_excl|money }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    <dl class="totals">
+      <dt>Total excl. tax</dt><dd class="mono">{{ totals.excl_tax|money }}&nbsp;EUR</dd>
+      <dt class="muted">Tax</dt><dd class="mono muted">{{ totals.tax|money }}&nbsp;EUR</dd>
+      <dt class="grand">Total incl. tax</dt><dd class="mono grand">{{ totals.incl_tax|money }}&nbsp;EUR</dd>
+    </dl>
+  </section>
+
+  {% if note %}
+  <section class="section" aria-labelledby="note-h">
+    <h2 id="note-h" class="note-label">Note from the agent (not verified)</h2>
+    <blockquote class="note">{{ note }}</blockquote>
+  </section>
+  {% endif %}
+
+  <section class="section" aria-labelledby="considered-h">
+    <h2 id="considered-h">What the agent considered</h2>
+    <ul class="considered">
+      {% for ln in lines %}
+      <li>
+        <strong>{{ ln.role_text }}</strong>: {{ ln.name }}.
+        {% if ln.assurance == "confirmed" %}Valio Aimo confirms stock for delivery on {{ ln.available_date|long_date }}.{% elif ln.assurance == "unconfirmed" %}Stock is not confirmed: this product ships from the supplier's terminal.{% endif %}
+      </li>
+      {% endfor %}
+      {% for f in fulfilment %}{% if not f.complete %}
+      <li>Request line {{ f.request_line }} is only partly filled: {{ f.offered.value|qty }} of {{ f.requested.value|qty }} {{ f.requested.unit }}.</li>
+      {% endif %}{% endfor %}
+    </ul>
+    <p class="fine">Prices are fixed by signed offer {{ offer_id }}, valid until {{ offer_expires_at|when }}. The agent cannot change them.</p>
+  </section>
+
+  <section class="section decide" aria-labelledby="decide-h">
+    <h2 id="decide-h" class="visually-hidden">Your decision</h2>
+    <form method="post">
+      <label for="comment">Comment for the agent <span class="hint">(optional)</span></label>
+      <textarea id="comment" name="comment" maxlength="{{ comment_max }}" rows="3" autocomplete="off"></textarea>
+      <div class="buttons">
+        <button type="submit" class="btn btn-approve" name="decision" value="approve">Approve order</button>
+        <button type="submit" class="btn btn-decline" name="decision" value="decline">Decline order</button>
+      </div>
+    </form>
+    <p class="fine">This link works once. The request expires at {{ expires_at|hm }}.</p>
+  </section>
+</main>
+{% endblock %}

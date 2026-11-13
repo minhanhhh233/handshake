@@ -1,0 +1,71 @@
+{% extends "_base.html" %}
+{% block style %}
+body { font-size: 1.25rem; }
+.console { padding: 24px clamp(16px, 3vw, 48px) 48px; }
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding-bottom: 14px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+.top h1 { font-size: 1.75rem; }
+.top h1 span { font-weight: 400; color: var(--slate); }
+.status { color: var(--slate); font-size: 1rem; }
+.status .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--spruce); margin-right: 8px; vertical-align: 0.05em; }
+.status.stale .dot { background: var(--lingon); }
+.grid { display: grid; grid-template-columns: minmax(300px, 0.8fr) 1.6fr; gap: 40px; margin-top: 24px; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+h2 { font-size: 1.25rem; color: var(--slate); font-weight: 700; margin-bottom: 14px; }
+.empty { color: var(--slate); }
+.approval { padding: 18px 0 24px; border-bottom: 1px solid var(--frost); }
+.approval:first-of-type { padding-top: 0; }
+.approval h3 { font-size: 1.5rem; line-height: 1.25; }
+.approval .meta { color: var(--slate); margin-top: 4px; }
+.approval .amount { font-family: var(--mono); font-size: 1.5rem; margin-top: 6px; }
+.qr-wrap { margin-top: 14px; display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+svg.qr { width: 240px; height: 240px; display: block; background: #fff; }
+.qr-help { max-width: 14em; font-size: 1rem; color: var(--slate); }
+.qr-help a { color: var(--ink); font-weight: 700; display: inline-block; margin-top: 8px; padding: 6px 0; }
+.events { list-style: none; padding: 0; }
+.event { display: grid; grid-template-columns: 6.5em 1fr; gap: 4px 18px; padding: 12px 0;
+  border-bottom: 1px solid var(--frost); }
+.event time { font-family: var(--mono); color: var(--slate); font-size: 1.05rem; padding-top: 2px; }
+.event .type { font-size: 1rem; color: var(--slate); }
+.event .text { font-size: 1.375rem; line-height: 1.35; overflow-wrap: anywhere; }
+.event.aimo .text { color: var(--slate); font-size: 1.125rem; }
+.tag { display: inline-block; margin-left: 10px; font-size: 0.875rem; color: var(--slate);
+  border: 1px solid var(--frost); padding: 0 8px; border-radius: 3px; }
+.event.decided .text { color: var(--spruce); font-weight: 700; }
+.event.closed .text { color: var(--lingon); }
+{% endblock %}
+{% block body %}
+<main class="console">
+  <header class="top">
+    <h1>Handshake <span>console</span></h1>
+    <p class="status" id="status" role="status"><span class="dot" aria-hidden="true"></span>Live, refreshes every 3 seconds</p>
+  </header>
+  <div id="live">{% include "_console_live.html" %}</div>
+</main>
+<script>
+(function () {
+  var live = document.getElementById("live");
+  var status = document.getElementById("status");
+  function mark(ok, text) {
+    status.className = ok ? "status" : "status stale";
+    status.lastChild.nodeValue = text;
+  }
+  function tick() {
+    fetch("/console/live", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) {
+        if (r.status === 403) { mark(false, "Signed out. Open /console?key=... again."); return null; }
+        if (!r.ok) { throw new Error(String(r.status)); }
+        return r.text();
+      })
+      .then(function (html) {
+        if (html === null) { return; }
+        if (live.innerHTML !== html) { live.innerHTML = html; }
+        mark(true, "Live, refreshes every 3 seconds");
+      })
+      .catch(function () { mark(false, "Connection lost, retrying"); });
+  }
+  setInterval(tick, 3000);
+})();
+</script>
+{% endblock %}

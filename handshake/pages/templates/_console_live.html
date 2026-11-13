@@ -1,0 +1,41 @@
+<div class="grid">
+  <section aria-labelledby="pending-h">
+    <h2 id="pending-h">Waiting for approval</h2>
+    {% for p in pending %}
+    <article class="approval">
+      <h3>{{ p.customer_name }}</h3>
+      <p class="meta">{{ p.agent_name }} asks {{ p.approver_name }}. Expires at {{ p.expires_at|hm }}.</p>
+      <p class="amount">{{ p.totals.excl_tax|money }} EUR <span class="muted" style="font-family: var(--font); font-size: 1rem">excl. tax</span></p>
+      {% if demo %}
+      <div class="qr-wrap">
+        {{ p.qr|safe }}
+        <p class="qr-help">Scan with the approver's phone.<br><a href="{{ p.url }}" target="_blank" rel="noreferrer noopener">Open approval page</a></p>
+      </div>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="empty">No order is waiting for approval.</p>
+    {% endfor %}
+    {% if pending and not demo %}
+    <p class="empty" style="font-size: 1rem">Approval links are delivered to the approver directly. QR codes appear only in demo mode.</p>
+    {% endif %}
+  </section>
+  <section aria-labelledby="events-h">
+    <h2 id="events-h">Recent events, newest first</h2>
+    {% if events %}
+    <ol class="events">
+      {% for e in events %}
+      <li class="event{% if e.audience == 'aimo_only' %} aimo{% endif %}{% if e.type == 'approval.decided' or e.type == 'order.confirmed' %} decided{% endif %}{% if e.type == 'order.closed' %} closed{% endif %}">
+        <time datetime="{{ e.at.isoformat() }}">{{ e.at|hms }}</time>
+        <div>
+          <p class="type">{{ e.type }}{% if e.audience == 'aimo_only' %}<span class="tag">Valio Aimo only</span>{% endif %}</p>
+          <p class="text">{{ e.text }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty">No events yet. Start the agent.</p>
+    {% endif %}
+  </section>
+</div>

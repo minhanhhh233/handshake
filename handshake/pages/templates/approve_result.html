@@ -1,0 +1,37 @@
+{% extends "_base.html" %}
+{% block style %}{% include "_approve.css" %}{% endblock %}
+{% block body %}
+<main class="page">
+  <p class="brand"><strong>Handshake</strong> approval request</p>
+  <section class="result" aria-live="polite">
+    {% if v.status == "expired" %}
+      <h1><span class="mark mark-off" aria-hidden="true"></span>This request expired at {{ v.expires_at|hm }} and can no longer be approved.</h1>
+      <p class="lede">Nothing was ordered. The stock held for it is released, and the agent sees the order as expired.</p>
+    {% elif v.kind == "already_decided" %}
+      <h1><span class="mark mark-off" aria-hidden="true"></span>This request was already decided.</h1>
+      <p class="lede">{{ v.approver_name }} {{ "approved" if v.status == "approved" else "declined" }} it at {{ v.decided_at|when }}. Nothing has changed.</p>
+    {% elif v.status == "approved" %}
+      <h1><span class="mark mark-ok" aria-hidden="true"></span>Approved. Your agent will see the order as confirmed.</h1>
+      <p class="lede">Valio Aimo will deliver on {{ v.delivery_date|long_date }}.</p>
+    {% elif v.status == "declined" %}
+      <h1><span class="mark mark-no" aria-hidden="true"></span>Declined. The agent has been told and the stock is released.</h1>
+      <p class="lede">Nothing was ordered.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <dl class="facts">
+      <dt>Customer</dt><dd>{{ v.customer_name }}</dd>
+      <dt>Asked by</dt><dd>{{ v.agent_name }}</dd>
+      <dt>Total</dt><dd><span class="mono">{{ v.totals.excl_tax|money }}</span> EUR excl. tax</dd>
+      <dt>Delivery</dt><dd>{{ v.delivery_date|long_date }}</dd>
+      <dt>Order</dt><dd>{{ v.order_id }}</dd>
+    </dl>
+    {% if v.comment %}
+    <p class="note-label" style="margin-top: 18px">Your comment</p>
+    <blockquote class="note">{{ v.comment }}</blockquote>
+    {% endif %}
+  </section>
+  <p class="fine">You can close this page.</p>
+</main>
+{% endblock %}

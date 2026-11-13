@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, Depends, Query
 from pydantic import ValidationError
 
 from .. import db, events, mandates, timeutil
-from ..errors import invalid_request, not_found
+from ..errors import forbidden, invalid_request, not_found
 from ..models import MandateBody
 from .deps import require_admin
 
@@ -98,5 +98,40 @@ def list_events(
     return {"events": [event_view(e) for e in rows]}
 
 
-# ---------------------------------------------------------------- phase 3
-# GET /v1/admin/orders/{order_id}/approval-link and POST /v1/admin/reset go here.
+# ---------------------------------------------------------------- phase 3 (T-303)
+
+
+@router.get("/v1/admin/orders/{order_id}/approval-link", summary="Approval link of an order")
+def approval_link(order_id: str) -> dict[str, Any]:
+    """The human approval URL (built from PUBLIC_BASE_URL). Out-of-band delivery only: no
+    agent endpoint ever returns it (FR-35). Applies a due approval expiry first."""
+    from .. import orders
+
+    with db.transaction() as conn:
+        order = orders.load_order(conn, order_id, for_update=True)
+        approval = orders.load_approval(conn, order_id) if order else None
+        if order is None or approval is None:
+            raise not_found(f"Order {order_id} does not exist or needs no approval.")
+        orders.expire_approval_if_due(conn, order_id)
+        approval = orders.load_approval(conn, order_id)
+    assert approval is not None
+    return {
+        "order_id": order_id,
+        "approval_url": orders.approval_url(approval["approval_id"]),
+        "status": approval["status"],
+        "expires_at": timeutil.iso(approval["expires_at"]),
+    }
+
+
+@router.post("/v1/admin/reset", summary="Reset demo trading data (DEMO_MODE only)")
+def reset() -> dict[str, Any]:
+    """Deletes offers, holds, orders, approvals, idempotency keys and events; keeps the
+    catalog, customers, agents and mandates. Refused unless DEMO_MODE=true."""
+    from .. import config
+
+    if not config.get_settings().demo_mode:
+        raise forbidden("Reset is available only when DEMO_MODE is true.")
+    from .. import demo
+
+    with db.transaction() as conn:
+        return demo.reset(conn)

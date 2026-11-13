@@ -548,8 +548,121 @@ def get_order(order_id: str, agent_id: str) -> dict[str, Any]:
         return order_view(conn, order_id).dump()
 
 
+# ================================================================ approval decisions (T-301)
+
+COMMENT_MAX = 500
+
+
+def _result(kind: str, order: dict[str, Any] | None = None,
+            approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Small outcome dict for the approval pages. Never carries the token."""
+    return {
+        "result": kind,  # approved | declined | already_decided | expired | not_found
+        "order_id": order["order_id"] if order else None,
+        "order_status": order["status"] if order else None,
+        "approval_status": approval["status"] if approval else None,
+        "approver_name": approval["approver_name"] if approval else None,
+        "expires_at": approval["expires_at"] if approval else None,
+        "decided_at": approval["decided_at"] if approval else None,
+    }
+
+
+def decide_approval(token: str, decision: str, comment: str | None) -> dict[str, Any]:
+    """POST /approve/{token}: approve or decline once (document 03, 8; document 05, 6 and 7.1).
+
+    One transaction. Locks are taken order first, then approval, the same order as
+    `expire_approval_if_due` and `get_order`, so concurrent decisions and expiry cannot
+    deadlock. A token that is unknown, already used or past its deadline changes nothing
+    (except that a due expiry is applied, as on any access: API-19).
+    """
+    if decision not in ("approve", "decline"):
+        raise invalid_request("decision must be 'approve' or 'decline'.",
+                              [{"field": "decision", "message": "approve or decline"}])
+    text = (comment or "").strip()[:COMMENT_MAX] or None
+    with db.transaction() as conn:
+        found = find_approval_by_token(conn, token)
+        if found is None:
+            return _result("not_found")
+        order_id = found["order_id"]
+        order = load_order(conn, order_id, for_update=True)
+        a = find_approval_by_token(conn, token, for_update=True)
+        assert order is not None and a is not None
+        if expire_approval_if_due(conn, order_id):
+            return _result("expired", load_order(conn, order_id), load_approval(conn, order_id))
+        if a["status"] != "pending" or order["status"] != "pending_approval":
+            kind = "expired" if a["status"] == "expired" else "already_decided"
+            return _result(kind, order, a)
+
+        now = timeutil.now()
+        approve = decision == "approve"
+        new_order_status = "confirmed" if approve else "declined"
+        db.q(conn, "UPDATE approvals SET status = :s, decided_at = :d, comment_untrusted = :c "
+                   "WHERE approval_id = :a AND status = 'pending'",
+             s="approved" if approve else "declined", d=timeutil.to_db(now), c=text,
+             a=a["approval_id"])
+        db.q(conn, "UPDATE orders SET status = :s, updated_at = :u WHERE order_id = :o",
+             s=new_order_status, u=timeutil.to_db(now), o=order_id)
+
+        trace, offer_id, name = order["trace_id"], order["offer_id"], a["approver_name"]
+        events.append(
+            conn, trace_id=trace, type="approval.decided", actor_type="approver",
+            actor_id=name, audience="both", at=now,
+            text=f"{name} {'approved' if approve else 'declined'} the order.",
+            body={"order_id": order_id, "decision": "approved" if approve else "declined",
+                  "has_comment": text is not None},
+        )
+        if approve:
+            payload = (offers.load_offer(conn, offer_id) or {}).get("payload") or {}
+            totals = payload.get("totals") or {}
+            events.append(
+                conn, trace_id=trace, type="order.confirmed", actor_type="gateway",
+                audience="both",
+                text=(f"Order {order_id} confirmed: {totals.get('excl_tax')} EUR excl. tax, "
+                      f"delivery {payload.get('delivery_date')}. Approved by {name}."),
+                body={"order_id": order_id, "status": "confirmed", "totals": totals},
+            )
+            commit_holds(conn, offer_id, trace)
+        else:
+            events.append(
+                conn, trace_id=trace, type="order.closed", actor_type="gateway",
+                audience="both",
+                text=f"Order {order_id} closed as declined by {name}; its holds are released.",
+                body={"order_id": order_id, "status": "declined"},
+            )
+            offers.release_holds(conn, offer_id, trace, "approval declined")
+        return _result("approved" if approve else "declined",
+                       load_order(conn, order_id), load_approval(conn, order_id))
+
+
+def pending_approvals(conn: Connection) -> list[dict[str, Any]]:
+    """Approvals still open (pending and not past their deadline), newest first. Read only:
+    an approval past its deadline is left for lazy expiry and simply not listed."""
+    rows = db.q(
+        conn,
+        "SELECT a.approval_id, a.order_id, a.approver_name, a.requested_at, a.expires_at, "
+        "o.trace_id, o.offer_id, o.reference, c.name AS customer_name, g.name AS agent_name, "
+        "f.payload_json FROM approvals a JOIN orders o ON o.order_id = a.order_id "
+        "JOIN customers c ON c.customer_id = o.customer_id "
+        "JOIN agents g ON g.agent_id = o.agent_id JOIN offers f ON f.offer_id = o.offer_id "
+        "WHERE a.status = 'pending' AND o.status = 'pending_approval' AND a.expires_at > :n "
+        "ORDER BY a.requested_at DESC",
+        n=timeutil.to_db(timeutil.now()),
+    ).mappings().all()
+    out = []
+    for r in rows:
+        d = dict(r)
+        payload = db.jload(d.pop("payload_json")) or {}
+        d["requested_at"] = timeutil.from_db(d["requested_at"])
+        d["expires_at"] = timeutil.from_db(d["expires_at"])
+        d["totals"] = payload.get("totals") or {}
+        d["delivery_date"] = payload.get("delivery_date")
+        out.append(d)
+    return out
+
+
 __all__ = [
-    "approval_token", "approval_url", "commit_holds", "dry_run", "expire_approval_if_due",
-    "extend_holds", "find_approval_by_token", "get_order", "load_approval", "load_order",
-    "order_view", "place_order", "request_hash", "token_sha256",
+    "approval_token", "approval_url", "commit_holds", "decide_approval", "dry_run",
+    "expire_approval_if_due", "extend_holds", "find_approval_by_token", "get_order",
+    "load_approval", "load_order", "order_view", "pending_approvals", "place_order",
+    "request_hash", "token_sha256",
 ]

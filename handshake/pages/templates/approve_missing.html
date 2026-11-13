@@ -1,0 +1,11 @@
+{% extends "_base.html" %}
+{% block style %}{% include "_approve.css" %}{% endblock %}
+{% block body %}
+<main class="page">
+  <p class="brand"><strong>Handshake</strong> approval request</p>
+  <section class="result">
+    <h1><span class="mark mark-off" aria-hidden="true"></span>This approval link is not valid.</h1>
+    <p class="lede">Check that you opened the whole link. If the demo was reset, ask for a new one from the console.</p>
+  </section>
+</main>
+{% endblock %}
