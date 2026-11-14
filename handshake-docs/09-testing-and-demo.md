@@ -188,6 +188,18 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6j. Two-page public site (redesign, added 2026-11-14)
+
+No gateway or scenario behaviour changed. The previous single page stays at `/classic` until the redesign is accepted.
+
+- `/` (landing): hero "The wholesale interface built for AI purchasing agents", a one-sentence subhead, four selling points (signed fixed-price offers, limits set by people, human approval, open standards), "Start here" (four links into `/live?start=example|misbehave|school|verify`), the discovery rows and Quick start cards as before, and the primary button "See how it works in live action" to `/live` at the top and bottom. Footer disclaimer unchanged.
+- `/live` (script `/static/live.js`, CSP `script-src 'self'`): the "You are" selector (six buyer personas, Approver, Valio Aimo operations); a Rules card in plain language with the cap, ranking and proactive-consent controls behind "Edit"; two panels, side by side from 960 px and stacked below. On the left, "External buyer agent (not part of Handshake)": chat input with a person icon, Agent behaviour Honest or Misbehaving (Misbehaving runs the live rogue agent), and a frame with only the buyer agent's latest message. On the right, "Handshake: the Valio Aimo interface": a frame with only Handshake's latest message. Each frame has one plain sentence above the JSON (for example "Signed offer: 1,010.00 EUR excl. tax, valid 15 minutes."), and the JSON scrolls inside the frame. The approval card (link and QR), then the outcome and receipt link, sit between the panels.
+- Playback bar: "Step i of N", Previous, Next, Play/Pause with speed (0.5x to 4x), and "Show all steps", which expands the full log (clicking an entry jumps to it). While a run is live the frames follow the newest step; stepping back pauses following and shows "Jump to latest". The time-to-order timer sits in the bar.
+- "Try a scenario" (under the chat input) groups every existing chip by theme: ordering, limits and approval, exceptions, comparing offers, misbehaving agents (scripted sequence, over-orders, prompt-injected, rogue), proactive offers, trust. Each item is labelled "scripted" or "live model". The menu closes when a run starts.
+- Comparison table, in-browser signature verify and price edit, the Approver inbox and the operations view (suspend, tamper, send seasonal offer) work as before. Run limits and sandboxes are unchanged.
+
+Tests: `tests/test_public_demo.py::test_home_page` and `::test_live_page` (content, no word "marketplace", two live buttons, one script, CSP, element IDs, `/classic` still served). `tests/test_live_page_browser.py` at 390 and 1280 px covers the landing page, Rules Edit, the scenario menu, one full run (the hotel example) with playback (previous, next, play at 4x to the signed offer, jump to latest, show all steps and jump from the log), approval by the Approver, the confirmed outcome with the receipt link, and the operations view, with no console errors and no horizontal scroll. A second test covers the `?start=verify` (signature checked in the browser), misbehaving and `?start=school` flows. The earlier browser tests now run against `/classic`.
+
 ### 6i. Proactive selling agent, with consent (stage 6, added 2026-11-14)
 
 - Consent on the mandate card: a "Proactive offers from Valio Aimo" switch, six categories (ground coffee, coffee beans, milk and milk drinks, rye bread, other bread, pasta) and a maximum per week. Off by default; saving writes a new mandate version and `mandate.changed`.

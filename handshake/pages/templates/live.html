@@ -1,0 +1,240 @@
+{% extends "_base.html" %}
+{% block head %}<script src="/static/live.js" defer></script>{% endblock %}
+{% block style %}
+.shell { max-width: 84rem; margin: 0 auto; padding: 18px var(--gutter) 48px; }
+.brand a { color: var(--ink); text-decoration: none; }
+h2.side-h { font-size: var(--step-1); line-height: 1.25; display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; flex-wrap: wrap; }
+.sub-h { font-size: 12px; font-weight: 600; color: var(--slate); border: 1px solid var(--frost); border-radius: 999px; padding: 2px 9px; }
+.badge-live { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--accent); color: var(--accent-text);
+  border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+.badge-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-text); }
+.panel { border: 1px solid var(--frost); background: var(--surface); border-radius: 14px; }
+.muted-s { font-size: 12px; color: var(--slate); }
+
+/* Top: who you are, and the rules you work under */
+.top { margin-top: 14px; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.personas { display: grid; gap: 6px; }
+.personas .lbl { font-size: 12px; font-weight: 600; color: var(--slate); }
+.pb-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pb { font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); background: var(--surface); border: 1px solid var(--frost);
+  border-radius: 999px; padding: 7px 14px; cursor: pointer; min-height: 38px; }
+.pb:hover { border-color: var(--slate); }
+.pb[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.pb.role { border-style: dashed; }
+.pb.role[aria-pressed="true"] { border-style: solid; }
+.sandbox-note { font-size: 12px; color: var(--slate); }
+.rules { padding: 14px 16px; display: grid; gap: 8px; min-width: 0; }
+.rules-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.rules-head h2 { font-size: var(--step-0); }
+.rules-head span { color: var(--slate); font-weight: 400; }
+.linkbtn { font: inherit; font-size: var(--step--1); font-weight: 600; color: var(--accent-text); background: none; border: 0;
+  padding: 4px 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.rules-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; font-size: var(--step--1); }
+.rules-list li { overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+.edit-box { display: grid; gap: 10px; border-top: 1px solid var(--frost); padding-top: 10px; font-size: var(--step--1); }
+.edit-box form, .edit-box .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.edit-box input[type=number] { width: 8rem; font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--frost);
+  border-radius: 8px; padding: 6px 10px; min-height: 36px; }
+.edit-box label { display: inline-flex; gap: 6px; align-items: center; }
+.save { font: inherit; font-weight: 700; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--white); cursor: pointer; }
+.pref { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink); background: transparent; border: 1px solid var(--frost);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; min-height: 30px; }
+.pref[aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
+.msg { font-size: 12px; color: var(--accent-text); }
+.msg.bad { color: var(--lingon); }
+
+/* Role panels (Approver, Valio Aimo operations) */
+.role-panel { margin-top: 14px; padding: 14px 16px; display: grid; gap: 10px; }
+.item { border: 1px solid var(--frost); border-left: 3px solid var(--lingon); background: var(--raised); border-radius: 10px;
+  padding: 12px 14px; display: grid; gap: 6px; }
+.item.off { border-left-color: var(--slate); }
+.item h4 { margin: 0; font-size: var(--step-0); overflow-wrap: anywhere; }
+.item p { font-size: var(--step--1); color: var(--slate); margin: 0; }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.acts button, .acts a { font: inherit; font-weight: 700; font-size: var(--step--1); min-height: 38px; padding: 0 12px; border-radius: 8px;
+  cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--white); text-decoration: none;
+  display: inline-flex; align-items: center; }
+.acts button.no { background: transparent; border-color: var(--lingon); color: var(--lingon); }
+.acts a.plain { background: transparent; border-color: var(--frost); color: var(--ink); }
+.acts select { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--frost); border-radius: 8px;
+  min-height: 38px; padding: 0 8px; max-width: 100%; }
+.ops-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 12px; color: var(--slate);
+  max-height: 14rem; overflow: auto; }
+.ops-list li { border-top: 1px solid var(--frost); padding-top: 4px; overflow-wrap: anywhere; }
+.hh { font-size: 12px; font-weight: 600; color: var(--slate); }
+
+/* The stage: two frames facing each other, the seam between them */
+.stage { margin-top: 16px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.side { padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.chat { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; }
+.person { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--raised);
+  border: 1px solid var(--frost); color: var(--accent-text); }
+.person svg { width: 20px; height: 20px; }
+#lv-prompt { width: 100%; min-height: 72px; resize: vertical; font: inherit; color: var(--ink); background: var(--raised);
+  border: 1px solid var(--frost); border-radius: 12px; padding: 10px 12px; }
+.send-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.send-row .btn { min-height: 44px; }
+.behaviour { border: 0; margin: 0; padding: 0; display: flex; gap: 6px 16px; align-items: center; flex-wrap: wrap; }
+.behaviour legend { font-size: 12px; font-weight: 600; color: var(--slate); padding: 0; margin-bottom: 4px; width: 100%; }
+.behaviour label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; font-size: var(--step--1); cursor: pointer; }
+.behaviour input { accent-color: var(--accent); }
+.behaviour .hint { font-size: 12px; color: var(--slate); width: 100%; }
+.scenarios { border: 1px solid var(--frost); border-radius: 10px; }
+.scenarios summary { cursor: pointer; padding: 9px 12px; font-weight: 700; font-size: var(--step--1); }
+.scen-groups { padding: 0 12px 12px; display: grid; gap: 10px; max-height: 22rem; overflow: auto; }
+.scen-groups h3 { font-size: 12px; font-weight: 700; color: var(--slate); margin-bottom: 4px; }
+.scen-groups ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.scen { font: inherit; font-size: 13px; color: var(--ink); background: transparent; border: 1px solid var(--frost); border-radius: 999px;
+  padding: 5px 11px; cursor: pointer; min-height: 32px; text-align: left; }
+.scen.scripted { border-color: var(--accent); }
+.scen .kind { color: var(--slate); font-size: 12px; margin-left: 4px; }
+.scen:disabled { opacity: 0.5; cursor: not-allowed; }
+.lv-off { border: 1px solid var(--frost); border-radius: 10px; padding: 8px 12px; font-size: var(--step--1); }
+
+.frame { border: 1px solid var(--frost); background: var(--raised); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px;
+  min-height: 12rem; align-content: start; min-width: 0; }
+.frame.current { border-color: var(--accent-text); }
+.frame.bad { border-color: var(--lingon); }
+.frame-empty { color: var(--slate); font-size: var(--step--1); }
+.frame .who { font-size: 12px; font-weight: 600; color: var(--slate); display: flex; justify-content: space-between; gap: 8px; }
+.frame .summary { font-weight: 700; font-size: var(--step-0); line-height: 1.4; overflow-wrap: anywhere; }
+.frame .say { white-space: pre-line; overflow-wrap: anywhere; }
+.frame pre { margin: 0; padding: 10px 12px; background: var(--paper); border: 1px solid var(--frost); border-radius: 8px;
+  font-size: 12px; line-height: 1.45; overflow: auto; white-space: pre; max-height: 20rem; }
+.frame .tool { font-family: var(--mono); font-size: 13px; color: var(--accent-text); }
+.frame .note { font-size: 12px; color: var(--slate); }
+
+.seam:empty { display: none; }
+.lv-card { padding: 18px; display: grid; gap: 12px; border-top: 3px solid var(--accent); }
+.lv-card.stopped { border-top-color: var(--lingon); }
+.lv-card h3 { font-size: var(--step-1); line-height: 1.25; }
+.lv-card .qr { width: 180px; max-width: 100%; background: #fff; border-radius: 8px; padding: 8px; }
+.lv-card .qr img { width: 100%; height: auto; display: block; }
+.lv-card .btn { min-height: 44px; }
+
+/* Playback: a transport bar under the stage */
+.playback { margin-top: 14px; padding: 10px 14px; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+.playback button, .playback select { font: inherit; font-weight: 700; font-size: var(--step--1); color: var(--ink); background: transparent;
+  border: 1px solid var(--frost); border-radius: 8px; min-height: 40px; padding: 0 12px; cursor: pointer; }
+.playback button:disabled { opacity: 0.45; cursor: default; }
+.playback .count { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--step--1); min-width: 8.5em; }
+.playback .jump { border-color: var(--accent-text); color: var(--accent-text); }
+.playback .timer { font-family: var(--mono); color: var(--accent-text); font-size: var(--step--1); }
+.playback .grow { flex: 1 1 auto; }
+#lv-status { margin-top: 8px; font-size: var(--step--1); color: var(--slate); }
+#lv-status[data-state="bad"] { color: var(--lingon); }
+.log { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.log li { border: 1px solid var(--frost); border-radius: 10px; background: var(--surface); }
+.log li.at { border-color: var(--accent-text); }
+.log button.head { width: 100%; text-align: left; font: inherit; color: var(--ink); background: none; border: 0; padding: 8px 12px; cursor: pointer;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.log .num { font-family: var(--mono); color: var(--slate); font-size: 12px; }
+.log .side-l { font-size: 12px; color: var(--slate); white-space: nowrap; }
+.log .sum { overflow-wrap: anywhere; font-size: var(--step--1); }
+.log details { padding: 0 12px 10px; }
+.log details summary { font-size: 12px; color: var(--slate); cursor: pointer; }
+.log pre { margin: 6px 0 0; padding: 8px 10px; background: var(--raised); border: 1px solid var(--frost); border-radius: 8px;
+  font-size: 12px; overflow: auto; max-height: 16rem; white-space: pre; }
+
+/* Comparison table and verify tool inside frames */
+.cmp-wrap { overflow-x: auto; }
+.cmp { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+.cmp th, .cmp td { text-align: left; vertical-align: top; padding: 6px 8px; border-top: 1px solid var(--frost); }
+.cmp tr:first-child th { border-top: 0; font-family: var(--mono); color: var(--accent-text); }
+.cmp th:first-child { color: var(--slate); font-weight: 600; white-space: nowrap; }
+.vtool { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vtool button { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink); background: transparent; border: 1px solid var(--frost);
+  border-radius: 999px; padding: 4px 11px; cursor: pointer; min-height: 30px; }
+.vtool .vres { font-size: 12px; font-weight: 700; }
+.vtool .vres.ok { color: var(--accent-text); }
+.vtool .vres.bad { color: var(--lingon); }
+
+@media (min-width: 960px) {
+  .top { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .stage { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .seam { width: 250px; }
+  .seam .lv-card .qr { width: 100%; }
+  .frame { min-height: 14rem; }
+  .frame pre { max-height: 24rem; }
+}
+{% endblock %}
+{% block body %}
+<div class="shell">
+  <p class="brand"><a href="/"><strong>Handshake</strong></a> live demo</p>
+
+  <div class="top">
+    <nav class="personas" aria-label="Who you are in the demo">
+      <span class="lbl">You are</span>
+      <div class="pb-row">
+        {% for slug, p in personas.items() %}<button type="button" class="pb" data-persona="{{ slug }}" aria-pressed="false">{{ p.label }}</button>{% endfor %}
+        {% for slug, label in roles.items() %}{% if slug in roles_ready %}<button type="button" class="pb role" data-persona="{{ slug }}" aria-pressed="false">{{ label }}</button>{% endif %}{% endfor %}
+      </div>
+      <p class="sandbox-note" id="sandbox-note">Each visitor gets a private sandbox: its own copy of every customer, agent and limits, for 2 hours. No sign-in.</p>
+    </nav>
+    <section class="rules panel" id="rules" aria-labelledby="rules-title" aria-live="polite">
+      <div class="rules-head"><h2 id="rules-title">Rules</h2><button type="button" class="linkbtn" id="rules-edit" hidden>Edit</button></div>
+      <p class="muted-s" id="rules-who"></p>
+      <ul class="rules-list" id="rules-list"></ul>
+      <div class="edit-box" id="edit-box" hidden></div>
+    </section>
+  </div>
+
+  <section class="role-panel panel" id="role-panel" hidden aria-live="polite"></section>
+
+  <div class="stage" id="live">
+    <section class="side panel" aria-labelledby="buyer-title">
+      <h2 class="side-h" id="buyer-title">External buyer agent <span class="sub-h">(not part of Handshake)</span></h2>
+      <form id="lv-form" data-available="{{ 'yes' if live.available else 'no' }}">
+        <div class="chat">
+          <span class="person" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span>
+          <div>
+            <label class="visually-hidden" for="lv-prompt">Instruction to your agent</label>
+            <textarea id="lv-prompt" maxlength="{{ live_max }}" placeholder="Tell your agent what to buy, for example: 1,000 litres of lactose-free milk for Monday at the best price"{% if not live.available %} disabled{% endif %}></textarea>
+          </div>
+        </div>
+        <fieldset class="behaviour">
+          <legend>Agent behaviour</legend>
+          <label><input type="radio" name="behaviour" value="honest" checked> Honest</label>
+          <label><input type="radio" name="behaviour" value="rogue"> Misbehaving</label>
+          <span class="hint">Both use the live Claude model in your sandbox. Misbehaving is a red-team agent that tries to complete the purchase by any means, with raw access to this gateway's API under its own key.</span>
+        </fieldset>
+        <div class="send-row">
+          <button class="btn" id="lv-go" type="submit"{% if not live.available %} disabled{% endif %}>Send to my agent</button>
+          <span class="muted-s" id="lv-count">0 / {{ live_max }}</span>
+        </div>
+        {% if not live.available %}<p class="lv-off" role="status">{% if live.code == "budget" %}Today's budget for the live agent is used up.{% else %}The live agent is not available right now.{% endif %} The scripted scenarios below still work.</p>{% endif %}
+        <details class="scenarios" id="scenarios">
+          <summary>Try a scenario</summary>
+          <div class="scen-groups" id="scen-groups"></div>
+        </details>
+        <p class="muted-s">Up to 3 live runs every 10 minutes per visitor; each stops after 25 tool calls or 2 minutes. Scripted scenarios use no AI.</p>
+      </form>
+      <div class="frame" id="frame-buyer" aria-live="polite"><p class="frame-empty">Your agent's latest message appears here.</p></div>
+    </section>
+
+    <div class="seam" id="lv-human" aria-live="polite"></div>
+
+    <section class="side panel" aria-labelledby="gw-title">
+      <h2 class="side-h" id="gw-title">Handshake: the Valio Aimo interface <span class="badge-live">Live API</span></h2>
+      <div class="frame" id="frame-gw" aria-live="polite"><p class="frame-empty">Handshake's latest answer appears here.</p></div>
+    </section>
+  </div>
+
+  <div class="playback panel" id="playback" aria-label="Playback">
+    <span class="count" id="pb-count">No steps yet</span>
+    <button type="button" id="pb-prev" aria-label="Previous step" disabled>Previous</button>
+    <button type="button" id="pb-play" disabled>Play</button>
+    <button type="button" id="pb-next" aria-label="Next step" disabled>Next</button>
+    <label class="muted-s">Speed <select id="pb-speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label>
+    <button type="button" class="jump" id="pb-jump" hidden>Jump to latest</button>
+    <span class="grow"></span>
+    <span class="timer" id="lv-timer" hidden><span class="t-label">Time to order</span> <span id="lv-timer-val">0.0 s</span></span>
+    <button type="button" id="pb-all" aria-expanded="false">Show all steps</button>
+  </div>
+  <p id="lv-status" role="status"></p>
+  <ol class="log" id="log" hidden></ol>
+</div>
+{% endblock %}

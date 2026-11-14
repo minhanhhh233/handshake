@@ -78,7 +78,7 @@ def test_scenario_chip_verify_and_approver_inbox(browser, demo_server, w, h, tag
     page = ctx.new_page()
     errors: list[str] = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     assert _no_hscroll(page)
     assert page.get_by_role("link", name="View API docs").is_visible()
     assert page.locator("#demo").count() == 0  # the three scripted buttons are replaced
@@ -127,7 +127,7 @@ def test_school_refusal_and_misbehaving_toggle(browser, demo_server, w, h, tag):
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="school"]').click()
     page.locator('.chip[data-scenario="school_milk"]').click()
     page.get_by_text("The scenario finished.").wait_for(timeout=20000)
@@ -151,7 +151,7 @@ def test_playground_try_it_live(browser, demo_server, w, h, tag):  # noqa: F811
     page = ctx.new_page()
     errors: list[str] = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     cards = page.locator("[data-step]")
     assert cards.count() == 6
 
@@ -207,7 +207,7 @@ def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noq
     page = ctx.new_page()
     errors: list[str] = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     assert page.get_by_text("Handshake: the Valio Aimo interface").first.is_visible()
     assert page.get_by_text("not part of Handshake").first.is_visible()
     assert page.get_by_text("Live API").first.is_visible()
@@ -254,7 +254,7 @@ def test_start_here_strip(browser, demo_server, w, h, tag):  # noqa: F811
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     steps = page.locator(".start-here button")
     assert steps.count() == 4
     for i in range(4):
@@ -281,7 +281,7 @@ def test_compare_offers_with_a_preference(browser, demo_server, w, h, tag):  # n
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="hotel"]').click()
     page.get_by_role("button", name="Finnish-origin or organic labels").click()
     page.locator("#lv-card").get_by_text("Ranking set").wait_for(timeout=10000)
@@ -312,7 +312,7 @@ def test_behaviour_selector_over_orders(browser, demo_server, monkeypatch, w, h,
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="hotel"]').click()
     page.locator('.chip[data-scenario="misbehaving"]').wait_for(timeout=10000)  # now a chip
     assert page.locator("#lv-bad").count() == 0
@@ -336,7 +336,7 @@ def test_operations_role(browser, demo_server, w, h, tag):  # noqa: F811
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="hotel"]').click()
     page.locator('.chip[data-scenario="hotel_milk"]').click()
     page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
@@ -376,7 +376,7 @@ def test_trust_ladder_and_conformance(browser, demo_server, monkeypatch, w, h, t
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="probation"]').click()
     page.locator("#lv-card").get_by_text("Trust ladder", exact=True).wait_for(timeout=10000)
     assert page.locator("#cap-input").is_hidden()
@@ -403,7 +403,7 @@ def test_proactive_offers(browser, demo_server, w, h, tag):  # noqa: F811
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
-    page.goto(demo_server + "/")
+    page.goto(demo_server + "/classic")
     page.locator('.pb[data-persona="restaurant"]').click()
     page.locator("#lv-card").get_by_text("Proactive offers from Valio Aimo").wait_for(timeout=10000)
     page.locator('.chip[data-scenario="proposal_accept"]').click()

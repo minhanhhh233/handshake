@@ -118,14 +118,14 @@ def test_limits_and_input_checks(client, monkeypatch):  # noqa: F811
 def test_budget_disables_the_box(client, monkeypatch):  # noqa: F811
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setenv("LIVE_DEMO_DAILY_BUDGET_USD", "0")
-    html = client.get("/").text
+    html = client.get("/classic").text
     assert 'data-available="no"' in html and "budget for the live agent is used up" in html
     client.get("/demo/sandbox?persona=hotel")
     r = client.post("/demo/live", json={"prompt": "milk"})
     assert r.status_code == 503 and r.json()["code"] == "budget"
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     monkeypatch.setenv("LIVE_DEMO_DAILY_BUDGET_USD", "10")
-    assert 'data-available="no"' in client.get("/").text
+    assert 'data-available="no"' in client.get("/classic").text
 
 
 def test_tool_call_cap_and_window_closed(client, monkeypatch):  # noqa: F811

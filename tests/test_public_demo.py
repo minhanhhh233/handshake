@@ -57,7 +57,7 @@ def run(client, scenario, ip="198.51.100.7"):
 
 
 def test_landing_page(client):
-    r = client.get("/")
+    r = client.get("/classic")
     assert r.status_code == 200
     html = r.text
     for href in ('href="/docs"', 'href="/.well-known/handshake.json"',
@@ -183,3 +183,45 @@ def test_earliest_delivery_date_skips_passed_cutoffs(catalog, clean_db):
         assert public_demo.earliest_delivery_date(["464306"], "trc_" + "b" * 20, None) is None
     finally:
         upstream.set_adapter(None)
+
+
+def test_home_page(client):
+    """The redesigned landing page (document 09, section 6j)."""
+    r = client.get("/")
+    assert r.status_code == 200
+    html = r.text
+    assert "The wholesale interface built for AI purchasing agents" in html
+    assert "marketplace" not in html.lower()
+    for point in ("Signed fixed-price offers", "Limits set by people", "Human approval",
+                  "Open standards"):
+        assert point in html
+    assert html.count('href="/live"') == 2 and "See how it works in live action" in html
+    for section in ('id="discovery"', 'id="quick-start"', 'href="/.well-known/jwks.json"'):
+        assert section in html
+    assert "All customers and people shown are fictional." in html
+    assert len(re.findall(r"<script", html)) == 1
+    assert get_settings().admin_key not in html and "/console" not in html
+
+
+def test_live_page(client):
+    r = client.get("/live")
+    assert r.status_code == 200
+    html = r.text
+    csp = r.headers["content-security-policy"]
+    assert "script-src 'self'" in csp
+    assert "unsafe-inline" not in csp.split("script-src", 1)[1].split(";", 1)[0]
+    assert '<script src="/static/live.js" defer></script>' in html
+    assert len(re.findall(r"<script", html)) == 1
+    for ident in ("lv-form", "lv-prompt", "frame-buyer", "frame-gw", "lv-human", "pb-count",
+                  "pb-prev", "pb-play", "pb-next", "pb-speed", "pb-jump", "pb-all", "log",
+                  "scen-groups", "rules-edit", "edit-box", "role-panel", "lv-timer"):
+        assert f'id="{ident}"' in html, ident
+    for p in ("visitor", "hotel", "restaurant", "school", "hospital", "probation", "approver",
+              "operations"):
+        assert f'data-persona="{p}"' in html, p
+    assert "External buyer agent <span class=\"sub-h\">(not part of Handshake)</span>" in html
+    assert "Handshake: the Valio Aimo interface" in html
+    js = client.get("/static/live.js")
+    assert js.status_code == 200 and "javascript" in js.headers["content-type"]
+    assert "innerHTML" not in js.text and "eval(" not in js.text
+    assert client.get("/classic").status_code == 200

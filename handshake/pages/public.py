@@ -45,6 +45,7 @@ PUBLIC_HEADERS = {
 RUN_HEADERS = {**APPROVAL_HEADERS, "Content-Security-Policy": _SCRIPT_CSP}
 _STATIC = Path(__file__).resolve().parent / "static"
 _SITE_JS = (_STATIC / "site.js").read_text(encoding="utf-8")
+_LIVE_JS = (_STATIC / "live.js").read_text(encoding="utf-8")
 #: Plain-text templates (llms.txt): no HTML escaping; values are server configuration only.
 _TEXT_ENV = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parent / "templates")),
                         autoescape=False, keep_trailing_newline=True)
@@ -74,7 +75,24 @@ DISCOVERY = [
 
 
 @router.get("/")
+def home() -> Response:
+    """The landing page (redesign 2026-11-14): what Handshake is, discovery, quick start."""
+    return render("home.html", headers=PUBLIC_HEADERS, title="Handshake",
+                  base=get_settings().public_base_url, kid=get_settings().signing_kid,
+                  discovery=[d | {"href": d["path"]} for d in DISCOVERY])
+
+
+@router.get("/live")
+def live_page() -> Response:
+    """The live demo (redesign 2026-11-14): personas, two frames, playback."""
+    return render("live.html", headers=PUBLIC_HEADERS, title="Handshake live demo",
+                  live=_live_status(), personas=sandbox.PERSONAS, roles=sandbox.ROLES,
+                  roles_ready=sandbox.ROLES_READY, live_max=_live_max())
+
+
+@router.get("/classic")
 def landing() -> Response:
+    """The previous single page, kept until the redesign is accepted."""
     return render("landing.html", headers=PUBLIC_HEADERS, title="Handshake",
                   base=get_settings().public_base_url, kid=get_settings().signing_kid,
                   limit=public_demo.RUNS_PER_WINDOW,
@@ -165,6 +183,13 @@ def _not_found() -> Response:
 @router.get("/static/site.js")
 def site_js() -> Response:
     return Response(_SITE_JS, media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "public, max-age=300",
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@router.get("/static/live.js")
+def live_js() -> Response:
+    return Response(_LIVE_JS, media_type="application/javascript; charset=utf-8",
                     headers={"Cache-Control": "public, max-age=300",
                              "X-Content-Type-Options": "nosniff"})
 
