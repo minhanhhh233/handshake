@@ -419,3 +419,20 @@ def test_mandate_reasons_r2_r3_r4():
     assert mandate_product_reasons(_facts(allergens={"AN": "FREE_FROM"}), _mandate(
         forbidden_allergens={"codes": ["AN"]})) == []
 
+
+
+def test_origin_changed_only_when_both_origins_known():
+    """origin_changed is true/false only when both origins are known; null otherwise."""
+    from decimal import Decimal as D
+
+    from handshake.offers import CatalogProduct, differences
+
+    def prod(pid, origin):
+        return CatalogProduct(pid, "x", "10400", "ST", D("0.01"), False, True, None, None,
+                              None, None, origin)
+
+    fi, se, unknown = prod("1", "fi"), prod("2", "SE"), prod("3", None)
+    assert differences(se, fi, None, None, None).origin_changed is True
+    assert differences(prod("4", "FI"), fi, None, None, None).origin_changed is False
+    assert differences(unknown, fi, None, None, None).origin_changed is None
+    assert differences(fi, unknown, None, None, None).origin_changed is None

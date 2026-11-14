@@ -31,6 +31,8 @@ This section overrides the hours and the cut order below where they disagree.
 
 Any phase running more than an hour behind its target is reported at once. Phase 5's remaining tasks (T-505 anonymous demo step, T-506 OpenAPI tidy-up) are done during phase 6 if time allows.
 
+**Warm container (2026-11-14).** One Modal container is kept warm until Sunday 15 November 12:00 Europe/Helsinki, when the scheduled `scale_down_after_demo` function sets the minimum back to 0 (`modal_app.py`).
+
 **Phase 3 must-do (from the end-of-phase-2 code review).** The approval page puts the approval token in the URL path, and the console takes the admin key as `?key=`. Before these ship: (1) the request log must redact `/approve/<token>` and never log query strings; (2) uvicorn's access log must be off (or redacted) locally and on Modal; (3) prefer a cookie or POST form over `?key=` where the page allows it.
 
 **Deployment checklist.** Done 2026-11-14 (document 02, section 8; Q-01). The Modal secret must contain non-empty `ADMIN_KEY` and `SIGNING_KEY_PEM`; without `ADMIN_KEY` every order that needs approval fails (document 10, section 3.1).

@@ -223,6 +223,13 @@ def test_allergy_guard_refused(app, catalog, clean_db):
     assert "AM CONTAINS" in text
     assert "Refused by the gateway: no candidate can be offered under this mandate." in text
     assert "Lactose-free is not milk-free." in text
+    # Console: the first three refused products in full, the rest grouped with the shared reason.
+    full_lines = [ln for ln in text.splitlines() if "forbidden_by_mandate [R3]: Product " in ln]
+    assert len(full_lines) == 3
+    rest = len(s["excluded"]) - 3
+    if rest > 0:
+        assert (f"...and {rest} more, forbidden_by_mandate [R3]: contains milk (AM), which this "
+                "mandate forbids. Lactose-free is not milk-free.") in text
     assert calls == [] and s["offer_id"] is None and s["order_id"] is None
     assert "dry_run_order(" not in text and "place_order(" not in text
     assert fake.calls == []  # static mandate filter: 422 before any upstream call

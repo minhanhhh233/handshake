@@ -231,6 +231,7 @@ All settings are environment variables, provided on Modal as one secret named `h
 | `UPSTREAM_CACHE_TTL_SECONDS` | no | `60` | Cache lifetime for upstream answers |
 | `UPSTREAM_TIMEOUT_SECONDS` | no | `5` | Per-call timeout |
 | `DEMO_MODE` | no | `false` | Enables `/v1/admin/reset` and the approval QR on the console |
+| `DATABASE_POOL_RECYCLE_SECONDS` | no | `280` | Maximum age of a pooled connection; set below the server's `wait_timeout` (SkySQL: 30 s, so 25). Connections are also pre-pinged before every use |
 
 The agent process additionally needs `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `HANDSHAKE_BASE_URL` and `HANDSHAKE_AGENT_KEY`.
 
@@ -246,8 +247,9 @@ The agent process additionally needs `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `HA
 MariaDB runs on SkySQL serverless (Q-01, answered 2026-11-14). Notes from the first deployment:
 
 - TLS: `DATABASE_URL` carries `?ssl_ca=<path to the CA file>`; SQLAlchemy's PyMySQL dialect turns it into a verified TLS connection (certificate chain and hostname). Locally the path is `certs/globalsignrootca.pem` (git-ignored); `modal_app.py` copies that file into the image at `/root/certs/globalsignrootca.pem`, and the Modal secret's `DATABASE_URL` points there.
-- The deployed URL is `https://minhanhhh233--handshake-web.us-east.modal.run`; `PUBLIC_BASE_URL` in the secret must equal it exactly (the offer `issuer` and the approval links are built from it). After changing the secret, stop the app (`modal app stop handshake --yes`) and deploy again so no container keeps the old value.
-- Latency: Modal runs in us-east and the database in eu-west-2, so each request pays cross-Atlantic round trips (warm health about 0.7 to 1.0 s). Pinning the Modal function to an EU region, if the plan allows it, would cut this.
+- Region (2026-11-14): containers run in Modal's `uk` region next to the database, and requests enter in `eu-west` (`modal_app.py` defaults; `eu-west-2` is not a Modal region name). One container is kept warm (`min_containers=1`); the scheduled function `scale_down_after_demo` sets it back to 0 on Sunday 15 November 2026 at 12:00 Europe/Helsinki. Measured on Modal: product search 0.35 s (was 2.6 s from us-east), offer 0.15 s warm, health 0.24 s.
+- Round trips (2026-11-14): `code_lookup` is cached in-process for 5 minutes; each product batch's attributes are read in one `UNION ALL` query; the offer builder looks up substitutes on the same connection as the mandate and catalog. Search 6 to 2 statements, offer 22 to 18 statements and 6 to 5 connection checkouts.
+- The deployed URL is `https://minhanhhh233--handshake-web.eu-west.modal.run`; `PUBLIC_BASE_URL` in the secret must equal it exactly (the offer `issuer` and the approval links are built from it). After changing the secret, stop the app (`modal app stop handshake --yes`) and deploy again so no container keeps the old value.
 - Development machine only: TLS to api.modal.com and the deployed URL is intercepted by a locally trusted CA, and the Modal client trusts only certifi. The CLI is run through a wrapper that points certifi at a bundle of certifi plus the Windows trust store (verification stays on); `SSL_CERT_FILE` does the same for httpx clients.
 - The hosted database and the local one have different demo agent keys: `keys/demo_agents.json` (local) and `keys/demo_agents.hosted.json` (hosted), both git-ignored.
 

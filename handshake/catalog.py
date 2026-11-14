@@ -8,6 +8,7 @@ All SQL is parameterised. Lists of user values become numbered bind parameters.
 
 from __future__ import annotations
 
+import time
 import base64
 import binascii
 import json
@@ -104,33 +105,53 @@ def _decode_cursor(cursor: str, mode: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- lookups and decoration
 
 
+_LOOKUP_TTL = 300.0  # seconds; code_lookup changes only when the seed script runs
+_lookup_cache: tuple[float, dict[tuple[str, str], str]] | None = None
+
+
 def _lookup(conn: Connection) -> dict[tuple[str, str], str]:
-    rows = db.q(conn, "SELECT kind, code, name_en FROM code_lookup").all()
-    return {(r[0], r[1]): r[2] for r in rows}
+    """Code names, cached in-process (saves one database round trip per search)."""
+    global _lookup_cache
+    now = time.monotonic()
+    if _lookup_cache is None or now - _lookup_cache[0] > _LOOKUP_TTL:
+        rows = db.q(conn, "SELECT kind, code, name_en FROM code_lookup").all()
+        _lookup_cache = (now, {(r[0], r[1]): r[2] for r in rows})
+    return _lookup_cache[1]
+
+
+def clear_lookup_cache() -> None:
+    global _lookup_cache
+    _lookup_cache = None
 
 
 def _attributes(conn: Connection, ids: list[str]) -> dict[str, dict[str, Any]]:
-    """Claims, labels, allergens and substitution flags for many products in four queries."""
+    """Claims, labels, allergens and substitution flags for many products in ONE query
+    (a UNION ALL over the four attribute tables; one round trip instead of four)."""
     attrs: dict[str, dict[str, Any]] = {
         i: {"claims": [], "labels": [], "allergens": [], "subs": []} for i in ids
     }
     if not ids:
         return attrs
     ph, params = _in_params("id", ids)
-    for pid, claim in db.q(conn, f"SELECT product_id, claim FROM product_claims "
-                                 f"WHERE product_id IN ({ph}) ORDER BY claim", **params):
-        attrs[pid]["claims"].append(claim)
-    for pid, label in db.q(conn, f"SELECT product_id, label FROM product_labels "
-                                 f"WHERE product_id IN ({ph}) ORDER BY label", **params):
-        attrs[pid]["labels"].append(label)
-    for pid, code, state in db.q(conn, f"SELECT product_id, allergen, state FROM "
-                                       f"product_allergens WHERE product_id IN ({ph}) "
-                                       f"ORDER BY allergen", **params):
-        attrs[pid]["allergens"].append((code, state))
-    for pid, sub in db.q(conn, f"SELECT product_id, substitute_product_id FROM "
-                               f"product_substitutions WHERE product_id IN ({ph}) "
-                               f"ORDER BY substitute_product_id", **params):
-        attrs[pid]["subs"].append(sub)
+    sql = (
+        f"SELECT 'c' AS k, product_id, claim AS v, NULL AS s FROM product_claims "
+        f"WHERE product_id IN ({ph}) "
+        f"UNION ALL SELECT 'l', product_id, label, NULL FROM product_labels "
+        f"WHERE product_id IN ({ph}) "
+        f"UNION ALL SELECT 'a', product_id, allergen, CAST(state AS CHAR) FROM product_allergens "
+        f"WHERE product_id IN ({ph}) "
+        f"UNION ALL SELECT 's', product_id, substitute_product_id, NULL FROM "
+        f"product_substitutions WHERE product_id IN ({ph}) "
+        f"ORDER BY k, product_id, v")
+    for kind, pid, value, state in db.q(conn, sql, **params):
+        if kind == "c":
+            attrs[pid]["claims"].append(value)
+        elif kind == "l":
+            attrs[pid]["labels"].append(value)
+        elif kind == "a":
+            attrs[pid]["allergens"].append((value, state))
+        else:
+            attrs[pid]["subs"].append(value)
     return attrs
 
 

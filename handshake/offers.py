@@ -216,18 +216,22 @@ def load_catalog(conn: Connection, product_ids: list[str]) -> dict[str, CatalogP
     if not out:
         return out
     found = sorted(out)
-    for pid, claim in conn.execute(_in(
-            "SELECT product_id, claim FROM product_claims WHERE product_id IN :ids "
-            "ORDER BY product_id, claim", found), {"ids": found}):
-        out[pid].claims.append(claim)
-    for pid, label in conn.execute(_in(
-            "SELECT product_id, label FROM product_labels WHERE product_id IN :ids "
-            "ORDER BY product_id, label", found), {"ids": found}):
-        out[pid].labels.append(label)
-    for pid, code, state in conn.execute(_in(
-            "SELECT product_id, allergen, state FROM product_allergens WHERE product_id IN :ids "
-            "ORDER BY product_id, allergen", found), {"ids": found}):
-        out[pid].allergens[code] = state
+    # One round trip for the three attribute tables (UNION ALL) instead of three.
+    stmt = text(
+        "SELECT 'c' AS k, product_id, claim AS v, NULL AS s FROM product_claims "
+        "WHERE product_id IN :ids "
+        "UNION ALL SELECT 'l', product_id, label, NULL FROM product_labels "
+        "WHERE product_id IN :ids "
+        "UNION ALL SELECT 'a', product_id, allergen, CAST(state AS CHAR) FROM product_allergens "
+        "WHERE product_id IN :ids "
+        "ORDER BY k, product_id, v").bindparams(bindparam("ids", expanding=True))
+    for kind, pid, value, state in conn.execute(stmt, {"ids": found}):
+        if kind == "c":
+            out[pid].claims.append(value)
+        elif kind == "l":
+            out[pid].labels.append(value)
+        else:
+            out[pid].allergens[value] = state
     return out
 
 
@@ -562,7 +566,8 @@ def differences(
         claims_gained=sorted(set(p.claims) - set(requested.claims)),
         labels_lost=sorted(set(requested.labels) - set(p.labels)),
         labels_gained=sorted(set(p.labels) - set(requested.labels)),
-        origin_changed=origin != req_origin,
+        # Known only when both origins are known; null otherwise (decided 2026-11-14).
+        origin_changed=(origin != req_origin) if origin and req_origin else None,
         delivery_reliability_delta=delta,
         source=source,  # type: ignore[arg-type]
     )
@@ -645,9 +650,22 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
     """
     settings = get_settings()
     all_ids = [p for line in req.lines for p in line.product_ids]
+    # Step 1, candidates: the agent's IDs, then (substitution 'allowed') official substitutes
+    # and same-category products, at most 25 per line (document 06, section 6). Looked up on
+    # the same connection as the mandate and catalog (one checkout, one pre-ping), and only
+    # when the request is valid, so error behaviour is unchanged.
+    subs: dict[int, list[tuple[str, str]]] = {}
     with db.connection() as conn:
         mandate = mandates.get_current(conn, agent_id)
         catalog = load_catalog(conn, all_ids)
+        if (mandate is not None and set(all_ids) <= set(catalog)
+                and any(line.substitution == "allowed" for line in req.lines)):
+            for i, line in enumerate(req.lines, start=1):
+                if line.substitution == "allowed":
+                    listed = list(dict.fromkeys(line.product_ids))
+                    subs[i] = substitute_ids(conn, line, catalog[listed[0]], listed)
+            extra = load_catalog(conn, [pid for s in subs.values() for pid, _ in s])
+            catalog = {**extra, **catalog}
     if mandate is None:
         raise forbidden("This agent has no mandate. An admin must set one before offers "
                         "can be issued.")
@@ -671,18 +689,6 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
                  "requirements": line.requirements.dump()} for line in req.lines],
                 "max_options": req.max_options, "candidates": total_candidates},
         )
-
-    # Step 1, candidates: the agent's IDs, then (substitution 'allowed') official substitutes
-    # and same-category products, at most 25 per line (document 06, section 6).
-    subs: dict[int, list[tuple[str, str]]] = {}
-    if any(line.substitution == "allowed" for line in req.lines):
-        with db.connection() as conn:
-            for i, line in enumerate(req.lines, start=1):
-                if line.substitution == "allowed":
-                    listed = list(dict.fromkeys(line.product_ids))
-                    subs[i] = substitute_ids(conn, line, catalog[listed[0]], listed)
-            extra = load_catalog(conn, [pid for s in subs.values() for pid, _ in s])
-        catalog = {**extra, **catalog}
 
     # Step 2, static filter.
     excluded: list[Excluded] = []

@@ -7,6 +7,7 @@ All state lives in MariaDB (NFR-06). One request's writes happen in one transact
 from __future__ import annotations
 
 import json
+import os
 import logging
 import time
 from collections.abc import Iterator
@@ -29,7 +30,8 @@ def make_engine(url: str) -> Engine:
     eng = create_engine(
         url,
         pool_pre_ping=True,
-        pool_recycle=280,
+        # Recycle before the server drops idle connections (SkySQL: wait_timeout 30 s).
+        pool_recycle=int(os.environ.get("DATABASE_POOL_RECYCLE_SECONDS", "280")),
         pool_size=5,
         max_overflow=5,
         hide_parameters=True,  # tracebacks must not print SQL parameters (doc 10, 3.1)

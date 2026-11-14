@@ -345,7 +345,7 @@ class Differences(_Model):
     claims_gained: list[str]
     labels_lost: list[str]
     labels_gained: list[str]
-    origin_changed: bool
+    origin_changed: bool | None  # null when either origin is unknown
     delivery_reliability_delta: float | None
     source: SubstitutionSource | None  # null for agent-listed alternates
 

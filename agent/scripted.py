@@ -283,11 +283,24 @@ def _refusal(out: Out, summary: dict[str, Any], e: HandshakeAPIError) -> dict[st
     out(f"  -> gateway answered {e.status} {e.code}")
     out("")
     out("Refused by the gateway: no candidate can be offered under this mandate.")
-    for x in excluded:
+    # The first three in full, then the rest grouped by their shared reason (demo screen).
+    shown, rest = excluded[:3], excluded[3:]
+    for x in shown:
         pr = x.get("policy_reason") or {}
         msg = pr.get("message") or x.get("message") or ""
         rule = f" [{pr.get('rule')}]" if pr.get("rule") else ""
         out(f"  {x.get('product_id')}  {x.get('reason')}{rule}: {msg}")
+    groups: dict[tuple[str, str, str], int] = {}
+    for x in rest:
+        pr = x.get("policy_reason") or {}
+        msg = pr.get("message") or x.get("message") or ""
+        prefix = f"Product {x.get('product_id')} "
+        shared = msg[len(prefix):] if msg.startswith(prefix) else msg
+        key = (str(x.get("reason")), str(pr.get("rule") or ""), shared)
+        groups[key] = groups.get(key, 0) + 1
+    for (reason, rule, shared), n in groups.items():
+        tag = f" [{rule}]" if rule else ""
+        out(f"  ...and {n} more, {reason}{tag}: {shared}")
     summary["final_status"] = REFUSED
     summary["outcome"] = "rejected"
     summary["code"] = e.code

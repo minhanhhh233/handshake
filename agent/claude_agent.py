@@ -569,6 +569,9 @@ def run_task(
         "system": system_blocks(customer_name, today),
         "tools": tool_definitions(category_hint),
         "output_config": {"effort": effort},
+        # Automatic caching of the growing conversation (the 10k-token search result is resent
+        # every turn); tools and the stable system block keep their own breakpoints.
+        "cache_control": {"type": "ephemeral"},
     }
     if _LEGACY_MODEL.match(model):
         request.pop("output_config")
