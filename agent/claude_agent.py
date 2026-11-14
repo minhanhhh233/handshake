@@ -197,7 +197,9 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                 "labels": {**_STR_LIST, "description": "Label codes the product must all have."},
                 "name_excludes": {**_STR_LIST, "description": "Drop products whose English or "
                                   "Finnish name contains any of these terms (case- and "
-                                  "accent-insensitive)."},
+                                  "accent-insensitive). Do not exclude 'drink' or 'juoma': "
+                                  "Finnish lactose-free milk is usually labelled 'milk drink' "
+                                  "(maitojuoma), so that term removes plain milks."},
                 "limit": {"type": "integer", "description": "Maximum results, 1 to 20 "
                           "(default 20)."},
             }, []),
