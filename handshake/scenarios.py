@@ -326,6 +326,37 @@ def school_category(s: Script) -> None:
     s.offer([L(["461051"], 10, "SALES_UNIT", fulfilment="exact")])
 
 
+def hospital_unknown(s: Script) -> None:
+    s.say("Olive oil 462909 has no allergen data. The hospital forbids peanuts, tree nuts, "
+          "sesame, crustaceans and molluscs, and sends unknown data to a person instead of "
+          "refusing it (the school refuses it).")
+    offer, _ = s.offer([L(["462909"], 5)])
+    if not offer:
+        return
+    s.dry_run(offer["offer_id"])
+    s.order(offer["offer_id"], reference="PUBLIC-HOSPITAL")
+
+
+def hospital_substitute(s: Script) -> None:
+    s.say("Whipping cream 469288 cannot be delivered; substitution is allowed. Valio Aimo's "
+          "official substitute fills it, but this mandate approves no substitute on its own.")
+    offer, _ = s.offer([L(["469288"], 5, substitution="allowed")])
+    if not offer:
+        return
+    s.dry_run(offer["offer_id"])
+    s.order(offer["offer_id"], reference="PUBLIC-HOSPITAL-SUB")
+
+
+def probation_small(s: Script) -> None:
+    s.say("A new agent on probation orders 60 L of milk, about 61 EUR: small, but over its "
+          "50 EUR cap.")
+    offer, _ = s.offer(_milk_lines(60))
+    if not offer:
+        return
+    s.dry_run(offer["offer_id"])
+    s.order(offer["offer_id"], reference="PUBLIC-PROBATION")
+
+
 def any_tomorrow(s: Script) -> None:
     tomorrow = timeutil.today_helsinki() + timedelta(days=1)
     s.say(f"Needed tomorrow, {tomorrow.isoformat()}.")
@@ -423,6 +454,12 @@ SCENARIOS: dict[str, dict[str, Any]] = {
                                 "fn": school_no_allergen_data},
     "school_category": {"label": "Energy drinks: refused", "personas": ["school"],
                         "fn": school_category},
+    "hospital_unknown": {"label": "Unknown allergen data: to approval", "personas": ["hospital"],
+                         "fn": hospital_unknown},
+    "hospital_substitute": {"label": "Substitute: to approval", "personas": ["hospital"],
+                            "fn": hospital_substitute},
+    "probation_small": {"label": "Small order, still approval", "personas": ["probation"],
+                        "fn": probation_small},
     "any_tomorrow": {"label": "Needed tomorrow", "personas": sbx.BUYERS, "fn": any_tomorrow},
     "visitor_search": {"label": "Search, then ask for a price", "personas": ["visitor"],
                        "fn": visitor_search},

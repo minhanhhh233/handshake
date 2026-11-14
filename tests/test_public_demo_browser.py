@@ -244,3 +244,30 @@ def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noq
     page.locator("#live").screenshot(path=str(SCREENS / f"live-confirmed-{tag}.png"))
     assert not [e for e in errors if "Content Security Policy" in e or "Refused" in e], errors
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_start_here_strip(browser, demo_server, w, h, tag):  # noqa: F811
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    steps = page.locator(".start-here button")
+    assert steps.count() == 4
+    for i in range(4):
+        assert steps.nth(i).bounding_box()["height"] <= 60  # one line per step
+    page.screenshot(path=str(SCREENS / f"start-here-{tag}.png"))
+    steps.nth(3).click()  # verify before any run: a hint
+    assert "Run step 1 first" in page.locator("#start-note").inner_text()
+    steps.nth(0).click()
+    page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
+    steps.nth(3).click()
+    page.locator(".vres.ok").wait_for(timeout=10000)
+    steps.nth(2).click()
+    page.locator("#lv-steps").get_by_text("Lactose-free is not milk-free.").first.wait_for(
+        timeout=20000)
+    steps.nth(1).click()
+    page.get_by_text("Every attempt was refused").wait_for(timeout=30000)
+    assert _no_hscroll(page)
+    ctx.close()

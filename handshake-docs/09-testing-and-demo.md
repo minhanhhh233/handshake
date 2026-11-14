@@ -204,9 +204,13 @@ Per persona, chips under "One click, scripted: no AI, no cost" run fixed sequenc
 | Restaurant | Official vs same-category substitute | 469288 (not deliverable) is filled by its official substitute 470341; 465039 (cut-off passed) by a same-category lactose-free milk: R8 fires for line 2 only |
 | Restaurant | Breaks the weekly cap | Orders of 278.88 EUR: the third makes the week 836.64 EUR, R7, approval (listed last so the other Restaurant scenarios are not affected) |
 | School kitchen | Milk allergy / No allergen data / Energy drinks | Offers refused before upstream: R3 ("Lactose-free is not milk-free."), R4 for olive oil 462909 (no allergen data), R2 for Red Bull 461051 (category 22701) |
+| Hospital kitchen | Unknown allergen data: to approval | Olive oil 462909 has no allergen data: R4 fires for each forbidden code with effect `needs_approval` (the school's mandate refuses the same product) |
+| Hospital kitchen | Substitute: to approval | 469288 is filled by its official substitute 470341, but `auto_approve: none` sends it to approval (R8) |
+| New agent on probation | Small order, still approval | 60 L of milk, 60.60 EUR, over the 50 EUR cap (R6) |
 | Any buyer | Needed tomorrow | `not_deliverable_by_date` with the earliest date (16 Nov on 14 Nov) |
 | Visitor | Search, then ask for a price | Search works; the offer is `401` with how to register |
 
+- "Start here" strip under the persona bar, one line per step, clicked in order by a first-time visitor: 1. Order milk, then approve it (Hotel example order); 2. Watch an agent misbehave (the misbehaving agent); 3. See a school refuse milk; 4. Verify a signature yourself (clicks the browser check on the latest signature step, or asks for step 1 first).
 - Misbehaving agent toggle (every buyer persona; runs as the Restaurant agent): splits an order to dodge the cap (caught by R7), overspends (R6, held for a person), edits a signed offer's price (signature check fails; a price field in the order is `400`), reuses a consumed offer (`409`), tries to approve its own order (`404` on a guessed approval link) and raise its own cap (`403` on the admin route), and asks for a discount (no counter-offer route, `404`; a `discount_percent` field is `400`). Each attempt and the gateway's answer are side by side.
 - Offer verification the visitor can do: on every signature step, "Verify in this browser" checks the JWS with WebCrypto Ed25519 against `/.well-known/jwks.json`; "Edit the price, verify again" lowers the first line's price by 0.10 and shows the signature fail.
 - Approver role (persona bar): an inbox of the sandbox's pending approvals with Approve and Decline.

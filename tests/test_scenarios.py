@@ -36,6 +36,7 @@ def world(catalog, clean_db):
     facts += [f("469363", "2.48", amount="384"),
               f("465236", "11.62", "3.87", "KG", amount=None),
               f("470341", "2.10", "8.40", amount=None),
+              f("462909", "42.00", "8.40", amount=None),
               make_facts("469288", price="2.00", has_schedule=False),
               make_facts("465039", price="6.86", available_date=d,
                          closing=timeutil.now() - timedelta(hours=1))]
@@ -207,3 +208,20 @@ def test_inbox_and_routes(world):
     r = c.post("/demo/scenario", json={"id": "any_tomorrow", "persona": "hotel"})
     assert r.status_code == 202 and r.json()["trace_id"].startswith("trc_")
     assert db is not None
+
+
+def test_hospital_and_probation_go_to_approval(world):
+    c, sid, _ = world
+    v = run(sid, "hospital_unknown", "hospital")
+    dry = results(v, "dry_run_order")[0]["detail"]
+    assert {r["code"] for r in dry["reasons"]} == {"allergen_data_missing"}
+    assert dry["outcome"] == "needs_approval" and v["order"]["status"] == "pending_approval"
+    v = run(sid, "hospital_substitute", "hospital")
+    dry = results(v, "dry_run_order")[0]["detail"]
+    assert "substitution_needs_approval" in [r["code"] for r in dry["reasons"]]
+    v = run(sid, "probation_small", "probation")
+    dry = results(v, "dry_run_order")[0]["detail"]
+    assert [r["code"] for r in dry["reasons"]] == ["spend_cap_exceeded"]
+    assert v["order"]["status"] == "pending_approval"
+    chips = c.get("/demo/sandbox?persona=hospital").json()["scenarios"]["scripted"]
+    assert [x["id"] for x in chips][:2] == ["hospital_unknown", "hospital_substitute"]

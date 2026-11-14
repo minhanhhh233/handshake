@@ -203,7 +203,7 @@
       return fetch("/demo/sandbox?persona=" + encodeURIComponent(slug), { credentials: "same-origin" });
     });
     sandboxQueue = req.catch(function () { /* keep the queue going */ });
-    req
+    return req
       .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
       .then(function (res) {
         if (res.status !== 200) { cardBox.textContent = ""; cardBox.appendChild(el("p", "", res.body.message || "The sandbox could not be loaded.")); return; }
@@ -552,6 +552,47 @@
       })
       .catch(function () { setStatus("The request did not reach the gateway.", true); lock(false); });
   });
+  // ---- "Start here" strip: four first steps, one click each
+  var startNote = document.getElementById("start-note");
+  function live() { document.getElementById("live").scrollIntoView({ behavior: "smooth", block: "start" }); }
+  document.querySelectorAll("[data-start]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var what = b.getAttribute("data-start");
+      if (startNote) startNote.textContent = "";
+      if (run && !ended && go.disabled) { if (startNote) startNote.textContent = "Wait for the current run to finish."; return; }
+      b.classList.add("done");
+      if (what === "example") {
+        choose("hotel").then(function () {
+          if (badBox) { badBox.checked = false; go.textContent = "Run the agent"; }
+          live();
+          startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
+        });
+      } else if (what === "misbehave") {
+        var p = (persona === "visitor" || persona === "approver") ? "restaurant" : persona;
+        choose(p).then(function () {
+          if (badBox) { badBox.checked = true; go.textContent = "Run the misbehaving agent"; }
+          live();
+          startRun("/demo/scenario", { id: "misbehaving", persona: p }, "The misbehaving agent is trying...");
+        });
+      } else if (what === "school") {
+        choose("school").then(function () {
+          if (badBox) { badBox.checked = false; go.textContent = "Run the agent"; }
+          live();
+          startRun("/demo/scenario", { id: "school_milk", persona: "school" }, "Running the scripted scenario...");
+        });
+      } else if (what === "verify") {
+        var vb = document.querySelector(".vtool button");
+        if (!vb) {
+          b.classList.remove("done");
+          if (startNote) startNote.textContent = "Run step 1 first: its offer carries the signature to check.";
+          return;
+        }
+        vb.closest(".lv-row").scrollIntoView({ behavior: "smooth", block: "center" });
+        vb.click();
+      }
+    });
+  });
+
   // ---- offer verification the visitor can do: Ed25519 in this browser, against the JWKS
   var jwksCache = null;
   function b64u(s) {
