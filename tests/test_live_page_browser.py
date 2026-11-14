@@ -30,8 +30,11 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     # Landing page.
     page.goto(demo_server + "/")
     assert _no_hscroll(page)
-    assert page.get_by_role("heading", name="The wholesale interface built for AI purchasing "
-                                               "agents").is_visible()
+    assert page.get_by_role("heading", name="Let AI agents buy from Valio Aimo. On Valio Aimo's "
+                                               "terms.").is_visible()
+    # Quick start code wraps: no horizontal scrollbar in any code box.
+    assert page.evaluate("Array.from(document.querySelectorAll('pre.code')).every("
+                         "p => p.scrollWidth <= p.clientWidth)")
     buttons = page.get_by_role("link", name="See how it works in live action")
     assert buttons.count() == 2 and buttons.first.bounding_box()["height"] >= 44
     page.screenshot(path=str(SCREENS / f"home-{tag}.png"), full_page=True)
@@ -48,7 +51,18 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     assert page.locator("#edit-box").is_hidden()
     assert _no_hscroll(page)
 
-    # The scenario menu, grouped by theme.
+    # Empty state: three example requests on the agent side, Start here on the Handshake side.
+    assert page.locator("#frame-buyer .examples button").count() == 3
+    assert page.locator("#frame-gw .starts button").count() == 4
+    # Test the gateway: the rogue note appears only while the rogue agent is selected.
+    assert page.locator("#rogue-note").is_hidden()
+    page.get_by_text("Rogue agent", exact=True).click()
+    assert page.locator("#rogue-note").is_visible()
+    page.get_by_text("Honest agent", exact=True).click()
+    assert page.locator("#rogue-note").is_hidden()
+
+    # The scenario menu, grouped by theme, behind a visible secondary button.
+    assert page.locator("#scen-toggle").is_visible()
     page.locator("#scen-toggle").click()
     for g in ("Ordering", "Limits and approval", "Exceptions", "Misbehaving agents",
               "Proactive offers"):
@@ -122,7 +136,7 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     page.locator("#live").wait_for(timeout=10000)
     assert page.locator("#live").is_visible() and page.locator("#playback").is_visible()
     assert page.locator("#pb-count").inner_text() == "No steps yet"
-    assert "latest answer appears here" in page.locator("#frame-gw").inner_text()
+    assert page.locator("#frame-gw .starts button").count() == 4
     assert _no_hscroll(page)
     assert not errors, errors
     ctx.close()
@@ -148,10 +162,43 @@ def test_start_links_and_misbehaving(browser, demo_server):  # noqa: F811
     page.locator("#pb-all").click()
     assert page.locator("#log li .sum", has_text="Refused").count() >= 1
     page.locator("#pb-all").click()
+    # The scorecard, from the server's counts: refusals by reason, approvals, 0 over a limit.
+    score = page.locator("#lv-score")
+    score.wait_for(timeout=10000)
+    assert int(score.locator(".stat").nth(0).locator(".num").inner_text()) >= 4
+    assert score.locator(".stat").nth(0).locator("li").count() >= 3
+    assert int(score.locator(".stat").nth(1).locator(".num").inner_text()) >= 1
+    assert score.locator(".stat.good .num").inner_text() == "0"
     page.screenshot(path=str(SCREENS / "live-misbehaving-1280.png"), full_page=True)
+    score.screenshot(path=str(SCREENS / "live-scorecard-1280.png"))
     # The school refuses milk.
     page.goto(demo_server + "/live?start=school")
     page.wait_for_function("() => document.getElementById('pb-count').innerText.indexOf('of') > 0 && "
                            "!document.getElementById('lv-go').disabled", timeout=30000)
+    assert not errors, errors
+    ctx.close()
+
+
+def test_decline_on_the_approval_page_and_rogue_preselect(browser, demo_server):  # noqa: F811
+    ctx = _ctx(browser, 390, 844)
+    page = ctx.new_page()
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    # The landing page's rogue card opens /live with the rogue agent selected.
+    page.goto(demo_server + "/live?behaviour=rogue")
+    page.locator("#rules-list li").first.wait_for(timeout=10000)
+    assert page.locator('input[name="behaviour"][value="rogue"]').is_checked()
+    assert page.locator("#rogue-note").is_visible()
+    page.screenshot(path=str(SCREENS / "live-rogue-selected-390.png"), full_page=True)
+    # Start here, step 1 from the empty Handshake frame; then the person declines.
+    page.locator("#frame-gw .starts button").first.click()
+    page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
+    href = page.get_by_role("link", name="Open the approval page").get_attribute("href")
+    approval = ctx.new_page()
+    approval.goto(demo_server + urlparse(href).path)
+    approval.get_by_role("button", name="Decline order").click()
+    approval.wait_for_load_state()
+    approval.close()
+    page.get_by_text("Declined. Nothing was ordered").wait_for(timeout=15000)
     assert not errors, errors
     ctx.close()

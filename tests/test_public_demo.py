@@ -190,12 +190,18 @@ def test_home_page(client):
     r = client.get("/")
     assert r.status_code == 200
     html = r.text
-    assert "The wholesale interface built <span class=\"grad\">for AI purchasing agents</span>" in html
+    assert ("Let AI agents buy from Valio Aimo. <span class=\"grad\">On Valio Aimo's "
+            "terms.</span>") in html
+    assert "without giving up data, prices or the customer relationship" in html
+    assert "agent gateway prototype" in html
     assert "Start here" not in html
     assert "marketplace" not in html.lower()
-    for point in ("Signed fixed-price offers", "Limits set by people", "Human approval",
-                  "Open standards"):
+    for point in ("Agents see only what they should", "A price an agent can prove",
+                  "People set the limits", "Tested against a rogue agent"):
         assert point in html
+    minutes = get_settings().offer_ttl_seconds // 60
+    assert f"held for {minutes} minutes" in html
+    assert 'href="/live?behaviour=rogue"' in html
     assert html.count('href="/live"') == 2 and "See how it works in live action" in html
     for section in ('id="discovery"', 'id="quick-start"', 'href="/.well-known/jwks.json"'):
         assert section in html

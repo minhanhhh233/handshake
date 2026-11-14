@@ -77,6 +77,9 @@
     groupsBox.querySelectorAll(".scen").forEach(function (b) {
       b.disabled = on || (!available && b.getAttribute("data-live") === "1");
     });
+    document.querySelectorAll(".empty button").forEach(function (b) {
+      b.disabled = on || (!available && b.getAttribute("data-live") === "1");
+    });
   }
   function updateCount() { count.textContent = box.value.length + "/" + box.maxLength; }
   box.addEventListener("input", updateCount);
@@ -258,10 +261,46 @@
     f.appendChild(json(d));
     return f;
   }
-  function fill(frame, s, label, emptyText) {
+  // Empty frames: three example requests on the agent side, Start here on the Handshake side.
+  var DEFAULT_EXAMPLES = ["20 litres of lactose-free milk for Monday",
+    "5 kg of ground coffee for the office, cheapest first", "Rye bread for 120 lunches on Friday"];
+  function examples() {
+    var list = ((scen && scen.prompts) || []).slice(0, 3);
+    DEFAULT_EXAMPLES.forEach(function (t) { if (list.length < 3 && list.indexOf(t) < 0) list.push(t); });
+    return list;
+  }
+  function emptyBuyer() {
+    var w = el("div", "empty");
+    w.appendChild(el("p", "lead", available ? "Try one of these, or write your own:" : "Example requests (the live agent is not available right now):"));
+    var ul = el("ul", "examples");
+    examples().forEach(function (t) {
+      var li = el("li"), b = el("button", "", t);
+      b.type = "button"; b.setAttribute("data-live", "1"); b.disabled = running || !available;
+      b.addEventListener("click", function () { box.value = t; updateCount(); if (available && !running) startLive(t, behaviour()); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    w.appendChild(ul);
+    return w;
+  }
+  var STARTS = [["example", "Order milk, then approve it"], ["misbehave", "Watch an agent misbehave"],
+    ["school", "See a school refuse milk"], ["verify", "Verify a signature yourself"]];
+  function emptyGateway() {
+    var w = el("div", "empty");
+    w.appendChild(el("p", "lead", "Start here: four scripted first steps, in this order."));
+    var ol = el("ol", "starts");
+    STARTS.forEach(function (st) {
+      var li = el("li"), b = el("button", "", st[1]);
+      b.type = "button"; b.disabled = running;
+      b.addEventListener("click", function () { if (!running) runStart(st[0]); });
+      li.appendChild(b); ol.appendChild(li);
+    });
+    w.appendChild(ol);
+    return w;
+  }
+  function fill(frame, s, label, empty) {
     frame.textContent = "";
     frame.classList.remove("current", "bad");
-    if (!s) { frame.appendChild(el("p", "frame-empty", emptyText)); return; }
+    if (!s) { frame.appendChild(empty()); return; }
     var idx = steps.indexOf(s);
     if (label) frame.appendChild(el("p", "who", label));
     var head = el("div", "head");
@@ -283,8 +322,8 @@
       if (sd === "buyer") lastB = steps[i]; else if (sd === "gateway") lastG = steps[i];
     }
     var bLabel = lastB && lastB.kind === "user" ? "You" : "";
-    fill(frameBuyer, lastB, bLabel, "Your agent's latest message appears here.");
-    fill(frameGw, lastG, lastG && lastG.kind === "seller" ? "Valio Aimo selling agent (scripted), initiator" : "", "Handshake's latest answer appears here.");
+    fill(frameBuyer, lastB, bLabel, emptyBuyer);
+    fill(frameGw, lastG, lastG && lastG.kind === "seller" ? "Valio Aimo selling agent (scripted), initiator" : "", emptyGateway);
     pb.count.textContent = n ? "Step " + (cursor + 1) + " of " + n : "No steps yet";
     pb.prev.disabled = cursor <= 0;
     pb.next.disabled = cursor >= n - 1;
@@ -400,6 +439,7 @@
         addSteps(b.steps || []);
         after = b.next;
         showOrder(b.order, b.run_url);
+        if (b.scorecard) renderScore(b.scorecard);
         var pending = b.order && b.order.status === "pending_approval";
         if (b.state === "running") {
           if (!ended) setStatus("Working... " + Math.round((Date.now() - startedAt) / 1000) + " s");
@@ -411,11 +451,52 @@
       })
       .catch(function () { pollTimer = setTimeout(poll, 4000); });
   }
+  // Scorecard after a rogue (or scripted misbehaving) run: numbers come from the server, which
+  // counts the gateway's recorded responses and the order records, not the agent's words.
+  var scoreEl = document.getElementById("lv-score");
+  var REASONS = { offer_consumed: "offer already used", invalid_request: "fields the API does not accept",
+    forbidden: "admin or other forbidden route", not_found: "unknown offer, order or route", unauthorized: "no valid agent key",
+    spend_cap_exceeded: "over the per-order cap", period_cap_exceeded: "over the weekly cap",
+    forbidden_allergen: "forbidden allergen", agent_suspended: "agent suspended", offer_expired: "offer expired",
+    idempotency_conflict: "same key, different order", "HTTP 404": "no such page or route", "HTTP 405": "method not allowed" };
+  function reasonText(code) { return REASONS[code] ? REASONS[code] + " (" + code + ")" : String(code).replace(/_/g, " "); }
+  function renderScore(sc) {
+    scoreEl.textContent = "";
+    var head = el("div");
+    var h = el("h3", "", "Scorecard: what Handshake did"); h.id = "score-title"; head.appendChild(h);
+    head.appendChild(el("p", "basis", "Counted from the gateway's responses and the order records of this run, not from the agent's own words."));
+    scoreEl.appendChild(head);
+    var stats = el("div", "stats");
+    function stat(n, label, cls) {
+      var d = el("div", "stat" + (cls ? " " + cls : ""));
+      d.appendChild(el("span", "num", String(n))); d.appendChild(el("span", "lbl", label));
+      stats.appendChild(d); return d;
+    }
+    var r = stat(sc.refused_total, sc.refused_total === 1 ? "request refused" : "requests refused");
+    var codes = Object.keys(sc.refused || {});
+    if (codes.length) {
+      var ul = el("ul");
+      codes.forEach(function (c) { var li = el("li"); li.appendChild(el("span", "", reasonText(c))); li.appendChild(el("span", "c", String(sc.refused[c]))); ul.appendChild(li); });
+      r.appendChild(ul);
+    }
+    stat(sc.sent_for_approval, sc.sent_for_approval === 1 ? "order sent to a person for approval" : "orders sent to a person for approval");
+    var o = stat(sc.confirmed_over_limit, "confirmed orders that exceeded a mandate limit", sc.confirmed_over_limit === 0 ? "good" : "bad");
+    o.appendChild(el("span", "extra", "Expected 0. Re-checked against the mandate version each order was placed under; " + sc.confirmed + " of " + sc.orders + " orders confirmed in total."));
+    scoreEl.appendChild(stats);
+    var stopped = Object.keys(sc.stopped_before_gateway || {});
+    if (stopped.length) {
+      var n = stopped.reduce(function (a, k) { return a + sc.stopped_before_gateway[k]; }, 0);
+      scoreEl.appendChild(el("p", "extra", n + (n === 1 ? " call was" : " calls were") + " stopped before reaching the gateway: " +
+        stopped.map(function (k) { return k.replace(/_/g, " ") + " (" + sc.stopped_before_gateway[k] + ")"; }).join(", ") + "."));
+    }
+    scoreEl.hidden = false;
+  }
   function startRun(url, payload, label) {
     clearTimeout(pollTimer); stopPlay();
     toggleMenu(false);
     steps = []; cursor = -1; following = true; after = 0; lastOrder = ""; ended = false;
     human.textContent = "";
+    scoreEl.hidden = true; scoreEl.textContent = "";
     render();
     lock(true);
     setStatus("Starting...");
@@ -497,6 +578,7 @@
       var sec2 = el("div"); sec2.appendChild(el("h3", "", "More")); sec2.appendChild(ul2); groupsBox.appendChild(sec2);
     }
     lock(running);
+    render();  // the empty agent frame shows this persona's example requests
   }
 
   // ---------------------------------------------------------------- personas, rules and edit controls
@@ -577,6 +659,7 @@
     verifyWhenReady = false;
     clearInterval(tick); tick = null; timerBox.hidden = true; timerVal.textContent = "0.0 s";
     human.textContent = "";
+    scoreEl.hidden = true; scoreEl.textContent = "";
     setStatus("");
     logEl.hidden = true; logEl.textContent = "";
     pb.all.setAttribute("aria-expanded", "false"); pb.all.textContent = "Show all steps";
@@ -602,7 +685,7 @@
         // Operations sees its own view only: no agent panels, outcome bar, playback or step log.
         var ops = slug === "operations";
         ["live", "lv-human", "playback", "lv-status"].forEach(function (id) { document.getElementById(id).hidden = ops; });
-        if (ops) { logEl.hidden = true; pb.all.setAttribute("aria-expanded", "false"); pb.all.textContent = "Show all steps"; }
+        if (ops) { scoreEl.hidden = true; logEl.hidden = true; pb.all.setAttribute("aria-expanded", "false"); pb.all.textContent = "Show all steps"; }
         if (slug === "approver") { rulesWho.textContent = "Approver"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "You are the customers' purchasing manager. Orders over a mandate's limits wait for your decision.")); editBtn.hidden = true; editBox.textContent = ""; renderInbox(res.body.inbox || []); return; }
         if (slug === "operations") { rulesWho.textContent = "Valio Aimo operations"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "What Valio Aimo sees about the agents in your sandbox, with a suspend switch, a log-tamper control and proactive offers.")); editBtn.hidden = true; editBox.textContent = ""; renderOps(res.body.ops || {}); return; }
         renderRules(res.body.card, res.body.sandbox);
@@ -728,21 +811,37 @@
   }
 
   // ---------------------------------------------------------------- start: persona, then a Start here step from the landing page
-  var start = null;
-  try { start = new URLSearchParams(location.search).get("start"); } catch (e) { start = null; }
-  if (start === "example" || start === "verify") persona = "hotel";
-  else if (start === "school") persona = "school";
-  else if (start === "misbehave" && (persona === "visitor" || persona === "approver" || persona === "operations")) persona = "restaurant";
+  // Rogue agent: the highlighted note shows while it is selected.
+  var rogueNote = document.getElementById("rogue-note");
+  function syncRogue() { rogueNote.hidden = behaviour() !== "rogue"; }
+  form.querySelectorAll('input[name="behaviour"]').forEach(function (x) { x.addEventListener("change", syncRogue); });
+
+  function needsBuyer(p) { return p === "visitor" || p === "approver" || p === "operations"; }
+  // The four Start here steps (also linked from the landing page as /live?start=...).
+  function runStart(name) {
+    var target = name === "school" ? "school" : (name === "misbehave" ? (needsBuyer(persona) ? "restaurant" : persona) : "hotel");
+    choose(target).then(function () {
+      if (name === "example") startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
+      else if (name === "school") startRun("/demo/scenario", { id: "school_milk", persona: "school" }, "Running the scripted scenario...");
+      else if (name === "misbehave") startRun("/demo/scenario", { id: "misbehaving", persona: target }, "The misbehaving agent is trying...");
+      else if (name === "verify") {
+        startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
+        verifyWhenReady = true;
+      }
+    });
+  }
+
+  var start = null, beh = null;
+  try { var qs = new URLSearchParams(location.search); start = qs.get("start"); beh = qs.get("behaviour"); } catch (e) { start = null; }
+  if (beh === "rogue") {
+    var rb = form.querySelector('input[name="behaviour"][value="rogue"]');
+    if (rb) rb.checked = true;
+    if (needsBuyer(persona)) persona = "restaurant";
+  }
+  syncRogue();
   if (!document.querySelector('.pb[data-persona="' + persona + '"]')) persona = "hotel";
-  choose(persona).then(function () {
-    if (start === "example") startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
-    else if (start === "school") startRun("/demo/scenario", { id: "school_milk", persona: "school" }, "Running the scripted scenario...");
-    else if (start === "misbehave") startRun("/demo/scenario", { id: "misbehaving", persona: persona }, "The misbehaving agent is trying...");
-    else if (start === "verify") {
-      verifyWhenReady = true;
-      startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
-    }
-  });
+  if (start && STARTS.some(function (s) { return s[0] === start; })) runStart(start);
+  else choose(persona);
   updateCount();
   render();
 })();

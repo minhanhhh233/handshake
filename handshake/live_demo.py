@@ -19,11 +19,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import os
 import threading
 import time
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from . import db, events, public_demo, signing, timeutil
@@ -620,7 +622,80 @@ def view(trace_id: str, after: int = 0, sandbox_id: str | None = None
         else:
             o["receipt_url"] = order.get("receipt_url")
         out["order"] = o
+    if state == "done" and (v.get("behaviour") == "rogue" or v.get("script") == "misbehaving"):
+        out["scorecard"] = scorecard(trace_id)
     return out
+
+
+# ---------------------------------------------------------------- rogue-run scorecard
+
+
+def _refusal_code(d: Any) -> tuple[str, str] | None:
+    """('gateway', code) for a refusal by Handshake, ('client', name) for a call stopped before
+    it reached the gateway, None otherwise. Reads the recorded response, never the model's text."""
+    if not isinstance(d, dict):
+        return None
+    if d.get("error") == "gateway_error":  # the agent client's wrapper around a problem body
+        return "gateway", str(d.get("code") or f"HTTP {d.get('status')}")
+    if d.get("error"):  # raw tool guard, signature check in the client, invalid input
+        return "client", str(d["error"])
+    if isinstance(d.get("body"), dict) and isinstance(d.get("status"), int):  # live raw_request
+        return "gateway", str(d["body"].get("code") or f"HTTP {d['status']}")
+    return "gateway", str(d.get("code") or f"HTTP {d.get('status')}")
+
+
+def scorecard(trace_id: str) -> dict[str, Any]:
+    """What the gateway did during one run, computed from the run's recorded gateway responses
+    and from the orders, approvals, offers and mandate versions in the database (document 09,
+    section 6j). Confirmed orders over a limit are re-checked here, not taken from the run."""
+    from collections import Counter
+
+    refused: Counter[str] = Counter()
+    stopped: Counter[str] = Counter()
+    with db.connection() as conn:
+        evs = events.list_events(conn, trace_id)
+        for e in evs:
+            b = e["body"]
+            if e["type"] != "demo.step" or b.get("kind") != "result" or b.get("status") != "bad":
+                continue
+            rc = _refusal_code(b.get("detail"))
+            if rc:
+                (refused if rc[0] == "gateway" else stopped)[rc[1]] += 1
+        rows = db.q(conn, "SELECT o.order_id, o.status, o.outcome, o.reasons_json, o.mandate_id, "
+                          "o.mandate_version, f.total_excl_tax, a.status AS approval "
+                          "FROM orders o JOIN offers f ON f.offer_id = o.offer_id "
+                          "LEFT JOIN approvals a ON a.order_id = o.order_id "
+                          "WHERE o.trace_id = :t ORDER BY o.created_at", t=trace_id).mappings().all()
+        sent = confirmed = over = 0
+        over_ids: list[str] = []
+        for o in rows:
+            reasons = o["reasons_json"]
+            reasons = json.loads(reasons) if isinstance(reasons, str) else (reasons or [])
+            if o["status"] == "rejected":
+                codes = [r.get("code") for r in reasons if r.get("effect") == "rejected"]
+                refused[str(codes[0] if codes else "order_rejected")] += 1
+            if o["outcome"] == "needs_approval":
+                sent += 1
+            if o["status"] != "confirmed":
+                continue
+            confirmed += 1
+            if o["approval"] == "approved":
+                continue  # a person allowed it
+            breach = any(r.get("effect") in ("needs_approval", "rejected") for r in reasons)
+            doc = db.q(conn, "SELECT document FROM mandates FOR SYSTEM_TIME ALL "
+                             "WHERE mandate_id = :m AND version = :v LIMIT 1",
+                       m=o["mandate_id"], v=o["mandate_version"]).scalar_one_or_none()
+            doc = json.loads(doc) if isinstance(doc, str) else (doc or {})
+            cap = ((doc or {}).get("limits") or {}).get("max_order_total_excl_tax")
+            if cap is not None and Decimal(str(o["total_excl_tax"])) > Decimal(str(cap)):
+                breach = True
+            if breach:
+                over += 1
+                over_ids.append(o["order_id"])
+    return {"refused": dict(refused.most_common()), "refused_total": sum(refused.values()),
+            "stopped_before_gateway": dict(stopped.most_common()),
+            "sent_for_approval": sent, "orders": len(rows), "confirmed": confirmed,
+            "confirmed_over_limit": over, "confirmed_over_limit_ids": over_ids}
 
 
 def _public_step(s: dict[str, Any]) -> dict[str, Any]:

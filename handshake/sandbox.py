@@ -281,7 +281,7 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
     custom = ", ".join(f"{names[k]} {round(v * 100)}%"
                        for k, v in m.preferences.weights.items() if v > 0)
     rules.append(("Ranking", (PREFERENCES[pref]["label"] if pref else custom)
-                  + " (orders offer options only)"))
+                  + ". Sets the order of options, never what is allowed."))
     return {"persona": slug, "label": PERSONAS[slug]["label"], "customer": pt["customer"],
             "agent": PERSONAS[slug]["agent"], "blurb": PERSONAS[slug]["blurb"],
             "mandate_version": m.version, "preference": pref,

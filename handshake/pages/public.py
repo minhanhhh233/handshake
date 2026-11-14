@@ -79,7 +79,8 @@ def home() -> Response:
     """The landing page (redesign 2026-11-14): what Handshake is, discovery, quick start."""
     return render("home.html", headers=PUBLIC_HEADERS, title="Handshake",
                   base=get_settings().public_base_url, kid=get_settings().signing_kid,
-                  discovery=[d | {"href": d["path"]} for d in DISCOVERY])
+                  discovery=[d | {"href": d["path"]} for d in DISCOVERY],
+                  offer_minutes=max(1, get_settings().offer_ttl_seconds // 60))
 
 
 @router.get("/live")

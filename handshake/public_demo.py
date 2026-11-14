@@ -341,6 +341,7 @@ def run_view(trace_id: str) -> dict[str, Any] | None:
         "trace_id": trace_id, "scenario": evs[0]["body"].get("scenario"),
         "sandbox_id": evs[0]["body"].get("sandbox"), "persona": evs[0]["body"].get("persona"),
         "script": evs[0]["body"].get("script"),
+        "behaviour": evs[0]["body"].get("behaviour"),
         "started_at": evs[0]["at"],
         "steps": [e["body"] | {"at": e["at"]} for e in evs if e["type"] == "demo.step"],
         "order": None,
