@@ -34,6 +34,12 @@ def world(catalog, clean_db):
     facts = [f(p, "1.01" if p == "464306" else "1.60", amount=None)
              for p in public_demo.SHORTLIST if p != "469363"]
     facts += [f(p, "1.10", amount=None) for p in ("464401", "464073", "462921")]
+    # Coffee for "Compare three offers" (prices, stock as seen live on 2026-11-14).
+    facts += [f("467004", "85.21", "14.20", "KG", amount="14"),
+              f("468618", "67.18", "15.27", "KG", amount="92"),
+              f("462245", "89.15", "14.86", "KG", amount="14"),
+              f("464322", "104.52", "17.42", "KG", amount="585"),
+              f("464724", "105.78", "17.22", "KG", amount="58")]
     facts += [f("469363", "2.48", amount="384"),
               f("465236", "11.62", "3.87", "KG", amount=None),
               f("470341", "2.10", "8.40", amount=None),
@@ -233,14 +239,18 @@ def test_ranked_options_preferences_and_rationale(world):
     from urllib.parse import urlparse
 
     c, sid, _ = world
-    # Default ranking: best is also the cheapest and a single product, so one option only.
+    # Coffee under the hotel's default ranking: three distinct options.
     v = run(sid, "compare_options", "hotel")
     opts = results(v, "request_offer")[0]["detail"]["options"]
-    assert [o["label"] for o in opts] == ["best"]
-    assert opts[0]["score"]["breakdown"]["price"] == 0.6
-    # Labels preference: a new mandate version and mandate.changed; best now differs.
-    r = c.post("/demo/sandbox/preference", json={"persona": "hotel", "preference": "labels"})
-    assert r.status_code == 200 and r.json()["card"]["preference"] == "labels"
+    assert [o["label"] for o in opts] == ["best", "better", "good"]
+    prods = [[ln["product_id"] for ln in o["offer"]["lines"]] for o in opts]
+    assert prods[0] == ["468618"]              # best: low carbon (0.79) and cheap per kg
+    assert prods[1][0] == "467004"             # better: cheapest first, limited stock splits
+    assert prods[2] == ["464322"]              # good: one product with the most stock (kg)
+    assert opts[0]["score"]["total"] >= opts[1]["score"]["total"]
+    # Cheapest preference: best becomes the cheapest, so better is left out as identical.
+    r = c.post("/demo/sandbox/preference", json={"persona": "hotel", "preference": "cheapest"})
+    assert r.status_code == 200 and r.json()["card"]["preference"] == "cheapest"
     assert c.post("/demo/sandbox/preference", json={"persona": "hotel", "preference": "x"}
                   ).status_code == 400
     with db.connection() as conn:
@@ -248,11 +258,10 @@ def test_ranked_options_preferences_and_rationale(world):
                           "text LIKE '%ranking preference%'").scalar_one() == 1
     v = run(sid, "compare_options", "hotel")
     opts = results(v, "request_offer")[0]["detail"]["options"]
-    labels = [o["label"] for o in opts]
-    assert labels[:2] == ["best", "better"]
-    assert opts[0]["offer"]["lines"][0]["product_id"] != "464306"
-    assert opts[1]["offer"]["lines"][0]["product_id"] == "464306"  # better = cheapest
-    assert opts[0]["score"]["total"] > opts[1]["score"]["total"]
+    assert [o["label"] for o in opts] == ["best", "good"]
+    # 467004's 14 units are still held by the first run's 'better' offer in this sandbox, so
+    # the cheapest available coffee now starts with 462245.
+    assert opts[0]["offer"]["lines"][0]["product_id"] in ("467004", "462245")
     ids = {o["offer"]["offer_id"] for o in opts}
     assert len(ids) == len(opts)  # separate offers, each signed and holding stock
     with db.connection() as conn:

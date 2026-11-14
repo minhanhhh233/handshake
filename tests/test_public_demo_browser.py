@@ -38,10 +38,15 @@ def demo_server(catalog, clean_db):
         seed_demo.seed(conn)
     d = timeutil.today_helsinki() + timedelta(days=2)
     closing = timeutil.now() + timedelta(days=1)
+    coffee = [("467004", "85.21", "14.20", "14"), ("468618", "67.18", "15.27", "92"),
+              ("462245", "89.15", "14.86", "14"), ("464322", "104.52", "17.42", "585"),
+              ("464724", "105.78", "17.22", "58")]
     upstream.set_adapter(FakeUpstream([
         make_facts(pid, price="1.01" if pid == "464306" else "1.60",
                    comparison="1.01" if pid == "464306" else "1.60", amount=None,
-                   available_date=d, closing=closing) for pid in public_demo.SHORTLIST]))
+                   available_date=d, closing=closing) for pid in public_demo.SHORTLIST] + [
+        make_facts(pid, price=pr, comparison=cmp, comparison_unit="KG", amount=amt,
+                   available_date=d, closing=closing) for pid, pr, cmp, amt in coffee]))
     port = _free_port()
     srv = uvicorn.Server(uvicorn.Config(create_app(), host="127.0.0.1", port=port,
                                         log_level="warning", access_log=False))
@@ -287,7 +292,7 @@ def test_compare_offers_with_a_preference(browser, demo_server, w, h, tag):  # n
     table = page.locator("table.cmp")
     table.wait_for(timeout=20000)
     text = table.inner_text()
-    for row in ("Total excl. tax", "Products", "Labels", "Score", "best", "better"):
+    for row in ("Total excl. tax", "Products", "Labels", "Score", "best", "good"):
         assert row in text
     assert _no_hscroll(page)
     page.locator(".lv-row.compare").screenshot(path=str(SCREENS / f"compare-{tag}.png"))

@@ -357,16 +357,28 @@ def probation_small(s: Script) -> None:
     s.order(offer["offer_id"], reference="PUBLIC-PROBATION")
 
 
+#: "Compare three offers" needs (chosen 2026-11-14 from live upstream data, document 09 6e).
+#: Ground coffee: price 14.20-17.42 EUR/kg, carbon 0.79 or 7.12 kg CO2e/kg (group averages),
+#: labels none / Rainforest Alliance / organic and Fairtrade (KRAV), reliability 0.966-1.0.
+COFFEE = ["467004", "468618", "462245", "464322", "464724"]
+#: School-safe bread (milk and tree nuts FREE_FROM): price 2.65-4.64 EUR/kg, carbon 1.02 or
+#: 1.16, Finnish labels on Fazer Real Rye only.
+BREAD = ["472236", "466005", "463711", "477016", "465618"]
+
+
 def compare_options(s: Script) -> None:
     school = (s.party or {}).get("persona") == "school"
     s.say("Ask for up to three ranked options. Best follows this customer's ranking "
           "preference (change it on the mandate card), better is the cheapest, good uses the "
           "fewest products. Each is a separately signed offer.")
     if school:
-        lines = [L(["465236", "476098", "475479", "473329", "465339"], 30, "KG")]
+        s.say("100 kg of school-safe bread from five candidates that differ on price, carbon "
+              "and labels.")
+        lines = [L(BREAD, 100, "KG")]
     else:
-        lines = [L(public_demo.SHORTLIST + ["464401", "464073", "462921"], 1000,
-                   requirements={"required_claims": ["FREE_FROM_LACTOSE"]})]
+        s.say("120 kg of ground coffee from five candidates that differ on price per kg, "
+              "group-average carbon, labels and delivery reliability.")
+        lines = [L(COFFEE, 120, "KG")]
     d = s.delivery.isoformat()
     body = {"delivery_date": d, "lines": lines, "max_options": 3}
     res, ok = s.call("request_offer", "POST /v1/offers", body,

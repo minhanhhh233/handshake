@@ -67,6 +67,12 @@ PERSONAS: dict[str, dict[str, Any]] = {
         "blurb": "No milk, no tree nuts, nothing with unknown allergen data, no energy drinks.",
         "mandate": {"limits": {"max_order_total_excl_tax": "600.00"},
                     "forbidden_categories": [SCHOOL_FORBIDDEN_CATEGORY],
+                    # A Finnish school kitchen ranks Finnish produce and low carbon highly.
+                    "preferences": {"weights": {"price": 0.4, "delivery_reliability": 0.0,
+                                                "carbon": 0.3, "labels": 0.3},
+                                    "preferred_labels": ["GOODS_FROM_FINLAND_BLUE_SWAN",
+                                                         "MADE_IN_FINLAND_FLAG_WITH_KEY",
+                                                         "FINNISH_HEART_SYMBOL"]},
                     "forbidden_allergens": {"codes": ["AM", "AN"],
                                             "states": ["CONTAINS", "MAY_CONTAIN"],
                                             "unknown": "reject"},
@@ -252,8 +258,11 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
         "any_meeting_requirements": "any substitute meeting the requirements passes",
     }[m.substitution.auto_approve]))
     pref = preference_of(m)
-    rules.append(("Ranking", (PREFERENCES[pref]["label"] if pref else "price 60%, delivery "
-                              "reliability 20%, carbon 10%, labels 10%")
+    names = {"price": "price", "delivery_reliability": "delivery reliability",
+             "carbon": "carbon", "labels": "preferred labels"}
+    custom = ", ".join(f"{names[k]} {round(v * 100)}%"
+                       for k, v in m.preferences.weights.items() if v > 0)
+    rules.append(("Ranking", (PREFERENCES[pref]["label"] if pref else custom)
                   + " (orders offer options only)"))
     return {"persona": slug, "label": PERSONAS[slug]["label"], "customer": pt["customer"],
             "agent": PERSONAS[slug]["agent"], "blurb": PERSONAS[slug]["blurb"],

@@ -971,7 +971,7 @@ def ranked_variants(prepared: list[list[Prepared]], scores: list[dict[str, dict[
                                               p.cand.pos)) for ok, sc in zip(prepared, scores)]
     better = [sorted(ok, key=lowest_price_key) for ok in prepared]
     good = [sorted(ok, key=lambda p, sc=sc: (sub(p), 0 if p.capacity is None else 1,
-                                              -(p.capacity or 0),
+                                              -((p.capacity or 0) * p.per_unit),  # base units
                                               -sc[p.cand.product.product_id]["total"], p.cand.pos))
             for ok, sc in zip(prepared, scores)]
     return [("best", best), ("better", better), ("good", good)]
