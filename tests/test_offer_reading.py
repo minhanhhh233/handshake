@@ -50,7 +50,7 @@ def test_partial_availability_is_not_a_mismatch(world):  # noqa: F811
     assert f["offered"]["value"] == 384 and f["complete"] is False
     system = fake.requests[0]["system"][0]["text"]
     assert "Partial availability" in system and "Mismatch" in system
-    assert "only if the visitor" in system and "change the date" in system
+    assert "only if the request said" in system and "change the date" in system
 
 
 def test_over_orders_is_a_mismatch(world):  # noqa: F811
@@ -84,3 +84,24 @@ def test_fewer_options_carry_the_reasons(world):  # noqa: F811
     reasons = {e["product_id"]: e["reason"] for e in body["excluded"]}
     assert reasons == {"465039": "not_deliverable_by_date", "469288": "out_of_stock"}
     assert "how many candidates were orderable" in fake.requests[0]["system"][0]["text"]
+
+
+def test_no_forbidden_allergens_means_no_allergen_exclusions(world):  # noqa: F811
+    """The Hotel chain's mandate lists no forbidden allergens. The model sees that in its
+    mandate, and its prompt forbids citing rules the mandate lacks or excluding products on
+    allergen grounds by itself."""
+    c, sid, d = world
+    fake = FakeAnthropic([
+        resp(tool("get_mandate")),
+        resp(text("Only 384 L of the 1,000 L you asked for can be delivered by 16 Nov, so I "
+                  "have not ordered."), stop="end_turn")])
+    go(sid, fake)
+    mandate = json.loads(fake.requests[1]["messages"][-1]["content"][0]["content"])
+    assert mandate["forbidden_allergens"]["codes"] == []
+    system = fake.requests[0]["system"][0]["text"]
+    assert "Never cite a mandate rule your mandate does not contain" in system
+    assert "unless your mandate lists forbidden allergens or the request asks for" in system
+    assert 'address the person who wrote the request as "you"' in system
+    assert "Only 384 L of the 1,000 L you" in system
+    for line in system.splitlines():
+        assert "When the visitor" not in line
