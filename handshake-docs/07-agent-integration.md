@@ -130,7 +130,14 @@ Implementation notes (phase 3):
 
 ## 6. MCP server (P1)
 
-**Cut for the deadline (document 08, section 0).** T-502 is not built. This section stays as the design; in the pitch it is shown on a slide.
+Built 2026-11-14 (T-502 restored; document 08, section 0). Implementation notes:
+
+- MCP Python SDK 2.x (2.3.0): the low-level `mcp.server.Server` with list-tools and call-tool handlers over stdio, so the input schemas are exactly those of `agent/claude_agent.py`'s `tool_definitions()` (doc 03 shapes), minus the Anthropic-only `strict` and `cache_control` fields. Install with `pip install -e ".[agent,mcp]"` (the server reuses the Claude agent's schemas and result trimming).
+- One trace per server session (`new_task()` at start-up); over stdio each assistant session starts its own server process.
+- `get_order` never waits; its description asks the assistant to poll no more often than every 5 seconds and to stop after about 2 minutes.
+- Errors (`HandshakeAPIError`, signature failure, bad input) are returned as tool errors with code, detail, next and excluded. As a second safeguard for FR-35, any approval URL or token key is stripped from results.
+- Discovery is fetched lazily, during offer verification.
+- Tested live: one full order through the server against the Modal deployment ended `confirmed` (approved by a human-side harness). Setup for an assistant is in the repository's README.md.
 
 `mcp_server/server.py` registers the eight tools from section 2 with the same names and schemas and delegates to `handshake_client`. Configuration is `HANDSHAKE_BASE_URL` and `HANDSHAKE_AGENT_KEY`. It runs locally over stdio for the demo.
 

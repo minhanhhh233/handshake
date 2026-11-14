@@ -37,7 +37,7 @@ Any phase running more than an hour behind its target is reported at once. Phase
 
 **Deployment checklist.** Done 2026-11-14 (document 02, section 8; Q-01). The Modal secret must contain non-empty `ADMIN_KEY` and `SIGNING_KEY_PEM`; without `ADMIN_KEY` every order that needs approval fails (document 10, section 3.1).
 
-**Revised again 2026-11-14 (after phase 3).** Phase 4 runs T-402 (receipt), T-403 (receipt page) and T-405 (`allergy_guard`); T-401 (hash chain) is already built. After that, in this order: **T-503 restricted to rule R7** (weekly cap, test P-24; R10 stays cut), then **T-404** (split with gateway substitutes, test F-10), then **T-406** (comparison fields). These three are restored to scope and no longer depend on the Saturday 20:00 condition above. T-501, T-502, T-504 and R10 stay cut.
+**Revised again 2026-11-14 (after phase 3).** Phase 4 runs T-402 (receipt), T-403 (receipt page) and T-405 (`allergy_guard`); T-401 (hash chain) is already built. After that, in this order: **T-503 restricted to rule R7** (weekly cap, test P-24; R10 stays cut), then **T-404** (split with gateway substitutes, test F-10), then **T-406** (comparison fields). These three are restored to scope and no longer depend on the Saturday 20:00 condition above. T-501, T-504 and R10 stay cut. T-502 (MCP server) was restored and built on 2026-11-14. After that: no new features, only fixes for problems found in rehearsal.
 
 **Hosting.** Development and tests run against a local MariaDB in Docker. Deployment to Modal waits for a hosted database (Q-01); nothing in phases 1 to 3 depends on it.
 
@@ -143,7 +143,7 @@ Done when: a split offer shows roles and differences, the milk-allergy order is 
 | Task | Owner | Requirement |
 |---|---|---|
 | ~~T-501 Ranking and up to three options with score breakdown~~ (cut) | BE-A | FR-20, FR-41 |
-| ~~T-502 MCP server~~ (cut) | AG | FR-72 |
+| T-502 MCP server (restored and built 2026-11-14) | AG | FR-72 |
 | T-503 Rule R7 only (restored 2026-11-14; R10 stays cut) | BE-B | |
 | ~~T-504 Rate limiting~~ (cut) | BE-B | NFR-02 |
 | T-505 Anonymous-versus-authenticated demo step | AG | FR-05 |
