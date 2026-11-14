@@ -400,6 +400,15 @@ def compare_options(s: Script) -> None:
                                     rationale=why))
 
 
+def suspended_probe(s: Script) -> None:
+    s.say("This agent was suspended by Valio Aimo operations. It still asks for an offer and "
+          "tries to order.")
+    school = (s.party or {}).get("persona") == "school"
+    offer, _ = s.offer([L(BREAD[:2], 5, "KG")] if school else [L(["464306"], 10)])
+    if offer:
+        s.order(offer["offer_id"], reference="SUSPENDED")
+
+
 def any_tomorrow(s: Script) -> None:
     tomorrow = timeutil.today_helsinki() + timedelta(days=1)
     s.say(f"Needed tomorrow, {tomorrow.isoformat()}.")
@@ -505,6 +514,8 @@ SCENARIOS: dict[str, dict[str, Any]] = {
                         "fn": probation_small},
     "compare_options": {"label": "Compare three offers", "personas": sbx.BUYERS,
                         "fn": compare_options},
+    "suspended_probe": {"label": "Suspended agent tries to order", "personas": sbx.BUYERS,
+                        "fn": suspended_probe, "hidden": True},
     "any_tomorrow": {"label": "Needed tomorrow", "personas": sbx.BUYERS, "fn": any_tomorrow},
     "visitor_search": {"label": "Search, then ask for a price", "personas": ["visitor"],
                        "fn": visitor_search},
@@ -525,7 +536,7 @@ PROMPTS: dict[str, list[str]] = {
 
 def for_persona(persona: str) -> dict[str, Any]:
     chips = [{"id": k, "label": v["label"]} for k, v in SCENARIOS.items()
-             if persona in v["personas"]]
+             if persona in v["personas"] and not v.get("hidden")]
     return {"scripted": chips, "prompts": PROMPTS.get(persona, [])}
 
 

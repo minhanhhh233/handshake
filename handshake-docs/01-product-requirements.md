@@ -29,7 +29,7 @@ Handshake defines and implements the interface and operating model through which
 |---|---|---|
 | Purchasing agent | Software acting for a customer | Calls the API: search, offer, dry-run, order, status, receipt |
 | Purchasing manager (approver) | Human at the customer | Sets the mandate; approves or declines orders on a phone |
-| Valio Aimo operations | Human at Valio Aimo | Reviews receipts and agent activity |
+| Valio Aimo operations | Human at Valio Aimo | Reviews receipts and agent activity; can suspend an agent. In the public demo, a role scoped to the visitor's sandbox (document 09, section 6g) |
 | Anonymous agent | Unregistered software | May search public product data only; a refused call says how an agent gets a key |
 | Demo visitor | A person on the public landing page; as the Approver role, decides the sandbox's pending approvals from an inbox | Picks a persona (Visitor, Hotel chain, Restaurant, School kitchen, Hospital kitchen, New agent on probation) and works in a private 2-hour sandbox (document 09, section 6c) |
 

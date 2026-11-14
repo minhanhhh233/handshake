@@ -233,8 +233,16 @@
       .then(function (res) {
         if (res.status !== 200) { cardBox.textContent = ""; cardBox.appendChild(el("p", "", res.body.message || "The sandbox could not be loaded.")); return; }
         var approver = slug === "approver";
-        form.hidden = approver;
-        inboxBox.hidden = !approver;
+        var opsRole = slug === "operations";
+        form.hidden = approver || opsRole;
+        inboxBox.hidden = !(approver || opsRole);
+        if (opsRole) {
+          cardBox.textContent = "";
+          cardBox.appendChild(el("p", "who-is", "Valio Aimo operations"));
+          cardBox.appendChild(el("p", "", "What Valio Aimo sees about the agents in your sandbox: who read which products and prices, every offer and order, a switch to suspend an agent, and a control that tampers with the log so you can see the receipt catch it."));
+          renderOps(res.body.ops || {});
+          return;
+        }
         if (approver) {
           cardBox.textContent = "";
           cardBox.appendChild(el("p", "who-is", "Approver"));
@@ -286,6 +294,7 @@
     box.focus();
   });
   var inboxBox = document.getElementById("lv-inbox");
+  function live() { document.getElementById("live").scrollIntoView({ behavior: "smooth", block: "start" }); }
   function behaviour() {
     var x = form.querySelector('input[name="behaviour"]:checked');
     return x ? x.value : "honest";
@@ -308,6 +317,84 @@
       prompts.appendChild(b);
     });
     lock(false);
+  }
+  function opsPost(url, payload) {
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload), credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); });
+  }
+  function renderOps(o) {
+    inboxBox.textContent = "";
+    var agents = o.agents || [];
+    inboxBox.appendChild(el("p", "chips-h", "Agents in your sandbox"));
+    if (!agents.length) inboxBox.appendChild(el("p", "", "No agents yet: run a scenario as a buyer persona first."));
+    agents.forEach(function (a) {
+      var d = el("div", "item ops-agent" + (a.status === "suspended" ? " off" : ""));
+      d.appendChild(el("h4", "", a.name));
+      d.appendChild(el("p", "", (a.persona_label || "") + " for " + a.customer + ": " + a.status));
+      var acts = el("div", "acts");
+      var b = el("button", a.status === "suspended" ? "" : "no", a.status === "suspended" ? "Reinstate" : "Suspend");
+      b.type = "button";
+      b.addEventListener("click", function () {
+        b.disabled = true;
+        opsPost("/demo/ops/suspend", { agent_id: a.agent_id, suspended: a.status !== "suspended" })
+          .then(function (res) { if (res.status === 200) renderOps(res.body); else b.disabled = false; })
+          .catch(function () { b.disabled = false; });
+      });
+      acts.appendChild(b);
+      if (a.status === "suspended" && a.persona) {
+        var t = el("button", "", "Show it being refused");
+        t.type = "button";
+        t.addEventListener("click", function () {
+          startRun("/demo/scenario", { id: "suspended_probe", persona: a.persona }, "The suspended agent tries to order...");
+          live();
+        });
+        acts.appendChild(t);
+      }
+      d.appendChild(acts);
+      inboxBox.appendChild(d);
+    });
+    var orders = o.orders || [];
+    inboxBox.appendChild(el("p", "chips-h", "Orders, with the full Valio Aimo receipt view"));
+    if (!orders.length) inboxBox.appendChild(el("p", "", "No orders yet."));
+    orders.forEach(function (x) {
+      var d = el("div", "item");
+      d.appendChild(el("h4", "", x.order_id + ": " + x.status + ", " + x.total_excl_tax + " EUR"));
+      d.appendChild(el("p", "", x.agent + ", " + new Date(x.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })));
+      var acts = el("div", "acts");
+      var open = el("a", "btn-small", "Open the Valio Aimo receipt");
+      open.href = x.receipt_path; open.target = "_blank"; open.rel = "noreferrer noopener";
+      acts.appendChild(open);
+      var tb = el("button", "no", "Tamper with the log");
+      tb.type = "button";
+      var note = el("p", "", "");
+      tb.addEventListener("click", function () {
+        tb.disabled = true;
+        opsPost("/demo/ops/tamper", { order_id: x.order_id }).then(function (res) {
+          if (res.status !== 200) { note.textContent = res.body.message || "Not changed."; tb.disabled = false; return; }
+          note.textContent = "Event " + res.body.seq + " (" + res.body.type + ") now says outcome '" + res.body.changed.outcome.to + "' instead of '" + res.body.changed.outcome.from + "', without updating its hash. Open the receipt: it reports the record as broken.";
+        }).catch(function () { tb.disabled = false; });
+      });
+      acts.appendChild(tb);
+      d.appendChild(acts);
+      d.appendChild(note);
+      inboxBox.appendChild(d);
+    });
+    var offers = o.offers || [];
+    if (offers.length) {
+      inboxBox.appendChild(el("p", "chips-h", "Offers"));
+      var ul = el("ul", "ops-list");
+      offers.forEach(function (x) { ul.appendChild(el("li", "", x.offer_id + ": " + x.status + ", " + x.total_excl_tax + " EUR, " + x.agent)); });
+      inboxBox.appendChild(ul);
+    }
+    var access = o.access || [];
+    inboxBox.appendChild(el("p", "chips-h", "Which agent read which products and prices"));
+    if (!access.length) inboxBox.appendChild(el("p", "", "No data access yet."));
+    var al = el("ul", "ops-list");
+    access.forEach(function (x) {
+      al.appendChild(el("li", "", new Date(x.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + "  " + x.agent + ": " + x.text));
+    });
+    inboxBox.appendChild(al);
   }
   function renderInbox(items) {
     inboxBox.textContent = "";
@@ -646,7 +733,6 @@
   });
   // ---- "Start here" strip: four first steps, one click each
   var startNote = document.getElementById("start-note");
-  function live() { document.getElementById("live").scrollIntoView({ behavior: "smooth", block: "start" }); }
   document.querySelectorAll("[data-start]").forEach(function (b) {
     b.addEventListener("click", function () {
       var what = b.getAttribute("data-start");

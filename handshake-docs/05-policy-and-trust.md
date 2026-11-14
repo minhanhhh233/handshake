@@ -229,6 +229,7 @@ Available quantity is computed as in document 04, section 4. When several option
 | `order.confirmed` | Order reached `confirmed` | gateway | both |
 | `order.closed` | Order reached `declined`, `expired` or `rejected` | gateway | both |
 | `holds.changed` | Holds committed or released | gateway | aimo_only |
+| `agent.status_changed` | Valio Aimo operations suspended or reinstated an agent (public demo; its own trace) | admin | aimo_only |
 | `mandate.changed` | The customer's purchasing manager changed the mandate (public demo cap edit; its own trace) | approver | both |
 
 `policy.evaluated` text ends with the mandate version in force, for example "Evaluated against mandate version 2 (per-order cap 250.00 EUR, weekly cap 800.00 EUR)." (added 2026-11-14), so a receipt names the limits the order was judged by. Every event has a plain-language `text`, for example: "Total 1070.00 EUR exceeded the 1000.00 EUR cap. Sent to Maria Virtanen for approval."
@@ -267,7 +268,7 @@ The receipt (document 03, section 6) contains the events with audience `both`, t
 | Prompt injection through product text | Free text returned in a separate `untrusted_text` object with a notice; the agent prompt tells the model to ignore instructions in it; policy does not read it. Demonstrated by the public demo's prompt-injected behaviour: even an agent that obeyed would meet the same mandate (document 09, section 6f) |
 | A rogue or faulty agent | Every limit is on the gateway; the public demo's rogue behaviour gives a red-team model raw access to the API with its own key and shows each refusal, and the over-ordering behaviour shows a faulty client's requests judged like any other (document 09, section 6f) |
 | Unsafe substitution | Requirements and forbidden allergens applied to every fill; unknown allergen status rejected by default |
-| Tampering with the audit trail | Per-trace hash chain; head included in the signed receipt |
+| Tampering with the audit trail | Per-trace hash chain; head included in the signed receipt. Shown in the public demo: the operations role's tamper control alters one sandbox event and the receipt reports "Record altered at event N" (document 09, section 6g) |
 | Upstream key leak | Key only in the gateway's secret store; never logged |
 | Order splitting to dodge the cap | Weekly cap R7 (P1); otherwise a stated limitation. Shown live by the demo's misbehaving agent (document 09, section 6d), which runs as the Restaurant persona because only that mandate has a weekly cap |
 

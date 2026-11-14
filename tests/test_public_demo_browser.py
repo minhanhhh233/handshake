@@ -327,3 +327,32 @@ def test_behaviour_selector_over_orders(browser, demo_server, monkeypatch, w, h,
     assert _no_hscroll(page)
     page.locator("#live").screenshot(path=str(SCREENS / f"behaviour-over-orders-{tag}.png"))
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_operations_role(browser, demo_server, w, h, tag):  # noqa: F811
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator('.chip[data-scenario="hotel_milk"]').click()
+    page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
+    page.locator('.pb[data-persona="operations"]').click()
+    page.get_by_text("Which agent read which products and prices").wait_for(timeout=10000)
+    assert page.locator(".ops-list li").count() >= 2
+    page.get_by_role("button", name="Tamper with the log").first.click()
+    page.get_by_text("without updating its hash").wait_for(timeout=10000)
+    page.locator("#lv-inbox").screenshot(path=str(SCREENS / f"operations-{tag}.png"))
+    href = page.get_by_role("link", name="Open the Valio Aimo receipt").first.get_attribute("href")
+    rec = ctx.new_page()
+    rec.goto(demo_server + href)
+    assert "Valio Aimo view" in rec.content() and "Record intact" not in rec.inner_text("body")
+    rec.screenshot(path=str(SCREENS / f"ops-receipt-broken-{tag}.png"), full_page=True)
+    rec.close()
+    page.get_by_role("button", name="Suspend").first.click()
+    page.get_by_role("button", name="Show it being refused").click()
+    page.locator("#lv-steps").get_by_text("mandate_inactive").first.wait_for(timeout=20000)
+    assert _no_hscroll(page)
+    ctx.close()

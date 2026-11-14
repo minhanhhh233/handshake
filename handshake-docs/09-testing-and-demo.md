@@ -188,6 +188,20 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6g. Valio Aimo operations (stage 4, added 2026-11-14)
+
+The persona bar's "Valio Aimo operations" role, scoped to the visitor's sandbox (`handshake/ops.py`):
+
+- Agents in the sandbox, each with a Suspend or Reinstate switch. Suspending writes `agent.status_changed`; "Show it being refused" runs the hidden scripted probe as that agent, which gets an offer and is refused at the order by R1 (`mandate_inactive`).
+- Orders with "Open the Valio Aimo receipt" (`/demo/ops/receipts/{order_id}`: all events, including the aimo-only ones such as the upstream price and stock fetch) and "Tamper with the log": the order's `policy.evaluated` event body is rewritten to outcome `accepted` without updating its hash; the receipt then says "Record altered at event N: the receipt does not match the log" and marks the event.
+- Offers, and which agent read which products and prices: searches, product reads, offer requests and the gateway's upstream price and availability fetches for the sandbox's agents.
+
+Measured on the hosted gateway at 390 and 1280 px: after the Hotel example order the view listed the search, the offer request and "Fetched price and availability for 8 products"; tampering made the receipt report event 21 as altered; the suspended agent's order was rejected with `mandate_inactive`.
+
+Security review of the change (2026-11-14): no findings (cookie, sandbox joins, tamper scope, receipt secrets, SQL and escaping checked).
+
+Tests: `tests/test_ops.py` (the view lists only the caller's sandbox; another sandbox cannot open the receipt, tamper or suspend; the receipt reports the tampered record; the suspended agent is rejected by R1; reinstating; an admin event per change) and the browser test (operations panel, tamper, broken receipt, suspend and refusal, 390 and 1280 px).
+
 ### 6f. Agent-behaviour selector (added 2026-11-14)
 
 Next to the text box, for any free-text request, in the visitor's sandbox only. All four use the live Claude model; the scripted chips are labelled "scripted: no AI, no cost". The scripted misbehaving sequence is now a chip ("Misbehaving agent (7 attempts)") instead of a checkbox.

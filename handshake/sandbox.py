@@ -99,9 +99,9 @@ PERSONAS: dict[str, dict[str, Any]] = {
     },
 }
 #: Non-buyer roles in the bar. Approver: the sandbox's approval inbox (stage 2); Valio Aimo
-#: operations arrives in stage 4.
+#: operations: data access, offers, orders, suspend, tamper (stage 4, ops.py).
 ROLES = {"approver": "Approver", "operations": "Valio Aimo operations"}
-ROLES_READY = {"approver"}
+ROLES_READY = {"approver", "operations"}
 BUYERS = [k for k in PERSONAS if k != "visitor"]
 
 

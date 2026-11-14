@@ -326,7 +326,7 @@ def _sandbox_json(sb: dict, card: dict) -> dict:
 @router.get("/demo/sandbox")
 def sandbox_state(request: Request, persona: str = "hotel") -> Response:
     """The visitor's sandbox (created or renewed here) and the mandate card of a persona."""
-    if persona not in sandbox.PERSONAS and persona != "approver":
+    if persona not in sandbox.PERSONAS and persona not in sandbox.ROLES_READY:
         return JSONResponse({"code": "unknown_persona", "message": "Unknown persona."},
                             status_code=400, headers=_JSON_HEADERS)
     if persona == "approver":
@@ -339,6 +339,19 @@ def sandbox_state(request: Request, persona: str = "hotel") -> Response:
         body = {"sandbox": {"expires_at": timeutil.iso(sb["expires_at"])},
                 "card": {"persona": "approver", "label": "Approver"},
                 "inbox": sandbox.inbox(sb["sandbox_id"])}
+        return _with_cookie(JSONResponse(body, headers=_JSON_HEADERS), sb, is_new)
+    if persona == "operations":
+        from .. import ops
+
+        try:
+            sb, is_new = sandbox.ensure(request.cookies.get(sandbox.COOKIE),
+                                        public_demo.client_ip(request))
+        except sandbox.SandboxError as e:
+            return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                                headers=_JSON_HEADERS)
+        body = {"sandbox": {"expires_at": timeutil.iso(sb["expires_at"])},
+                "card": {"persona": "operations", "label": "Valio Aimo operations"},
+                "ops": ops.view(sb["sandbox_id"])}
         return _with_cookie(JSONResponse(body, headers=_JSON_HEADERS), sb, is_new)
     try:
         sb, is_new = sandbox.ensure(request.cookies.get(sandbox.COOKIE),
@@ -472,3 +485,96 @@ async def sandbox_preference(request: Request) -> Response:
         return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
                             headers=_JSON_HEADERS)
     return JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS)
+
+
+# ---------------------------------------------------------------- Valio Aimo operations (stage 4)
+
+
+def _sandbox_or_409(request: Request) -> dict | Response:
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=_JSON_HEADERS)
+    return sb
+
+
+async def _json_body(request: Request) -> dict | Response:
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse({"code": "invalid_request", "message": "Send JSON."}, status_code=415,
+                            headers=_JSON_HEADERS)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    return body if isinstance(body, dict) else {}
+
+
+@router.get("/demo/ops")
+def ops_view(request: Request) -> Response:
+    """Valio Aimo operations, the caller's sandbox only: data access, offers, orders, agents."""
+    from .. import ops
+
+    sb = _sandbox_or_409(request)
+    if isinstance(sb, Response):
+        return sb
+    return JSONResponse(ops.view(sb["sandbox_id"]), headers=_JSON_HEADERS)
+
+
+@router.post("/demo/ops/suspend")
+async def ops_suspend(request: Request) -> Response:
+    from .. import ops
+
+    body = await _json_body(request)
+    if isinstance(body, Response):
+        return body
+    sb = _sandbox_or_409(request)
+    if isinstance(sb, Response):
+        return sb
+    try:
+        out = ops.set_suspended(sb["sandbox_id"], body.get("agent_id"),
+                                bool(body.get("suspended")))
+    except ops.OpsError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    return JSONResponse(out, headers=_JSON_HEADERS)
+
+
+@router.post("/demo/ops/tamper")
+async def ops_tamper(request: Request) -> Response:
+    from .. import ops
+
+    body = await _json_body(request)
+    if isinstance(body, Response):
+        return body
+    sb = _sandbox_or_409(request)
+    if isinstance(sb, Response):
+        return sb
+    try:
+        out = ops.tamper(sb["sandbox_id"], body.get("order_id"))
+    except ops.OpsError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    return JSONResponse(out, headers=_JSON_HEADERS)
+
+
+@router.get("/demo/ops/receipts/{order_id}")
+def ops_receipt(request: Request, order_id: str) -> Response:
+    """The full Valio Aimo receipt view of one of the caller's sandbox orders."""
+    from .. import db, ops, receipts
+    from ..errors import HandshakeError
+
+    sid = sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE))
+    if not is_id(order_id, "ord") or sandbox.active(sid) is None:
+        return render("receipt_missing.html", status=404, headers=APPROVAL_HEADERS,
+                      title="Receipt not found")
+    try:
+        with db.connection() as conn:
+            if ops.order_in_sandbox(conn, sid, order_id) is None:
+                raise HandshakeError("not_found", "no such order")
+            v = receipts.receipt_view(conn, order_id, "aimo")
+    except HandshakeError:
+        return render("receipt_missing.html", status=404, headers=APPROVAL_HEADERS,
+                      title="Receipt not found")
+    return render("receipt.html", headers=APPROVAL_HEADERS,
+                  title="Receipt, Valio Aimo view (your sandbox)", v=v)
