@@ -34,6 +34,11 @@ def main() -> int:
                    "KEY ix_sandboxes_ip (ip_hash, created_at)) "
                    "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
         print("sandboxes: table present")
+        db.q(conn, "CREATE TABLE IF NOT EXISTS sandbox_overlays ("
+                   "sandbox_id VARCHAR(32) NOT NULL, product_id VARCHAR(16) NOT NULL, "
+                   "text_en VARCHAR(500) NOT NULL, created_at DATETIME(3) NOT NULL, "
+                   "PRIMARY KEY (sandbox_id, product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+        print("sandbox_overlays: table present")
         ocols = {r[0] for r in db.q(conn, "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
                                           "WHERE TABLE_SCHEMA = DATABASE() AND "
                                           "TABLE_NAME = 'orders'").all()}

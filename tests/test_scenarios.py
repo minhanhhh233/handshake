@@ -204,8 +204,9 @@ def test_inbox_and_routes(world):
     s = c.get("/demo/sandbox?persona=restaurant").json()["scenarios"]
     assert [x["id"] for x in s["scripted"]] == ["restaurant_basket", "restaurant_weekday",
                                                "restaurant_substitutes", "restaurant_weekly",
-                                               "compare_options", "any_tomorrow"]
-    assert s["misbehaving"] is True and s["prompts"]
+                                               "compare_options", "any_tomorrow",
+                                               "misbehaving"]
+    assert s["prompts"]
     a = c.get("/demo/sandbox?persona=approver").json()
     assert a["card"]["persona"] == "approver" and a["inbox"] == []
     assert c.post("/demo/scenario", json={"id": "school_milk", "persona": "hotel"}

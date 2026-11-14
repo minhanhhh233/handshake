@@ -133,11 +133,8 @@ def test_school_refusal_and_misbehaving_toggle(browser, demo_server, w, h, tag):
     page.get_by_text("The scenario finished.").wait_for(timeout=20000)
     assert "Lactose-free is not milk-free." in page.locator("#lv-steps").inner_text()
     page.locator("#live").screenshot(path=str(SCREENS / f"school-refused-{tag}.png"))
-    page.check("#lv-bad")
-    assert page.get_by_role("button", name="Run the misbehaving agent").is_visible()
-    assert page.locator("#lv-prompt").is_disabled()
-    page.get_by_role("button", name="Run the misbehaving agent").click()
-    page.get_by_text("The scenario finished.").wait_for(timeout=30000)
+    page.locator('.chip[data-scenario="misbehaving"]').click()
+    page.get_by_text("Every attempt was refused").wait_for(timeout=30000)
     text = page.locator("#lv-steps").inner_text()
     for attempt in ("Attempt 1", "Attempt 3", "Attempt 5", "Attempt 6"):
         assert attempt in text
@@ -296,4 +293,37 @@ def test_compare_offers_with_a_preference(browser, demo_server, w, h, tag):  # n
         assert row in text
     assert _no_hscroll(page)
     page.locator(".lv-row.compare").screenshot(path=str(SCREENS / f"compare-{tag}.png"))
+    ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_behaviour_selector_over_orders(browser, demo_server, monkeypatch, w, h, tag):  # noqa: F811
+    from handshake import live_demo
+
+    from .test_claude_agent import FakeAnthropic, resp, text, tool
+
+    d = (timeutil.today_helsinki() + timedelta(days=2)).isoformat()
+    line = {"product_ids": ["464306"], "quantity": {"value": 100, "unit": "L"}}
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(live_demo, "CLIENT_FACTORY", lambda: FakeAnthropic([
+        resp(tool("request_offer", delivery_date=d, lines=[line])),
+        resp(text("done"), stop="end_turn")]))
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator('.chip[data-scenario="misbehaving"]').wait_for(timeout=10000)  # now a chip
+    assert page.locator("#lv-bad").count() == 0
+    page.check('input[name="behaviour"][value="over_orders"]')
+    page.fill("#lv-prompt", "100 litres of lactose-free milk")
+    page.get_by_role("button", name="Run the agent").click()
+    alter = page.locator(".lv-row.alter")
+    alter.wait_for(timeout=20000)
+    txt = alter.inner_text()
+    assert "Original request from the agent" in txt and "Sent to Handshake instead" in txt
+    assert '"value": 100' in txt and '"value": 1000' in txt
+    assert _no_hscroll(page)
+    page.locator("#live").screenshot(path=str(SCREENS / f"behaviour-over-orders-{tag}.png"))
     ctx.close()

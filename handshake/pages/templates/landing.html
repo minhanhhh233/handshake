@@ -168,6 +168,15 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
   border: 1px solid var(--frost); border-radius: 999px; padding: 4px 10px; cursor: pointer; min-height: 30px; }
 .pref[aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
 
+
+/* Agent behaviour selector */
+.behaviour { border: 1px solid var(--frost); border-radius: 10px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 6px; }
+.behaviour legend { font-size: 12px; font-weight: 600; color: var(--slate); padding: 0 4px; }
+.behaviour label { display: flex; gap: 8px; align-items: baseline; font-size: var(--step--1); font-weight: 600; cursor: pointer; }
+.behaviour label span { font-weight: 400; color: var(--slate); }
+.behaviour input { accent-color: var(--accent); }
+.lv-row.alter .lv-cell.res, .lv-row.inject .lv-cell.res { border-left-color: var(--lingon); }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }
@@ -344,9 +353,15 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
           <textarea id="lv-prompt" name="prompt" maxlength="{{ live_max }}" required placeholder="What should the agent buy?"{% if not live.available %} disabled{% endif %}></textarea>
           <p class="chips-h">One click, scripted: no AI, no cost</p>
           <div class="chips" id="lv-scripted" aria-label="Scripted scenarios"></div>
-          <p class="chips-h">Or ask the Claude agent in your own words</p>
+          <p class="chips-h">Or ask the Claude agent in your own words: live model</p>
           <div class="chips" id="lv-prompts" aria-label="Example requests"></div>
-          <label class="bad-toggle" id="lv-bad-wrap" hidden><input type="checkbox" id="lv-bad"> Misbehaving agent <span>scripted, as the Restaurant agent: tries to break every rule</span></label>
+          <fieldset class="behaviour" id="lv-behaviour">
+            <legend>Agent behaviour for your own request (live model, your sandbox only)</legend>
+            <label><input type="radio" name="behaviour" value="honest" checked> Honest <span>the normal agent</span></label>
+            <label><input type="radio" name="behaviour" value="over_orders"> Over-orders <span>a faulty client between the agent and Handshake multiplies every quantity by 10</span></label>
+            <label><input type="radio" name="behaviour" value="rogue"> Rogue <span>red-team prompt plus raw access to this gateway's API, own key only</span></label>
+            <label><input type="radio" name="behaviour" value="injected"> Prompt-injected <span>a hidden instruction in one product's supplier text</span></label>
+          </fieldset>
           <div class="lv-row-actions">
             <button class="btn" id="lv-go" type="submit"{% if not live.available %} disabled{% endif %}>Run the agent</button>
             <span class="lv-count" id="lv-count">0 / {{ live_max }}</span>

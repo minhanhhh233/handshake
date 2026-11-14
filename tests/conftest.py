@@ -57,7 +57,7 @@ TRADING_TABLES = [
     "idempotency_keys", "approvals", "orders", "stock_holds", "offer_lines", "offers",
     "events", "price_quotes", "availability_snapshots",
 ]
-PARTY_TABLES = ["mandates", "agents", "customers", "sandboxes"]
+PARTY_TABLES = ["mandates", "agents", "customers", "sandboxes", "sandbox_overlays"]
 CATALOG_TABLES = ["product_claims", "product_allergens", "product_labels",
                   "product_substitutions", "products", "code_lookup"]
 

@@ -248,6 +248,10 @@ async def live_start(request: Request) -> Response:
     if persona not in sandbox.PERSONAS:
         return JSONResponse({"code": "unknown_persona", "message": "Choose a persona."},
                             status_code=400, headers=headers)
+    behaviour = body.get("behaviour", "honest")
+    if behaviour not in live_demo.BEHAVIOURS:
+        return JSONResponse({"code": "unknown_behaviour", "message": "Choose a behaviour."},
+                            status_code=400, headers=headers)
     sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
     if sb is None:
         return JSONResponse({"code": "no_sandbox", "message": (
@@ -258,7 +262,7 @@ async def live_start(request: Request) -> Response:
 
         trace_id = await run_in_threadpool(lambda: live_demo.start(
             prompt, public_demo.client_ip(request), persona=persona,
-            sandbox_id=sb["sandbox_id"]))
+            sandbox_id=sb["sandbox_id"], behaviour=behaviour))
     except public_demo.RateLimited as e:
         return JSONResponse({"code": "rate_limited", "message": (
             f"Each visitor can start {live_demo.RUNS_PER_WINDOW} live runs every "

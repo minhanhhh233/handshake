@@ -264,7 +264,8 @@ The receipt (document 03, section 6) contains the events with audience `both`, t
 | Replay or double submit | Offer is single-use; `Idempotency-Key` on orders |
 | Competitor maps inventory by polling | No stock figures beyond the offered quantity; candidate limits; rate limits; anonymous callers get no availability |
 | Bulk scraping of prices | Offers require authentication; 25 candidates per line; rate limits |
-| Prompt injection through product text | Free text returned in a separate `untrusted_text` object with a notice; the agent prompt tells the model to ignore instructions in it; policy does not read it |
+| Prompt injection through product text | Free text returned in a separate `untrusted_text` object with a notice; the agent prompt tells the model to ignore instructions in it; policy does not read it. Demonstrated by the public demo's prompt-injected behaviour: even an agent that obeyed would meet the same mandate (document 09, section 6f) |
+| A rogue or faulty agent | Every limit is on the gateway; the public demo's rogue behaviour gives a red-team model raw access to the API with its own key and shows each refusal, and the over-ordering behaviour shows a faulty client's requests judged like any other (document 09, section 6f) |
 | Unsafe substitution | Requirements and forbidden allergens applied to every fill; unknown allergen status rejected by default |
 | Tampering with the audit trail | Per-trace hash chain; head included in the signed receipt |
 | Upstream key leak | Key only in the gateway's secret store; never logged |

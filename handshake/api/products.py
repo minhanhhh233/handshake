@@ -80,6 +80,16 @@ def get_product(
 ) -> dict[str, Any]:
     with db.connection() as conn:
         product = catalog.detail(conn, product_id)
+    if agent is not None:
+        # Public demo, prompt-injected behaviour: injected supplier text for this agent's own
+        # sandbox only (document 09, section 6f). Real customers never have an overlay.
+        from ..live_demo import overlay_for
+
+        injected = overlay_for(agent.agent_id, product_id)
+        if injected:
+            m = dict(product.untrusted_text.marketing or {})
+            m["en"] = (m.get("en", "") + "\n" + injected).strip()
+            product.untrusted_text.marketing = m
     if _should_log(request, agent):
         assert agent is not None
         with db.transaction() as conn:

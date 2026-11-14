@@ -83,6 +83,16 @@ CREATE TABLE customers (
   KEY ix_customers_sandbox (sandbox_id, sandbox_persona)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Prompt-injected behaviour of the public demo: extra supplier text served only to the
+-- sandbox's own agents (document 09, section 6f).
+CREATE TABLE sandbox_overlays (
+  sandbox_id  VARCHAR(32) NOT NULL,
+  product_id  VARCHAR(16) NOT NULL,
+  text_en     VARCHAR(500) NOT NULL,
+  created_at  DATETIME(3) NOT NULL,
+  PRIMARY KEY (sandbox_id, product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- One row per visitor sandbox of the public demo; its parties expire with it (2 hours).
 CREATE TABLE sandboxes (
   sandbox_id  VARCHAR(32) NOT NULL PRIMARY KEY,

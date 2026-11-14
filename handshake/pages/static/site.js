@@ -264,13 +264,12 @@
     if (bad) status.setAttribute("data-state", "bad"); else status.removeAttribute("data-state");
   }
   function lock(on) {
-    var bad = badBox && badBox.checked;
-    box.disabled = on || !available || bad;
-    go.disabled = on || (!available && !bad);
+    box.disabled = on || !available;
+    go.disabled = on || !available;
     form.querySelectorAll(".chip").forEach(function (c) {
       c.disabled = on || (!available && !c.hasAttribute("data-scenario"));
     });
-    if (badBox) badBox.disabled = on;
+    form.querySelectorAll('input[name="behaviour"]').forEach(function (x) { x.disabled = on || !available; });
   }
   function updateCount() { count.textContent = box.value.length + " / " + box.maxLength; }
   box.addEventListener("input", updateCount);
@@ -286,13 +285,11 @@
     updateCount();
     box.focus();
   });
-  var badBox = document.getElementById("lv-bad");
-  var badWrap = document.getElementById("lv-bad-wrap");
   var inboxBox = document.getElementById("lv-inbox");
-  if (badBox) badBox.addEventListener("change", function () {
-    go.textContent = badBox.checked ? "Run the misbehaving agent" : "Run the agent";
-    lock(false);
-  });
+  function behaviour() {
+    var x = form.querySelector('input[name="behaviour"]:checked');
+    return x ? x.value : "honest";
+  }
   function renderScenarios(sc) {
     var scripted = document.getElementById("lv-scripted");
     var prompts = document.getElementById("lv-prompts");
@@ -310,11 +307,6 @@
       b.setAttribute("data-example", t);
       prompts.appendChild(b);
     });
-    if (badWrap) badWrap.hidden = !(sc && sc.misbehaving);
-    if (badBox && badWrap && badWrap.hidden && badBox.checked) {
-      badBox.checked = false;
-      go.textContent = "Run the agent";
-    }
     lock(false);
   }
   function renderInbox(items) {
@@ -414,6 +406,19 @@
       fillRes(r, s.status === "bad" ? "error" : "response", s.detail, s.status === "bad");
       var opts = s.title === "request_offer" && s.detail && s.detail.options;
       if (opts && opts.length > 1) compareRow(opts);
+    } else if (s.kind === "alter") {
+      r = row("alter");
+      r.req.appendChild(who("Original request from the agent"));
+      r.req.appendChild(jsonBlock(s.request || {}));
+      fillRes(r, "altered by the over-ordering behaviour", s.detail, true);
+      r.res.querySelector(".who span").textContent = "Sent to Handshake instead";
+    } else if (s.kind === "inject") {
+      r = row("inject");
+      r.req.appendChild(who("Prompt injection (this sandbox only)"));
+      r.req.appendChild(el("p", "say", "Hidden instruction placed in the supplier text of product " + ((s.request || {}).product_id || "?") + ":"));
+      r.req.appendChild(el("p", "tool", (s.detail || {}).injected || ""));
+      fillRes(r, "what the agent was shown", (s.detail || {}).served_to_agent || "", true);
+      r.res.querySelector(".who span").textContent = "Supplier text as served";
     } else if (s.kind === "verify") {
       r = row("verify");
       r.req.appendChild(who("Signature check"));
@@ -608,10 +613,6 @@
 
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();
-    if (badBox && badBox.checked) {
-      startRun("/demo/scenario", { id: "misbehaving", persona: persona }, "The misbehaving agent is trying...");
-      return;
-    }
     var text = box.value.trim();
     if (!text) { box.focus(); return; }
     clearTimeout(timer);
@@ -626,7 +627,7 @@
     fetch("/demo/live", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: text, persona: persona }),
+      body: JSON.stringify({ prompt: text, persona: persona, behaviour: behaviour() }),
       credentials: "same-origin"
     }).then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
       .then(function (res) {
@@ -654,20 +655,17 @@
       b.classList.add("done");
       if (what === "example") {
         choose("hotel").then(function () {
-          if (badBox) { badBox.checked = false; go.textContent = "Run the agent"; }
           live();
           startRun("/demo/scenario", { id: "hotel_milk", persona: "hotel" }, "Running the scripted scenario...");
         });
       } else if (what === "misbehave") {
         var p = (persona === "visitor" || persona === "approver") ? "restaurant" : persona;
         choose(p).then(function () {
-          if (badBox) { badBox.checked = true; go.textContent = "Run the misbehaving agent"; }
           live();
           startRun("/demo/scenario", { id: "misbehaving", persona: p }, "The misbehaving agent is trying...");
         });
       } else if (what === "school") {
         choose("school").then(function () {
-          if (badBox) { badBox.checked = false; go.textContent = "Run the agent"; }
           live();
           startRun("/demo/scenario", { id: "school_milk", persona: "school" }, "Running the scripted scenario...");
         });

@@ -508,7 +508,8 @@ SCENARIOS: dict[str, dict[str, Any]] = {
     "any_tomorrow": {"label": "Needed tomorrow", "personas": sbx.BUYERS, "fn": any_tomorrow},
     "visitor_search": {"label": "Search, then ask for a price", "personas": ["visitor"],
                        "fn": visitor_search},
-    "misbehaving": {"label": "Misbehaving agent", "personas": sbx.BUYERS, "fn": misbehaving,
+    "misbehaving": {"label": "Misbehaving agent (7 attempts)", "personas": sbx.BUYERS,
+                    "fn": misbehaving,
                     "runs_as": "restaurant"},
 }
 #: Free-text requests where the Claude agent adds something (filled into the text box).
@@ -524,9 +525,8 @@ PROMPTS: dict[str, list[str]] = {
 
 def for_persona(persona: str) -> dict[str, Any]:
     chips = [{"id": k, "label": v["label"]} for k, v in SCENARIOS.items()
-             if persona in v["personas"] and k != "misbehaving"]
-    return {"scripted": chips, "prompts": PROMPTS.get(persona, []),
-            "misbehaving": persona in SCENARIOS["misbehaving"]["personas"]}
+             if persona in v["personas"]]
+    return {"scripted": chips, "prompts": PROMPTS.get(persona, [])}
 
 
 def check_rate(ip: str) -> None:

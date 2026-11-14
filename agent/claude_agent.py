@@ -143,12 +143,12 @@ def format_today(d: date | None = None) -> str:
 
 
 def system_blocks(customer_name: str, today: str,
-                  extra: str | None = None) -> list[dict[str, Any]]:
+                  extra: str | None = None, override: str | None = None) -> list[dict[str, Any]]:
     """The system prompt as two blocks: the stable, cached part and the dated last line.
 
     `extra` (the public live demo's additions, document 07, section 8) is appended to the
     stable block, so it is cached with it."""
-    stable = SYSTEM_PROMPT_STABLE.format(customer_name=customer_name)
+    stable = (override or SYSTEM_PROMPT_STABLE).format(customer_name=customer_name)
     if extra:
         stable = f"{stable}\n\n{extra}"
     return [
@@ -583,6 +583,8 @@ def run_task(
     stop_on_pending: bool = False,
     executor_cls: type[ToolExecutor] | None = None,
     should_stop: Callable[[], str | None] | None = None,
+    system_override: str | None = None,
+    extra_tools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run one purchasing task. Returns a summary dict; expected failures never raise.
 
@@ -613,8 +615,8 @@ def run_task(
     request: dict[str, Any] = {
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": system_blocks(customer_name, today, extra_system),
-        "tools": tool_definitions(category_hint),
+        "system": system_blocks(customer_name, today, extra_system, system_override),
+        "tools": tool_definitions(category_hint) + list(extra_tools or []),
         "output_config": {"effort": effort},
         # Automatic caching of the growing conversation (the 10k-token search result is resent
         # every turn); tools and the stable system block keep their own breakpoints.
