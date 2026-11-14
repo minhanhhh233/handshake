@@ -82,7 +82,32 @@ DEMO: dict[str, tuple[str, str, MandateBody]] = {
                                  "unknown": "reject"},
         ),
     ),
+    # Public demo on the landing page (document 09, section 6a): separate parties so rehearsal
+    # data is untouched. Every weekday allowed so only the spend cap asks for approval. Their
+    # keys are random and never written or printed: only the gateway uses these agents.
+    "public": (
+        "Handshake public demo",
+        "Public demo agent",
+        _mandate(
+            approvers=[{"name": "You (demo approver)", "contact": None}],
+            limits={"max_order_total_excl_tax": "1000.00"},
+            delivery={"allowed_weekdays": [1, 2, 3, 4, 5, 6, 7]},
+        ),
+    ),
+    "public_allergy": (
+        "Handshake public demo",
+        "Public demo agent (milk allergy)",
+        _mandate(
+            approvers=[{"name": "You (demo approver)", "contact": None}],
+            limits={"max_order_total_excl_tax": "500.00"},
+            delivery={"allowed_weekdays": [1, 2, 3, 4, 5, 6, 7]},
+            forbidden_allergens={"codes": ["AM"], "states": ["CONTAINS", "MAY_CONTAIN"],
+                                 "unknown": "reject"},
+        ),
+    ),
 }
+#: Slugs whose keys are never stored or shown (server-side use only).
+PUBLIC_SLUGS = {"public", "public_allergy"}
 
 
 def new_agent_key() -> str:
@@ -155,6 +180,8 @@ def _write_keys(result: dict[str, dict[str, Any]]) -> list[str]:
         stored = {}
     missing = []
     for slug, r in result.items():
+        if slug in PUBLIC_SLUGS:
+            continue  # public demo agents are used only by the gateway itself
         if r["key"]:
             stored[slug] = {"agent_id": r["agent_id"], "key": r["key"]}
         elif stored.get(slug, {}).get("agent_id") != r["agent_id"]:
@@ -191,9 +218,9 @@ def main(argv: list[str] | None = None) -> int:
         mandate_state = ("set" if r["mandate_version"] == 1 else "updated")             if r["mandate_changed"] else "unchanged"
         print(f"{name}: agent {r['agent_id']} ({agent_state}), customer {r['customer_id']}, "
               f"mandate {r['mandate_id']} v{r['mandate_version']} ({mandate_state})")
-        if args.show_keys and r["key"]:
+        if args.show_keys and r["key"] and slug not in PUBLIC_SLUGS:
             print(f"  key: {r['key']}")
-    if any(r["key"] for r in result.values()):
+    if any(r["key"] for s, r in result.items() if s not in PUBLIC_SLUGS):
         print(f"Agent keys written to {_shown(KEYS_FILE)}"
               + ("" if args.show_keys else " (use --show-keys to print them)"))
     if missing:

@@ -1,0 +1,91 @@
+{% extends "_base.html" %}
+{% block style %}
+.wrap { max-width: 46rem; margin: 0 auto; padding: 28px var(--gutter) 56px; }
+.brand { font-size: var(--step-0); color: var(--slate); padding-bottom: 14px;
+  border-bottom: 1px solid var(--frost); }
+.brand strong { color: var(--ink); }
+.request { margin-top: 36px; font-size: clamp(1.75rem, 5.4vw, 2.75rem); line-height: 1.15;
+  font-weight: 700; letter-spacing: -0.01em; max-width: 22ch; }
+.request q { quotes: "\201C" "\201D"; }
+.who { margin-top: 12px; color: var(--slate); font-size: var(--step-1); }
+.lede { margin-top: 22px; font-size: var(--step-1); line-height: 1.55; max-width: 38em; }
+.how { margin-top: 26px; padding-left: 1.15em; display: grid; gap: 8px; max-width: 38em; }
+.how li::marker { color: var(--spruce); }
+.demos { margin-top: 40px; border-top: 2px solid var(--ink); }
+.demo { display: grid; gap: 10px; padding: 22px 0; border-bottom: 1px solid var(--frost); }
+.demo h2 { font-size: var(--step-2); line-height: 1.25; }
+.demo p { color: var(--slate); max-width: 36em; }
+.demo form { margin: 0; }
+button { font: inherit; font-weight: 700; font-size: var(--step-1); min-height: 52px;
+  padding: 0 22px; border-radius: 8px; cursor: pointer; border: 2px solid var(--ink);
+  background: var(--white); color: var(--ink); }
+button.primary { background: var(--spruce); border-color: var(--spruce); color: var(--white); }
+button.primary:hover { background: var(--spruce-dark); }
+button:hover { background: var(--frost); }
+.note { margin-top: 14px; font-size: var(--step--1); color: var(--slate); }
+.dev { margin-top: 36px; display: grid; gap: 6px; }
+.dev h2 { font-size: var(--step-1); }
+.dev ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.dev .mono { font-size: var(--step--1); color: var(--slate); }
+footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--frost);
+  font-size: var(--step--1); color: var(--slate); }
+@media (min-width: 720px) {
+  .demo { grid-template-columns: 1fr auto; align-items: center; column-gap: 28px; }
+  .demo h2, .demo p { grid-column: 1; }
+  .demo form { grid-column: 2; grid-row: 1 / span 2; }
+}
+{% endblock %}
+{% block body %}
+<main class="wrap">
+  <p class="brand"><strong>Handshake</strong> agent gateway for Valio Aimo, Junction 2026 prototype</p>
+
+  <h1 class="request"><q>I need 1,000 litres of lactose-free milk by Monday.</q></h1>
+  <p class="who">A hotel's purchasing agent, asking Valio Aimo</p>
+
+  <p class="lede">Handshake is the gateway that lets a software agent do this safely. The agent can
+    look up products, it receives a signed price it can check, and any order outside the limits a
+    person set waits for that person to approve it.</p>
+  <ul class="how">
+    <li>Prices and stock come only as signed, time-limited offers. Anyone can verify the signature.</li>
+    <li>Every order is checked against the customer's mandate on the gateway, never on the agent.</li>
+    <li>Each step is logged in a hash-chained record and summarised in a signed receipt.</li>
+  </ul>
+
+  <section class="demos" aria-label="Try it">
+    <div class="demo">
+      <h2>Run the example order</h2>
+      <p>The agent finds lactose-free milk, gets a signed offer for 1,000 litres, and checks it
+        against its mandate. The total is over its limit, so you approve it yourself.</p>
+      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
+        <button class="primary" type="submit">Run the example order</button></form>
+    </div>
+    <div class="demo">
+      <h2>Milk-allergy guard</h2>
+      <p>A school kitchen's mandate forbids milk. Lactose-free milk still contains milk, so the
+        gateway refuses every product and says why.</p>
+      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="allergy_guard">
+        <button type="submit">Run the allergy guard</button></form>
+    </div>
+    <div class="demo">
+      <h2>Anonymous search</h2>
+      <p>Without an agent key you can search products and read their attributes, but you never
+        see a price or a stock level.</p>
+      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="anonymous_search">
+        <button type="submit">Search without a key</button></form>
+    </div>
+  </section>
+  <p class="note">The demo runs against Valio Aimo's live challenge data as a separate demo customer.
+    Up to {{ limit }} runs every {{ window_min }} minutes per visitor; demo orders expire after 30 minutes.</p>
+
+  <section class="dev">
+    <h2>For developers</h2>
+    <ul>
+      <li><a href="/docs">API documentation</a> <span class="mono">/docs</span></li>
+      <li><a href="/.well-known/handshake.json">Discovery document</a> <span class="mono">/.well-known/handshake.json</span></li>
+      <li><a href="/.well-known/jwks.json">Public signing keys</a> <span class="mono">/.well-known/jwks.json</span> (key {{ kid }})</li>
+    </ul>
+  </section>
+
+  <footer>Fictional customers and people. Prices and stock come from Valio Aimo's challenge APIs.</footer>
+</main>
+{% endblock %}

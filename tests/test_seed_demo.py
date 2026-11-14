@@ -37,8 +37,9 @@ def test_seed_is_idempotent(clean_db):
     first = run()
     assert all(r["created"] and r["key"] for r in first.values())
     second = run()
-    assert scalar("SELECT COUNT(*) FROM customers") == 2
-    assert scalar("SELECT COUNT(*) FROM agents") == 2
+    # Nordlys, Koivula and the public demo customer (two public agents, document 09, 6a).
+    assert scalar("SELECT COUNT(*) FROM customers") == 3
+    assert scalar("SELECT COUNT(*) FROM agents") == 4
     for slug in ("nordlys", "koivula"):
         assert second[slug]["agent_id"] == first[slug]["agent_id"]
         assert second[slug]["key"] is None and not second[slug]["created"]
@@ -47,7 +48,7 @@ def test_seed_is_idempotent(clean_db):
     assert scalar("SELECT COUNT(*) FROM code_lookup WHERE kind = 'allergen' AND code = 'AM'") == 1
     names = {scalar("SELECT name FROM customers WHERE customer_id = :c", c=r["customer_id"])
              for r in second.values()}
-    assert names == {"Nordlys Hotels", "Koivula School Kitchens"}
+    assert names == {"Nordlys Hotels", "Koivula School Kitchens", "Handshake public demo"}
 
 
 def test_keys_stored_as_hashes(clean_db):

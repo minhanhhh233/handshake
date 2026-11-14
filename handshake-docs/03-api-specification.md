@@ -478,8 +478,21 @@ Server-rendered HTML, outside `/v1`.
 | `GET /receipts/{order_id}?t={receipt_token}` | Receipt token | Buyer view of the timeline |
 | `GET /receipts/{order_id}?key={ADMIN_KEY}` | Admin key | Valio Aimo view: timeline plus data-access events and upstream snapshot references |
 | `GET /console?key={ADMIN_KEY}` | Admin key | Live list of recent events; in demo mode, a QR code for each pending approval |
+| `GET /` | None | Public landing page: what Handshake is, links to `/docs`, `/.well-known/handshake.json` and `/.well-known/jwks.json`, three demo buttons (added 2026-11-14) |
+| `POST /demo/run` | None, rate-limited | Form field `scenario` = `example_order`, `allergy_guard` or `anonymous_search`; runs it server-side and redirects (303) to the run page. `429` with `Retry-After` after 5 runs in 10 minutes from one visitor |
+| `GET /demo/runs/{trace_id}?k={run_token}` | Run token | The run's steps; for the example order, the approval link and QR code of that one order while it is pending, then the receipt link |
 
 Approving after `approval.expires_at`, or a second use of the token, shows an explanatory page and changes nothing.
+
+Public demo (2026-11-14; document 09, section 6a):
+
+- The demo runs as dedicated agents of the customer "Handshake public demo" (mandates: cap 1000.00 EUR, all weekdays; and cap 500.00 with milk forbidden). Their keys are random and never stored or shown; the gateway calls its own internal functions as those agents, without HTTP and without Claude.
+- Each run is a trace. Steps are stored as `demo.step` events and each run as a `demo.run` event (audience `aimo_only`); the run page is rebuilt from them, so the run state lives in MariaDB like everything else.
+- `run_token` is an HMAC-SHA256 of the trace ID keyed with `ADMIN_KEY` (first 32 base64url characters). The run page shows an approval link only for an order of a public-demo agent in that trace, never any other order's.
+- The visitor limit counts `demo.run` events per visitor in the last 10 minutes. A visitor is identified by a keyed hash of the right-most `X-Forwarded-For` entry (the one Modal's proxy adds); the raw IP is not stored.
+- Public-demo approvals expire after 30 minutes (`approval_ttl_seconds` override in `orders.place_order`), after which the order is expired and its stock released.
+- The delivery date is the earliest `availableDate` upstream reports for the shortlist among products whose cut-off is still more than 5 minutes ahead; if there is none, the run says so instead of ordering.
+- Landing and run pages load no scripts (meta refresh every 5 seconds while the approval is pending) and no external resources. The run page uses the approval page's headers (`no-store`, `no-referrer`, `DENY`).
 
 Implementation notes (phase 3):
 

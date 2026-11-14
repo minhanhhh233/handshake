@@ -77,7 +77,7 @@ The policy engine MUST have no I/O. The orders module gathers its inputs and per
 ```
 handshake/
   api/            routers: wellknown, products, offers, orders, mandates, admin
-  pages/          approval, receipt, console (templates and routes)
+  pages/          approval, receipt, console, public landing page and demo runs (templates and routes)
   catalog.py
   upstream.py
   offers.py
@@ -92,6 +92,7 @@ handshake/
   ids.py          prefixed identifier generation
   timeutil.py     the single clock; UTC storage, Europe/Helsinki display, upstream date parsing
   demo.py         reset(conn): deletes trading rows, keeps catalog, parties and mandates
+  public_demo.py  public guided demo on the landing page: scenarios, run token, visitor limit
   mandates.py     mandate storage: current mandate, replace with next version
   api/deps.py     authentication dependencies (agent bearer key, admin key)
 modal_app.py      Modal entry point
@@ -247,7 +248,7 @@ The agent process additionally needs `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `HA
 MariaDB runs on SkySQL serverless (Q-01, answered 2026-11-14). Notes from the first deployment:
 
 - TLS: `DATABASE_URL` carries `?ssl_ca=<path to the CA file>`; SQLAlchemy's PyMySQL dialect turns it into a verified TLS connection (certificate chain and hostname). Locally the path is `certs/globalsignrootca.pem` (git-ignored); `modal_app.py` copies that file into the image at `/root/certs/globalsignrootca.pem`, and the Modal secret's `DATABASE_URL` points there.
-- Region (2026-11-14): containers run in Modal's `uk` region next to the database, and requests enter in `eu-west` (`modal_app.py` defaults; `eu-west-2` is not a Modal region name). One container is kept warm (`min_containers=1`); the scheduled function `scale_down_after_demo` sets it back to 0 on Sunday 15 November 2026 at 12:00 Europe/Helsinki. Measured on Modal: product search 0.35 s (was 2.6 s from us-east), offer 0.15 s warm, health 0.24 s.
+- Region (2026-11-14): containers run in Modal's `uk` region next to the database, and requests enter in `eu-west` (`modal_app.py` defaults; `eu-west-2` is not a Modal region name). One container is kept warm (`min_containers=1`); the scheduled function `scale_down_after_demo` sets it back to 0 on Monday 16 November 2026 at 12:00 Europe/Helsinki (moved from Sunday for judging). Measured on Modal: product search 0.35 s (was 2.6 s from us-east), offer 0.15 s warm, health 0.24 s.
 - Round trips (2026-11-14): `code_lookup` is cached in-process for 5 minutes; each product batch's attributes are read in one `UNION ALL` query; the offer builder looks up substitutes on the same connection as the mandate and catalog. Search 6 to 2 statements, offer 22 to 18 statements and 6 to 5 connection checkouts.
 - The deployed URL is `https://minhanhhh233--handshake-web.eu-west.modal.run`; `PUBLIC_BASE_URL` in the secret must equal it exactly (the offer `issuer` and the approval links are built from it). After changing the secret, stop the app (`modal app stop handshake --yes`) and deploy again so no container keeps the old value.
 - Development machine only: TLS to api.modal.com and the deployed URL is intercepted by a locally trusted CA, and the Modal client trusts only certifi. The CLI is run through `scripts/modal_cli.py`, which points certifi at `keys/ca_bundle_windows.pem` (certifi plus the Windows trust store; git-ignored; verification stays on); `SSL_CERT_FILE` set to the same file does this for httpx clients. The rehearsal commands are in `REHEARSAL.md`.

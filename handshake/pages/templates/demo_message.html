@@ -1,0 +1,17 @@
+{% extends "_base.html" %}
+{% block style %}
+.wrap { max-width: 40rem; margin: 0 auto; padding: 28px var(--gutter) 56px; }
+.brand { color: var(--slate); padding-bottom: 14px; border-bottom: 1px solid var(--frost); }
+.brand strong { color: var(--ink); }
+h1 { margin-top: 32px; font-size: var(--step-3); line-height: 1.2; }
+p.body { margin-top: 14px; font-size: var(--step-1); }
+a.back { display: inline-block; margin-top: 24px; font-weight: 700; }
+{% endblock %}
+{% block body %}
+<main class="wrap">
+  <p class="brand"><strong>Handshake</strong> demo</p>
+  <h1>{{ heading }}</h1>
+  <p class="body">{{ body }}</p>
+  <a class="back" href="/">Back to the start page</a>
+</main>
+{% endblock %}

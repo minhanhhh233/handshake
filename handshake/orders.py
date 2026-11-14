@@ -396,8 +396,11 @@ def _policy_text(ev: Evaluation, offer: Offer, approver: str) -> str:
 
 
 def place_order(req: OrderRequest, *, agent_id: str, customer_id: str, agent_status: str,
-                idem_key: str | None) -> tuple[int, dict[str, Any]]:
-    """POST /v1/orders. Returns (HTTP status, Order JSON). Raises HandshakeError."""
+                idem_key: str | None, approval_ttl_seconds: int | None = None
+                ) -> tuple[int, dict[str, Any]]:
+    """POST /v1/orders. Returns (HTTP status, Order JSON). Raises HandshakeError.
+
+    `approval_ttl_seconds` overrides APPROVAL_TTL_SECONDS (the public demo uses 30 minutes)."""
     key = validate_idempotency_key(idem_key)
     sha = request_hash(req)
     with db.connection() as conn:
@@ -407,7 +410,8 @@ def place_order(req: OrderRequest, *, agent_id: str, customer_id: str, agent_sta
 
     try:
         _check_offer(req.offer_id, agent_id)
-        return _create(req, agent_id, customer_id, agent_status, key, sha)
+        return _create(req, agent_id, customer_id, agent_status, key, sha,
+                       approval_ttl_seconds)
     except HandshakeError as e:
         # A same-key request that overlapped the original sees the offer as consumed. Return
         # the original's stored result instead of offer_consumed, so a retrying agent is not
@@ -429,7 +433,7 @@ def place_order(req: OrderRequest, *, agent_id: str, customer_id: str, agent_sta
 
 
 def _create(req: OrderRequest, agent_id: str, customer_id: str, agent_status: str, key: str,
-            sha: str) -> tuple[int, dict[str, Any]]:
+            sha: str, approval_ttl_seconds: int | None = None) -> tuple[int, dict[str, Any]]:
     error: HandshakeError | None = None
     result: tuple[int, dict[str, Any]] | None = None
     with db.transaction() as conn:
@@ -445,7 +449,7 @@ def _create(req: OrderRequest, agent_id: str, customer_id: str, agent_status: st
                          if row["status"] == "expired" else offer_consumed(row["offer_id"]))
             else:
                 result = _insert_order(conn, req, row, agent_id, customer_id, agent_status,
-                                       key, sha)
+                                       key, sha, approval_ttl_seconds)
     if error is not None:
         raise error
     assert result is not None
@@ -453,8 +457,8 @@ def _create(req: OrderRequest, agent_id: str, customer_id: str, agent_status: st
 
 
 def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agent_id: str,
-                  customer_id: str, agent_status: str, key: str, sha: str
-                  ) -> tuple[int, dict[str, Any]]:
+                  customer_id: str, agent_status: str, key: str, sha: str,
+                  approval_ttl_seconds: int | None = None) -> tuple[int, dict[str, Any]]:
     now = timeutil.now()
     offer, mandate, ev = _evaluate(conn, row, agent_status, now)
     trace, offer_id = row["trace_id"], row["offer_id"]
@@ -476,7 +480,8 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
 
     approval: dict[str, Any] | None = None
     if ev.outcome == "needs_approval":
-        expires = now + timedelta(seconds=get_settings().approval_ttl_seconds)
+        expires = now + timedelta(
+            seconds=approval_ttl_seconds or get_settings().approval_ttl_seconds)
         for ln in offer.lines:
             ob = ln.availability.order_by
             if ob is not None and ob < expires:

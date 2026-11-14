@@ -4,7 +4,7 @@ Deploy:  modal deploy modal_app.py
 Secret:  one Modal secret named "handshake" holding the variables in document 02, section 7.
 
 Warm container: one container is kept running for the demo (no cold start on stage). The
-scheduled function `scale_down_after_demo` sets the minimum back to 0 on Sunday 15 November
+scheduled function `scale_down_after_demo` sets the minimum back to 0 on Monday 16 November
 2026 at 12:00 Europe/Helsinki (document 08, section 0).
 """
 
@@ -39,7 +39,7 @@ def web():
     return create_app()
 
 
-@app.function(schedule=modal.Cron("0 12 15 11 *", timezone="Europe/Helsinki"))
+@app.function(schedule=modal.Cron("0 12 16 11 *", timezone="Europe/Helsinki"))
 def scale_down_after_demo():
-    """After the demo (Sunday 15 Nov 2026, 12:00 Helsinki) stop keeping a container warm."""
+    """After judging (Monday 16 Nov 2026, 12:00 Helsinki) stop keeping a container warm."""
     modal.Function.from_name("handshake", "web").update_autoscaler(min_containers=0)

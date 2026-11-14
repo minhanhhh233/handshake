@@ -156,6 +156,18 @@ The split in step 10 comes from the agent's own alternates (T-106), so it works 
 
 **No unconfirmed-stock step in the live demo.** Every Terminal product in the shortlist has an upstream cut-off of 12 November 15:00 that has already passed, and the gateway does not offer past a cut-off (Q-11). An `unconfirmed` line therefore cannot appear on real data. The behaviour is covered by test F-04 and is answered verbally (section 8, "What about products where you do not know the stock?").
 
+### 6a. Public demo for judges (added 2026-11-14)
+
+The submission's live URL is the landing page `https://minhanhhh233--handshake-web.eu-west.modal.run/`. A judge needs no setup:
+
+| Button | What happens | Proves |
+|---|---|---|
+| Run the example order | Mandate, search, earliest deliverable date from upstream, signed offer (signature verified against the published key), dry run (`needs_approval`), order. The judge opens the approval link or scans the QR, approves, and sees the order confirmed and the signed receipt. | Core 1, 2, 3; trust protocol; audit trail |
+| Milk-allergy guard | The milk-allergy agent's offer request is refused for every product, with "Lactose-free is not milk-free." | Unknown is not safe |
+| Anonymous search | Search without a key: structured attributes, no price or stock field | Data ownership |
+
+Rules: separate public-demo customer and agents (rehearsal data untouched); no Claude API calls; 5 runs per 10 minutes per visitor; public-demo approvals expire after 30 minutes; the admin key, the console and other orders' approval links are never reachable from these pages. Tests: `tests/test_public_demo.py` (scenarios, approval, expiry, limit, tokens) and `tests/test_public_demo_browser.py` (390 and 1280 px).
+
 ### Fallbacks
 
 | Problem | Response |

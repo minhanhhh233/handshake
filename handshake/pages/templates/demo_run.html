@@ -1,0 +1,103 @@
+{% extends "_base.html" %}
+{% block style %}
+.wrap { max-width: 48rem; margin: 0 auto; padding: 28px var(--gutter) 56px; }
+.brand { color: var(--slate); padding-bottom: 14px; border-bottom: 1px solid var(--frost); }
+.brand strong { color: var(--ink); }
+h1 { margin-top: 28px; font-size: var(--step-3); line-height: 1.2; }
+.sub { margin-top: 8px; color: var(--slate); }
+ol.steps { list-style: none; padding: 0; margin-top: 26px; position: relative; }
+ol.steps::before { content: ""; position: absolute; left: 15px; top: 6px; bottom: 6px; width: 2px;
+  background: var(--frost); }
+.step { position: relative; padding: 0 0 22px 48px; }
+.num { position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 700; font-size: var(--step--1);
+  background: var(--paper); border: 2px solid var(--ink); }
+.step.warn .num { border-color: var(--lingon); color: var(--lingon); }
+.step.bad .num, .step.refused .num { background: var(--lingon); border-color: var(--lingon);
+  color: var(--white); }
+.step.ok .num { border-color: var(--spruce); color: var(--spruce); }
+.step h2 { font-size: var(--step-1); line-height: 1.3; padding-top: 4px; }
+.step p { margin-top: 6px; max-width: 40em; overflow-wrap: anywhere; }
+.step.refused p { color: var(--lingon); }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--slate); font-size: var(--step--1); }
+pre { margin-top: 8px; padding: 12px; background: var(--white); border: 1px solid var(--frost);
+  border-radius: 6px; font-family: var(--mono); font-size: 12.5px; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; }
+.reveal .step { opacity: 0; animation: in 0.45s ease-out forwards; }
+{% for i in range(1, 12) %}.reveal .step:nth-child({{ i }}) { animation-delay: {{ (i - 1) * 0.35 }}s; }
+{% endfor %}
+@keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.turn { margin-top: 10px; padding: 22px; border: 2px solid var(--ink); border-radius: 10px;
+  background: var(--white); display: grid; gap: 16px; }
+.turn h2 { font-size: var(--step-2); line-height: 1.25; }
+.turn .qr { width: 220px; max-width: 100%; }
+.turn .qr svg { width: 100%; height: auto; display: block; }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px;
+  padding: 0 22px; border-radius: 8px; font-weight: 700; font-size: var(--step-1);
+  text-decoration: none; background: var(--spruce); color: var(--white); }
+.btn.quiet { background: var(--white); color: var(--ink); border: 2px solid var(--ink); }
+.waiting { color: var(--slate); }
+.done { border-color: var(--spruce); }
+.stopped { border-color: var(--lingon); }
+@media (min-width: 720px) {
+  .turn.has-qr { grid-template-columns: 1fr 220px; align-items: start; }
+  .turn.has-qr .qr { grid-column: 2; grid-row: 1 / span 3; }
+}
+.again { margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap; }
+{% endblock %}
+{% block head %}{% if refresh %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block body %}
+<main class="wrap">
+  <p class="brand"><strong>Handshake</strong> demo run</p>
+  {% if view.scenario == "example_order" %}
+    <h1>The example order, step by step</h1>
+    <p class="sub">The steps a purchasing agent takes through the gateway. Every value comes from the live gateway and Valio Aimo's challenge APIs.</p>
+  {% elif view.scenario == "allergy_guard" %}
+    <h1>Milk-allergy guard</h1>
+    <p class="sub">A school kitchen whose mandate forbids milk asks for lactose-free milk.</p>
+  {% else %}
+    <h1>Anonymous search</h1>
+    <p class="sub">What a caller without an agent key can see.</p>
+  {% endif %}
+
+  <ol class="steps{% if not refresh %} reveal{% endif %}">
+    {% for s in view.steps %}
+    <li class="step {{ s.status }}">
+      <span class="num" aria-hidden="true">{{ loop.index }}</span>
+      <h2>{{ s.title }}</h2>
+      <p>{{ s.summary }}</p>
+      {% if s.detail %}
+      <details><summary>Show the data</summary><pre>{{ s.detail|tojson(indent=1) }}</pre></details>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  {% if order %}
+    {% if order.status == "pending_approval" and approval_url %}
+    <section class="turn{% if qr %} has-qr{% endif %}" aria-label="Your turn">
+      <h2>Your turn: approve this order</h2>
+      <p>The total is over the agent's limit, so a person must approve it. In this demo that person is you. Open the approval page on your phone by scanning the code, or on this device with the button.</p>
+      <p><a class="btn" href="{{ approval_url }}" rel="noreferrer noopener" target="_blank">Open the approval page</a></p>
+      {% if qr %}<div class="qr" role="img" aria-label="QR code for the approval page">{{ qr|safe }}</div>{% endif %}
+      <p class="waiting">Waiting for your decision. This page refreshes every 5 seconds. The request expires at {{ order.approval_expires_at|hm }}.</p>
+    </section>
+    {% elif order.status == "confirmed" %}
+    <section class="turn done" aria-label="Result">
+      <h2>Approved. The order is confirmed.</h2>
+      <p>The agent sees the order as confirmed when it next checks. The receipt shows every step, signed by the gateway, with a hash chain that reveals any change to the record.</p>
+      <p><a class="btn" href="{{ order.receipt_url }}" rel="noreferrer">Open the signed receipt</a></p>
+    </section>
+    {% elif order.status in ("declined", "expired") %}
+    <section class="turn stopped" aria-label="Result">
+      <h2>{% if order.status == "declined" %}Declined. Nothing was ordered.{% else %}The approval request expired. Nothing was ordered.{% endif %}</h2>
+      <p>The stock that was held for this order has been released.</p>
+      <p><a class="btn quiet" href="{{ order.receipt_url }}" rel="noreferrer">Open the signed receipt</a></p>
+    </section>
+    {% endif %}
+  {% endif %}
+
+  <p class="again"><a class="btn quiet" href="/">Back to the start page</a></p>
+</main>
+{% endblock %}
