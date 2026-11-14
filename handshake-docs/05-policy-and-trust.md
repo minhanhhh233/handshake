@@ -88,7 +88,7 @@ Notes:
 - R8: `official_rules_only` passes substitutes whose `substitution_source` is `valio_aimo_substitution_rule`. `any_meeting_requirements` passes all substitutes. `none` passes none. Lines with role `alternate` never fire R8, because the agent listed them itself.
 - Evaluation always uses the mandate that is current at evaluation time, and records its version on the order.
 - Without R7, an agent could stay under the per-order cap by placing several small orders. State this limitation if R7 is not built.
-- **Cut for the deadline (document 08, section 0).** R7 and R10 (T-503) are not built. Their mandate fields are accepted and stored but not evaluated, and the order-splitting limitation applies.
+- **Cut for the deadline (document 08, section 0).** R10 (T-503) is not built: `stock.require_confirmed` is accepted and stored but not evaluated. R7 was restored on 2026-11-14 (document 08, section 0) and is built after phase 4; until then the order-splitting limitation applies.
 
 ### Reason object
 
