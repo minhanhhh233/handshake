@@ -137,6 +137,7 @@
     <dl class="untrusted">
       {% if v.reference %}<dt>Order reference from the agent (not verified)</dt><dd class="note">{{ v.reference }}</dd>{% endif %}
       {% if v.note %}<dt>Note from the agent (not verified)</dt><dd class="note">{{ v.note }}</dd>{% endif %}
+      {% if v.rationale %}<dt>The agent's stated reason for its choice (not verified)</dt><dd class="note">{{ v.rationale }}</dd>{% endif %}
       {% if v.comment %}<dt>Comment from {{ v.approver_name }} (not verified)</dt><dd class="note">{{ v.comment }}</dd>{% endif %}
     </dl>
   </section>

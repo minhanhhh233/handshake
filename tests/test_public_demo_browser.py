@@ -271,3 +271,24 @@ def test_start_here_strip(browser, demo_server, w, h, tag):  # noqa: F811
     page.get_by_text("Every attempt was refused").wait_for(timeout=30000)
     assert _no_hscroll(page)
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_compare_offers_with_a_preference(browser, demo_server, w, h, tag):  # noqa: F811
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.get_by_role("button", name="Finnish-origin or organic labels").click()
+    page.locator("#lv-card").get_by_text("Ranking set").wait_for(timeout=10000)
+    page.locator('.chip[data-scenario="compare_options"]').click()
+    table = page.locator("table.cmp")
+    table.wait_for(timeout=20000)
+    text = table.inner_text()
+    for row in ("Total excl. tax", "Products", "Labels", "Score", "best", "better"):
+        assert row in text
+    assert _no_hscroll(page)
+    page.locator(".lv-row.compare").screenshot(path=str(SCREENS / f"compare-{tag}.png"))
+    ctx.close()

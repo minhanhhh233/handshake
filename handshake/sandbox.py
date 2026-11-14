@@ -251,9 +251,14 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
         "official_rules_only": "Valio Aimo's official substitutes pass; others need approval",
         "any_meeting_requirements": "any substitute meeting the requirements passes",
     }[m.substitution.auto_approve]))
+    pref = preference_of(m)
+    rules.append(("Ranking", (PREFERENCES[pref]["label"] if pref else "price 60%, delivery "
+                              "reliability 20%, carbon 10%, labels 10%")
+                  + " (orders offer options only)"))
     return {"persona": slug, "label": PERSONAS[slug]["label"], "customer": pt["customer"],
             "agent": PERSONAS[slug]["agent"], "blurb": PERSONAS[slug]["blurb"],
-            "mandate_version": m.version,
+            "mandate_version": m.version, "preference": pref,
+            "preferences": [{"id": k, "label": v["label"]} for k, v in PREFERENCES.items()],
             "cap": str(lim.max_order_total_excl_tax) if lim.max_order_total_excl_tax else None,
             "rules": [{"name": n, "value": v} for n, v in rules]}
 
@@ -288,6 +293,64 @@ def set_cap(sandbox_id: str, slug: str, cap: Any) -> dict[str, Any]:
                   "mandate_id": new.mandate_id, "version": new.version,
                   "field": "limits.max_order_total_excl_tax",
                   "from": str(old) if old is not None else None, "to": f"{value}"},
+        )
+    return card(sandbox_id, slug)
+
+
+#: Ranking presets (stage 3): mandate.preferences, which only order offer options (document 05,
+#: section 4) and never change an outcome. Non-price presets keep a little weight on price.
+FINNISH_OR_ORGANIC = ["GOODS_FROM_FINLAND_BLUE_SWAN", "MADE_IN_FINLAND_FLAG_WITH_KEY",
+                      "FINNISH_HEART_SYMBOL", "EU_ORGANIC_FARMING"]
+PREFERENCES: dict[str, dict[str, Any]] = {
+    "cheapest": {"label": "Cheapest",
+                 "weights": {"price": 1.0, "delivery_reliability": 0.0, "carbon": 0.0,
+                             "labels": 0.0}},
+    "labels": {"label": "Finnish-origin or organic labels",
+               "weights": {"price": 0.3, "delivery_reliability": 0.0, "carbon": 0.0,
+                           "labels": 0.7}, "preferred_labels": FINNISH_OR_ORGANIC},
+    "carbon": {"label": "Lowest carbon",
+               "weights": {"price": 0.3, "delivery_reliability": 0.0, "carbon": 0.7,
+                           "labels": 0.0}},
+    "reliable": {"label": "Most reliable delivery",
+                 "weights": {"price": 0.3, "delivery_reliability": 0.7, "carbon": 0.0,
+                             "labels": 0.0}},
+}
+
+
+def preference_of(m: Any) -> str | None:
+    w = m.preferences.weights
+    for key, p in PREFERENCES.items():
+        if all(abs(w.get(k, 0.0) - v) < 1e-9 for k, v in p["weights"].items()):
+            return key
+    return None
+
+
+def set_preference(sandbox_id: str, slug: str, pref: Any) -> dict[str, Any]:
+    """New mandate version with a ranking preset; writes mandate.changed (stage 3)."""
+    if pref not in PREFERENCES:
+        raise SandboxError(400, "invalid_preference", "Unknown preference.")
+    pt = party(sandbox_id, slug)
+    p = PREFERENCES[pref]
+    with db.transaction() as conn:
+        m = mandates.get_current(conn, pt["agent_id"])
+        assert m is not None
+        base = m.dump()
+        for k in ("mandate_id", "version", "agent_id", "customer_id"):
+            base.pop(k, None)
+        base["preferences"] = {"weights": p["weights"],
+                               "preferred_labels": p.get("preferred_labels",
+                                                         m.preferences.preferred_labels)}
+        new = mandates.replace(conn, pt["agent_id"], pt["customer_id"],
+                               _mandate_body(slug, None, base))
+        events.append(
+            conn, trace_id=new_id("trc"), type="mandate.changed", actor_type="approver",
+            actor_id=MANAGER, audience="both",
+            text=(f"{MANAGER} set {pt['customer']}'s ranking preference to "
+                  f"\"{p['label']}\" (mandate version {new.version}). Preferences order "
+                  f"offer options only; they never change what is allowed."),
+            body={"agent_id": pt["agent_id"], "customer_id": pt["customer_id"],
+                  "mandate_id": new.mandate_id, "version": new.version,
+                  "field": "preferences", "to": base["preferences"]},
         )
     return card(sandbox_id, slug)
 

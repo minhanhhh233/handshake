@@ -157,6 +157,8 @@ Purpose: show an off-the-shelf assistant placing an order with no custom agent c
 
 ## 8. Public live demo agent (added 2026-11-14)
 
+Stage 3: the `request_offer` tool's `max_options` now returns ranked options (document 03, section 5) and `place_order` takes an optional `rationale`; the live demo prompt asks for `max_options` 3 when the visitor wants a comparison and for a one-sentence rationale on every order. `_trim_offer` keeps the options' `score` for the model.
+
 Stage 2 adds a second, scripted client: `handshake/scenarios.py` runs fixed call sequences (document 09, section 6d) through the same `HandshakeClient` and in-process HTTP path, as the sandbox's persona agent, with no model. The Claude agent is used only where free text matters (the persona's example requests and the visitor's own text).
 
 The landing page runs the section 4 agent server-side for anonymous visitors (`handshake/live_demo.py`; routes in document 03, section 8; demo in document 09, section 6b).

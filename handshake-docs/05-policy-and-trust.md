@@ -58,7 +58,7 @@ One mandate per agent (A-10). Stored in `mandates.document`; `mandate_id` and `v
 | `substitution.auto_approve` | `none`, `official_rules_only`, `any_meeting_requirements` | Which gateway-proposed substitutes pass without approval. |
 | `delivery.allowed_weekdays` | ISO weekdays 1 to 7 | Delivery on another day needs approval. |
 | `stock.require_confirmed` | boolean | If true, lines with unconfirmed stock need approval. |
-| `preferences` | object | Used only for ranking options. Never affects the outcome. |
+| `preferences` | object | Used only for ranking options (`max_options` above 1). Never affects the outcome. The public demo offers four presets: cheapest (price 1.0), Finnish-origin or organic labels (labels 0.7, price 0.3, with the Blue Swan, Made in Finland flag, Finnish Heart and EU organic labels), lowest carbon (carbon 0.7, price 0.3) and most reliable delivery (reliability 0.7, price 0.3). |
 | `proactive_offers` | object | P2. Consent for the selling agent. |
 
 The demo cap of `1000.00` is a placeholder until live prices are known (Q-03).
@@ -145,7 +145,7 @@ Options:
 | `better` | Fill by ascending comparison price (cheapest), if different from `best` |
 | `good` | Fill using the fewest distinct products, if different from the others |
 
-Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order, or, for a line with `prefer: "lowest_price"` (added 2026-11-14, FR-21), by ascending price excl. tax per requested unit among the listed candidates that passed all filters (substitutes after them). That ordering never changes the policy outcome. **Cut for the deadline (document 08, section 0).** T-501 is not built, so only the P0 behaviour exists and `preferences` has no effect.
+Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order, or, for a line with `prefer: "lowest_price"` (added 2026-11-14, FR-21), by ascending price excl. tax per requested unit among the listed candidates that passed all filters (substitutes after them). That ordering never changes the policy outcome. T-501 was restored on 2026-11-14 (stage 3): with `max_options` 2 or 3 the options above are built as described (`handshake/offers.py`: `line_scores`, `ranked_variants`, `option_score`), and `preferences` affects only their order; with `max_options` 1 nothing changes. A criterion with no value for a candidate is left out of that candidate's score; carbon is a product-group average, so it rarely separates products of one category.
 
 ## 5. Signing
 

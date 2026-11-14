@@ -34,6 +34,15 @@ def main() -> int:
                    "KEY ix_sandboxes_ip (ip_hash, created_at)) "
                    "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
         print("sandboxes: table present")
+        ocols = {r[0] for r in db.q(conn, "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                                          "WHERE TABLE_SCHEMA = DATABASE() AND "
+                                          "TABLE_NAME = 'orders'").all()}
+        if "rationale_untrusted" not in ocols:
+            db.q(conn, "ALTER TABLE orders ADD COLUMN rationale_untrusted VARCHAR(500) NULL "
+                       "AFTER note_untrusted")
+            print("orders: rationale_untrusted added (stage 3)")
+        else:
+            print("orders: rationale already present")
     return 0
 
 

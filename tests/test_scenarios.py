@@ -33,6 +33,7 @@ def world(catalog, clean_db):
 
     facts = [f(p, "1.01" if p == "464306" else "1.60", amount=None)
              for p in public_demo.SHORTLIST if p != "469363"]
+    facts += [f(p, "1.10", amount=None) for p in ("464401", "464073", "462921")]
     facts += [f("469363", "2.48", amount="384"),
               f("465236", "11.62", "3.87", "KG", amount=None),
               f("470341", "2.10", "8.40", amount=None),
@@ -197,7 +198,7 @@ def test_inbox_and_routes(world):
     s = c.get("/demo/sandbox?persona=restaurant").json()["scenarios"]
     assert [x["id"] for x in s["scripted"]] == ["restaurant_basket", "restaurant_weekday",
                                                "restaurant_substitutes", "restaurant_weekly",
-                                               "any_tomorrow"]
+                                               "compare_options", "any_tomorrow"]
     assert s["misbehaving"] is True and s["prompts"]
     a = c.get("/demo/sandbox?persona=approver").json()
     assert a["card"]["persona"] == "approver" and a["inbox"] == []
@@ -225,3 +226,70 @@ def test_hospital_and_probation_go_to_approval(world):
     assert v["order"]["status"] == "pending_approval"
     chips = c.get("/demo/sandbox?persona=hospital").json()["scenarios"]["scripted"]
     assert [x["id"] for x in chips][:2] == ["hospital_unknown", "hospital_substitute"]
+
+
+def test_ranked_options_preferences_and_rationale(world):
+    import json
+    from urllib.parse import urlparse
+
+    c, sid, _ = world
+    # Default ranking: best is also the cheapest and a single product, so one option only.
+    v = run(sid, "compare_options", "hotel")
+    opts = results(v, "request_offer")[0]["detail"]["options"]
+    assert [o["label"] for o in opts] == ["best"]
+    assert opts[0]["score"]["breakdown"]["price"] == 0.6
+    # Labels preference: a new mandate version and mandate.changed; best now differs.
+    r = c.post("/demo/sandbox/preference", json={"persona": "hotel", "preference": "labels"})
+    assert r.status_code == 200 and r.json()["card"]["preference"] == "labels"
+    assert c.post("/demo/sandbox/preference", json={"persona": "hotel", "preference": "x"}
+                  ).status_code == 400
+    with db.connection() as conn:
+        assert db.q(conn, "SELECT COUNT(*) FROM events WHERE type = 'mandate.changed' AND "
+                          "text LIKE '%ranking preference%'").scalar_one() == 1
+    v = run(sid, "compare_options", "hotel")
+    opts = results(v, "request_offer")[0]["detail"]["options"]
+    labels = [o["label"] for o in opts]
+    assert labels[:2] == ["best", "better"]
+    assert opts[0]["offer"]["lines"][0]["product_id"] != "464306"
+    assert opts[1]["offer"]["lines"][0]["product_id"] == "464306"  # better = cheapest
+    assert opts[0]["score"]["total"] > opts[1]["score"]["total"]
+    ids = {o["offer"]["offer_id"] for o in opts}
+    assert len(ids) == len(opts)  # separate offers, each signed and holding stock
+    with db.connection() as conn:
+        n = db.q(conn, "SELECT COUNT(DISTINCT offer_id) FROM stock_holds WHERE offer_id IN "
+                       "(" + ",".join(f"'{i}'" for i in ids) + ")").scalar_one()
+    assert n == len(ids)
+    from handshake import signing
+
+    for o in opts:
+        assert signing.verify(o["jws"], signing.jwks(), signing.TYP_OFFER)["offer_id"] ==             o["offer"]["offer_id"]
+    # The scripted agent ordered the best option with a rationale: stored, in the event body
+    # and on the receipt page as the agent's stated reason.
+    order = results(v, "place_order")[0]["detail"]
+    with db.connection() as conn:
+        rat = db.q(conn, "SELECT rationale_untrusted FROM orders WHERE order_id = :o",
+                   o=order["order_id"]).scalar_one()
+        body = db.q(conn, "SELECT body_json FROM events WHERE type = 'order.submitted' AND "
+                          "trace_id = :t", t=order["trace_id"]).scalar_one()
+    assert rat.startswith("Chose the 'best' option")
+    assert json.loads(body)["rationale_untrusted"] == rat
+    pt = sandbox.party(sid, "hotel")
+    rec = c.get(f"/v1/orders/{order['order_id']}/receipt",
+                headers={"Authorization": f"Bearer {sandbox.agent_key(pt['agent_id'])}"}).json()
+    page = c.get(urlparse(rec["human_url"]).path + "?" + urlparse(rec["human_url"]).query)
+    assert "stated reason for its choice (not verified)" in page.text and "Chose the" in page.text
+
+
+def test_single_option_requests_are_unchanged(world):
+    c, sid, d = world
+    pt = sandbox.party(sid, "hotel")
+    h = {"Authorization": f"Bearer {sandbox.agent_key(pt['agent_id'])}"}
+    r = c.post("/v1/offers", headers=h, json={"delivery_date": d.isoformat(), "lines": [
+        {"product_ids": ["464398", "464306"], "quantity": {"value": 100, "unit": "L"}}]}).json()
+    assert len(r["options"]) == 1 and "score" not in r["options"][0]
+    assert r["options"][0]["offer"]["lines"][0]["product_id"] == "464398"  # listed order
+    long = "x" * 501
+    oid = r["options"][0]["offer"]["offer_id"]
+    bad = c.post("/v1/orders", headers={**h, "Idempotency-Key": "rationale-too-long"},
+                 json={"offer_id": oid, "rationale": long})
+    assert bad.status_code == 400

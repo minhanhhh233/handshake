@@ -243,6 +243,7 @@ def receipt_view(conn: Connection, order_id: str, audience: ViewAudience) -> dic
         "customer_name": who["customer_name"] if who else "",
         "agent_name": agent_name,
         "reference": order.get("reference"), "note": order.get("note_untrusted"),
+        "rationale": order.get("rationale_untrusted"),
         "approver_name": approval["approver_name"] if approval else None,
         "comment": approval["comment_untrusted"] if approval else None,
         "totals": payload.get("totals") or {},

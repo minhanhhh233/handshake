@@ -277,8 +277,11 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                                          "not listed; default none."},
                     }, ["product_ids", "quantity"]),
                 },
-                "max_options": {"type": "integer", "description": "1 to 3; the gateway currently "
-                                "always returns one option."},
+                "max_options": {"type": "integer", "description": "1 (default) to 3. With 2 or 3 "
+                                "the gateway returns ranked options labelled best (by the "
+                                "mandate's preferences), better (cheapest) and good (fewest "
+                                "products), each a separately signed offer with a score "
+                                "breakdown; options that would be identical are left out."},
                 "replaces_offer_id": {"type": "string", "description": "Your earlier, unused "
                                       "offer that this request corrects. The gateway withdraws "
                                       "it and releases its stock holds first."},
@@ -305,6 +308,10 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                               "reference, at most 64 characters."},
                 "note": {"type": "string", "description": "Optional note for the order, at most "
                          "500 characters."},
+                "rationale": {"type": "string", "description": "Optional: your reason for "
+                              "choosing this offer, at most 500 characters. Stored as your "
+                              "stated reason and shown in the receipt; it never affects the "
+                              "outcome."},
             }, ["offer_id"]),
         },
         {
@@ -347,7 +354,7 @@ def _trim_offer(res: dict[str, Any]) -> dict[str, Any]:
     options = []
     for o in res.get("options") or []:
         # The JWS is verified by the client; its base64 body is noise for the model.
-        options.append({k: v for k, v in o.items() if k not in ("jws", "score")})
+        options.append({k: v for k, v in o.items() if k != "jws"})
     return {"trace_id": res.get("trace_id"), "options": options, "excluded": res.get("excluded") or []}
 
 
@@ -493,7 +500,7 @@ class ToolExecutor:
                 res = hs.dry_run_order(args["offer_id"])
             elif name == "place_order":
                 res = hs.place_order(args["offer_id"], reference=args.get("reference"),
-                                     note=args.get("note"))
+                                     note=args.get("note"), rationale=args.get("rationale"))
                 self._track_order(res)
             elif name == "get_order":
                 res = self._get_order(args["order_id"])

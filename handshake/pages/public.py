@@ -437,3 +437,34 @@ def approvals_inbox(request: Request) -> Response:
             "Your demo sandbox has expired. Reload the page to start a new one.")},
             status_code=409, headers=_JSON_HEADERS)
     return JSONResponse({"items": sandbox.inbox(sb["sandbox_id"])}, headers=_JSON_HEADERS)
+
+
+@router.post("/demo/sandbox/preference")
+async def sandbox_preference(request: Request) -> Response:
+    """Set the active persona's ranking preference (stage 3). JSON {"persona", "preference"}."""
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse({"code": "invalid_request", "message": "Send JSON."}, status_code=415,
+                            headers=_JSON_HEADERS)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    body = body if isinstance(body, dict) else {}
+    persona = body.get("persona")
+    if persona not in sandbox.BUYERS:
+        return JSONResponse({"code": "unknown_persona", "message": "Choose a buyer persona."},
+                            status_code=400, headers=_JSON_HEADERS)
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=_JSON_HEADERS)
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        card = await run_in_threadpool(sandbox.set_preference, sb["sandbox_id"], persona,
+                                       body.get("preference"))
+    except sandbox.SandboxError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    return JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS)

@@ -169,6 +169,31 @@
       save.type = "submit";
       var msg = el("span", "msg", "");
       f.appendChild(lab); f.appendChild(inp); f.appendChild(save); f.appendChild(msg);
+      if (c.preferences) {
+        var pr = el("div", "prefs");
+        pr.appendChild(el("span", "chips-h", "Rank offers by"));
+        c.preferences.forEach(function (p) {
+          var pb = el("button", "pref", p.label);
+          pb.type = "button";
+          pb.setAttribute("aria-pressed", c.preference === p.id ? "true" : "false");
+          pb.addEventListener("click", function () {
+            pb.disabled = true;
+            fetch("/demo/sandbox/preference", { method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ persona: persona, preference: p.id }), credentials: "same-origin" })
+              .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+              .then(function (res) {
+                if (res.status === 200) {
+                  renderCard(res.body.card, res.body.sandbox);
+                  var m2 = cardBox.querySelector(".msg");
+                  if (m2) m2.textContent = "Ranking set (mandate version " + res.body.card.mandate_version + "). Try \"Compare three offers\".";
+                } else { pb.disabled = false; }
+              })
+              .catch(function () { pb.disabled = false; });
+          });
+          pr.appendChild(pb);
+        });
+        cardBox.appendChild(pr);
+      }
       f.addEventListener("submit", function (ev) {
         ev.preventDefault();
         save.disabled = true;
@@ -387,6 +412,8 @@
       r = rows[s.n];
       if (!r) { r = row("call"); r.req.appendChild(el("p", "tool", s.title)); }
       fillRes(r, s.status === "bad" ? "error" : "response", s.detail, s.status === "bad");
+      var opts = s.title === "request_offer" && s.detail && s.detail.options;
+      if (opts && opts.length > 1) compareRow(opts);
     } else if (s.kind === "verify") {
       r = row("verify");
       r.req.appendChild(who("Signature check"));
@@ -399,6 +426,66 @@
       ended = true;
       setStatus(s.summary, s.status === "bad");
     }
+  }
+
+  // ---- comparison of ranked options (stage 3): side by side, rows without data omitted
+  function weighted(o, get) {
+    var tot = 0, w = 0;
+    (o.offer.lines || []).forEach(function (ln) {
+      var v = get(ln);
+      if (v === null || v === undefined) return;
+      var q = parseFloat(ln.line_total_excl_tax) || 0;
+      tot += v * q; w += q;
+    });
+    return w ? tot / w : null;
+  }
+  function compareRow(opts) {
+    var li = el("li", "lv-row compare");
+    var cell = el("div", "lv-cell cmp-cell");
+    cell.appendChild(el("div", "who", "Handshake: ranked options side by side"));
+    var wrap = el("div", "cmp-wrap");
+    var t = el("table", "cmp");
+    var head = el("tr");
+    head.appendChild(el("th", "", ""));
+    opts.forEach(function (o) { head.appendChild(el("th", "opt-" + o.label, o.label)); });
+    t.appendChild(head);
+    function line(label, values) {
+      if (values.every(function (v) { return v === null || v === "" || v === undefined; })) return;
+      var tr = el("tr");
+      tr.appendChild(el("th", "", label));
+      values.forEach(function (v) { tr.appendChild(el("td", "", v === null || v === undefined ? "" : String(v))); });
+      t.appendChild(tr);
+    }
+    line("Total excl. tax", opts.map(function (o) { return o.offer.totals.excl_tax + " EUR"; }));
+    line("Delivery date", opts.map(function (o) { return o.offer.delivery_date; }));
+    line("Products", opts.map(function (o) {
+      return (o.offer.lines || []).map(function (ln) { return ln.quantity.value + " x " + ln.product_id; }).join(", ");
+    }));
+    line("Delivery reliability", opts.map(function (o) {
+      var v = weighted(o, function (ln) { return (ln.comparison || {}).delivery_reliability; });
+      return v === null ? null : Math.round(v * 100) + "% of ordered quantity delivered";
+    }));
+    line("Labels", opts.map(function (o) {
+      var set = {};
+      (o.offer.lines || []).forEach(function (ln) { ((ln.attributes || {}).labels || []).forEach(function (l) { set[l] = 1; }); });
+      return Object.keys(set).map(function (l) { return l.toLowerCase().replace(/_/g, " "); }).join(", ");
+    }));
+    line("Carbon (group average)", opts.map(function (o) {
+      var v = weighted(o, function (ln) { return (ln.comparison || {}).carbon_kg_co2e_per_kg; });
+      return v === null ? null : v.toFixed(2) + " kg CO2e per kg";
+    }));
+    line("Score", opts.map(function (o) {
+      var sc = o.score;
+      if (!sc) return null;
+      var parts = Object.keys(sc.breakdown || {}).filter(function (k) { return sc.breakdown[k] > 0; })
+        .map(function (k) { return k.replace(/_/g, " ") + " " + sc.breakdown[k].toFixed(2); });
+      return sc.total.toFixed(2) + (parts.length ? " (" + parts.join(", ") + ")" : "");
+    }));
+    wrap.appendChild(t);
+    cell.appendChild(wrap);
+    cell.appendChild(el("p", "cmp-note", "Best follows the customer's ranking preference; better is the cheapest; good uses the fewest products. Options that would be identical are left out. Ranking never changes what is allowed."));
+    li.appendChild(cell);
+    list.appendChild(li);
   }
 
   function showOrder(o, runUrl) {

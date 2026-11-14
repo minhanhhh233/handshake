@@ -119,7 +119,7 @@ def run_tool(hs: HandshakeClient, name: str, args: dict[str, Any]) -> tuple[Any,
             res = hs.dry_run_order(str(args["offer_id"]))
         elif name == "place_order":
             res = hs.place_order(str(args["offer_id"]), reference=args.get("reference"),
-                                 note=args.get("note"))
+                                 note=args.get("note"), rationale=args.get("rationale"))
         elif name == "get_order":
             res = hs.get_order(str(args["order_id"]))
         elif name == "get_receipt":

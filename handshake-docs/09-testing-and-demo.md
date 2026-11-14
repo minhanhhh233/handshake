@@ -188,6 +188,16 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6e. Compare offers (stage 3, added 2026-11-14)
+
+- Every buyer persona has "Compare three offers": up to three ranked options (best, better, good), each a separately signed offer with a score breakdown. Hotel, Restaurant, Hospital and probation compare lactose-free milk (1,000 L, 11 candidates); the School compares spaghetti (30 kg), since its mandate forbids milk.
+- The comparison view puts the options side by side: total, delivery date, products, delivery reliability (share of ordered quantity delivered), labels and group-average carbon; a row with no data in any option is omitted and a missing value is left blank.
+- The mandate card has "Rank offers by" chips: cheapest, Finnish-origin or organic labels, lowest carbon, most reliable delivery. Each writes a new mandate version and a `mandate.changed` event.
+- Measured on the hosted gateway: with the default ranking the best option is also the cheapest single product (464306, 1010.00 EUR), so one option is returned; with "Finnish-origin or organic labels" best is 464401 (Finnish Heart and Blue Swan, 1100.00 EUR, score 0.63) and better is 464306 (1010.00 EUR, score 0.47). Delivery reliability and carbon are the same for these milks in the data.
+- The scripted agent orders the best option with a `rationale`; the receipt shows it as the agent's stated reason (not verified).
+
+Tests: `tests/test_scenarios.py` (`test_ranked_options_preferences_and_rationale`: one option under the default ranking, the labels preference changes best, better is the cheapest, separate offers with their own holds and valid signatures, rationale stored, in the event and on the receipt; `test_single_option_requests_are_unchanged`; rationale over 500 characters refused) and the browser test (preference chip, comparison table rows, 390 and 1280 px).
+
 ### 6d. One-click scenarios (stage 2, added 2026-11-14)
 
 Per persona, chips under "One click, scripted: no AI, no cost" run fixed sequences as the sandbox's persona agent (`handshake/scenarios.py`, `POST /demo/scenario`); chips under "Or ask the Claude agent in your own words" fill the text box. The three original scripted buttons are replaced.

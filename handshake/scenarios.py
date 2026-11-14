@@ -357,6 +357,37 @@ def probation_small(s: Script) -> None:
     s.order(offer["offer_id"], reference="PUBLIC-PROBATION")
 
 
+def compare_options(s: Script) -> None:
+    school = (s.party or {}).get("persona") == "school"
+    s.say("Ask for up to three ranked options. Best follows this customer's ranking "
+          "preference (change it on the mandate card), better is the cheapest, good uses the "
+          "fewest products. Each is a separately signed offer.")
+    if school:
+        lines = [L(["465236", "476098", "475479", "473329", "465339"], 30, "KG")]
+    else:
+        lines = [L(public_demo.SHORTLIST + ["464401", "464073", "462921"], 1000,
+                   requirements={"required_claims": ["FREE_FROM_LACTOSE"]})]
+    d = s.delivery.isoformat()
+    body = {"delivery_date": d, "lines": lines, "max_options": 3}
+    res, ok = s.call("request_offer", "POST /v1/offers", body,
+                     lambda: s.hs.request_offer(d, lines, 3))
+    if not ok:
+        return
+    opts = res.get("options") or []
+    s.say("Options: " + "; ".join(
+        f"{o['label']} {o['offer']['totals']['excl_tax']} EUR, score "
+        f"{(o.get('score') or {}).get('total')}" for o in opts) + ".")
+    best = opts[0]
+    prods = ", ".join(sorted({ln["product_id"] for ln in best["offer"]["lines"]}))
+    why = (f"Chose the 'best' option ({prods}, {best['offer']['totals']['excl_tax']} EUR): "
+           f"highest score under the customer's ranking preference "
+           f"({(best.get('score') or {}).get('total')}).")
+    s.call("place_order", "POST /v1/orders", {"offer_id": best["offer"]["offer_id"],
+                                             "rationale": why},
+           lambda: s.hs.place_order(best["offer"]["offer_id"], reference="PUBLIC-COMPARE",
+                                    rationale=why))
+
+
 def any_tomorrow(s: Script) -> None:
     tomorrow = timeutil.today_helsinki() + timedelta(days=1)
     s.say(f"Needed tomorrow, {tomorrow.isoformat()}.")
@@ -460,6 +491,8 @@ SCENARIOS: dict[str, dict[str, Any]] = {
                             "fn": hospital_substitute},
     "probation_small": {"label": "Small order, still approval", "personas": ["probation"],
                         "fn": probation_small},
+    "compare_options": {"label": "Compare three offers", "personas": sbx.BUYERS,
+                        "fn": compare_options},
     "any_tomorrow": {"label": "Needed tomorrow", "personas": sbx.BUYERS, "fn": any_tomorrow},
     "visitor_search": {"label": "Search, then ask for a price", "personas": ["visitor"],
                        "fn": visitor_search},

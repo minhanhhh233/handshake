@@ -226,6 +226,7 @@ CREATE TABLE orders (
   reasons_json  JSON        NOT NULL,
   reference     VARCHAR(64) NULL,
   note_untrusted VARCHAR(500) NULL,
+  rationale_untrusted VARCHAR(500) NULL,  -- the agent's stated reason (stage 3), untrusted
   receipt_token CHAR(43)    NOT NULL,
   created_at    DATETIME(3) NOT NULL,
   updated_at    DATETIME(3) NOT NULL,

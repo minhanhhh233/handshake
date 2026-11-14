@@ -94,7 +94,10 @@ EXTRA_SYSTEM = """Public live demo (this run is shown step by step on a public w
   first offer is withdrawn for you. At most one retry offer per run.
 - If no suitable product is found for an ingredient, or it is still unfilled after the retry,
   skip that ingredient and say so. Never guess, and never substitute an unrelated product.
-- Then dry_run_order, then place_order with reference "PUBLIC-LIVE". After place_order do not
+- When the visitor asks to compare options or to choose by a preference, request the offer
+  with max_options 3 and explain the options' differences and scores briefly.
+- Then dry_run_order, then place_order with reference "PUBLIC-LIVE" and a one-sentence
+  rationale: why you chose this offer. After place_order do not
   call get_order: the server watches the order and shows its status to the visitor.
 - If a tool answers that an agent key is needed, say what was refused and how an agent gets
   a key (the error's next field), then stop.

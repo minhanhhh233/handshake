@@ -480,11 +480,13 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
     db.q(conn,
          "INSERT INTO orders (order_id, offer_id, trace_id, agent_id, customer_id, mandate_id, "
          "mandate_version, status, outcome, reasons_json, reference, note_untrusted, "
+         "rationale_untrusted, "
          "receipt_token, created_at, updated_at) VALUES (:o, :of, :t, :a, :c, :m, :mv, :s, "
-         ":oc, :r, :ref, :note, :rt, :ca, :ca)",
+         ":oc, :r, :ref, :note, :rat, :rt, :ca, :ca)",
          o=order_id, of=offer_id, t=trace, a=agent_id, c=customer_id,
          m=mandate.mandate_id, mv=mandate.version, s=status, oc=ev.outcome,
-         r=db.jdump(reasons), ref=req.reference, note=req.note, rt=new_token(),
+         r=db.jdump(reasons), ref=req.reference, note=req.note, rat=req.rationale,
+         rt=new_token(),
          ca=timeutil.to_db(now))
     db.q(conn, "UPDATE offers SET status = 'consumed' WHERE offer_id = :o", o=offer_id)
 
@@ -528,7 +530,8 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
         conn, trace_id=trace, type="order.submitted", actor_type="agent", actor_id=agent_id,
         audience="both", at=now,
         text=f"Agent submitted an order for offer {offer_id}{ref}, total {total} EUR excl. tax.",
-        body={"order_id": order_id, "offer_id": offer_id, "reference": req.reference},
+        body={"order_id": order_id, "offer_id": offer_id, "reference": req.reference,
+              **({"rationale_untrusted": req.rationale} if req.rationale else {})},
     )
     events.append(
         conn, trace_id=trace, type="policy.evaluated", actor_type="gateway", audience="both",

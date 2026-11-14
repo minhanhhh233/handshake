@@ -337,13 +337,16 @@ class HandshakeClient:
         return hashlib.sha256(f"{self.trace_id or ''}:{offer_id}".encode()).hexdigest()[:40]
 
     def place_order(
-        self, offer_id: str, reference: str | None = None, note: str | None = None
+        self, offer_id: str, reference: str | None = None, note: str | None = None,
+        rationale: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {"offer_id": offer_id}
         if reference is not None:
             body["reference"] = reference
         if note is not None:
             body["note"] = note
+        if rationale is not None:
+            body["rationale"] = rationale
         return self._json("POST", "/v1/orders", json_body=body,
                           headers={"Idempotency-Key": self.idempotency_key(offer_id)})
 

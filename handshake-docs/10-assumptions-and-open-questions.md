@@ -56,6 +56,7 @@ When an item is resolved: record the answer here with the date, then update the 
 | A-29 | Sandbox rows are not deleted when they expire: their agents' keys stop working and the page starts a new sandbox. `scripts/reset_demo.py` clears trading data as before. Added 2026-11-14. | Add a cleanup job if the table grows. | 09 §6c |
 | A-30 | Scripted scenarios make no Claude calls, so they have their own visitor limit (10 per 10 minutes) instead of the live agent's 3. The live agent's and the playground's limits are unchanged. Added 2026-11-14. | Share one limit if scripted runs ever become costly. | 09 §6d |
 | A-31 | The scenarios' product IDs (469363 with 384 units, the 469288 to 470341 official substitute, 465039 past its cut-off, olive oil 462909 without allergen data, Red Bull 461051) reflect the challenge data and upstream on 14 November 2026. If upstream changes, a scenario still runs and shows the gateway's real answer, which may differ from the table in document 09. | Re-check before the pitch. | 09 §6d |
+| A-32 | Ranked options are built only for `max_options` above 1, so existing single-option behaviour (the agent's order, or `prefer`) is unchanged. An option's score is weighted by each product's share of the option's total excl. tax; document 05 does not define how line scores combine. Added 2026-11-14. | Define a different combination if the pitch needs it. | 05 §4 |
 | A-24 | If live stock does not produce a split for 1,000 L, the demo may pre-create a committed hold to force one, and the team says so. | None, provided it is disclosed. | 09 §5 |
 
 ### Tooling and team
@@ -115,7 +116,7 @@ New question raised by T-005:
 - No notification channel for approvers other than the demo QR code.
 - R10 (`require_confirmed`) is cut (document 08, section 0). R7 (weekly cap) is built since 2026-11-14, so splitting orders to dodge the per-order cap is caught when a mandate sets `max_weekly_total_excl_tax`; the demo mandates do not set one.
 - No rate limiting (T-504 cut). Candidate limits (25 per line, 10 lines) still apply.
-- No MCP server (T-502 cut) and one option per offer request (T-501 cut).
+- The MCP server (T-502) and ranked options (T-501) were cut and later restored on 2026-11-14.
 - The live demo cannot show an `unconfirmed` (Terminal) line: every Terminal shortlist product's cut-off has passed (Q-11). The behaviour is covered by test F-04.
 - `prefer: "lowest_price"` chooses among the agent's listed products only (up to 25 per line; 8 in the live demo). It cannot find the cheapest product in the whole catalogue: search uses static data only and never calls the upstream price API (FR-02), and upstream must not be asked to price products the caller has not shortlisted (NFR-02). An agent that wants the cheapest product must therefore shortlist widely, for example by category and claims rather than name text (accepted 2026-11-14).
 - The upstream cache is per process; several gateway containers may each call upstream.

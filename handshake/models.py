@@ -499,6 +499,9 @@ class OrderRequest(_Model):
     offer_id: str
     reference: str | None = Field(default=None, max_length=64)
     note: str | None = Field(default=None, max_length=500)
+    #: The agent's stated reason for its choice (stage 3). Untrusted text: stored and shown
+    #: in the receipt as the agent's own words, never evaluated.
+    rationale: str | None = Field(default=None, max_length=500)
 
 
 class DryRunRequest(_Model):

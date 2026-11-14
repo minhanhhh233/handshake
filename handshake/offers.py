@@ -757,35 +757,49 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
             ok.sort(key=lowest_price_key)
         prepared.append(ok)
 
+    ranked = req.max_options > 1
+    scores = [line_scores(ok, mandate) for ok in prepared] if ranked else []
+    variants = ranked_variants(prepared, scores) if ranked else [("best", prepared)]
+
     with db.transaction() as conn:
         limited = [p.cand.product.product_id for ok in prepared for p in ok
                    if p.capacity is not None]
         held = held_quantities(conn, limited, req.delivery_date, lock=True, now=now,
                                sandbox_id=agent_sandbox(conn, agent_id))
-        used: dict[str, Decimal] = {}
-        filled: list[list[FilledLine]] = []
-        for line, ok in zip(req.lines, prepared, strict=True):
-            fls, ex = fill_line(line, ok, used, held)
-            excluded.extend(ex)
-            filled.append(fls)
-        if not any(filled):
-            raise no_candidates(by_line())
-
         refs = []
         for line in req.lines:
             rid = line.product_ids[0]
             refs.append(LineRef(catalog[rid], facts.get(rid)))
-        offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings, refs,
-                          ttl_seconds=ttl_seconds)
-        payload = offer.dump()
-        jws = signing.sign(payload, signing.TYP_OFFER)
-        _persist(conn, offer, payload, jws, req, filled, trace_id)
+        options: list[dict[str, Any]] = []
+        seen: list[tuple[Any, ...]] = []
+        for n, (label, plist) in enumerate(variants):
+            used: dict[str, Decimal] = {}  # each option holds its own stock (A-22)
+            filled: list[list[FilledLine]] = []
+            for line, ok in zip(req.lines, plist, strict=True):
+                fls, ex = fill_line(line, ok, used, held)
+                if n == 0:
+                    excluded.extend(ex)
+                filled.append(fls)
+            shape = tuple(tuple((fl.prep.cand.product.product_id, fl.units) for fl in fls)
+                          for fls in filled)
+            if not any(filled) or shape in seen:
+                continue  # an option is returned only if it differs from the others
+            seen.append(shape)
+            offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings, refs,
+                              ttl_seconds=ttl_seconds)
+            payload = offer.dump()
+            jws = signing.sign(payload, signing.TYP_OFFER)
+            _persist(conn, offer, payload, jws, req, filled, trace_id)
+            opt: dict[str, Any] = {"label": label, "offer": payload, "jws": jws}
+            if ranked:
+                opt["score"] = option_score(filled, scores)
+            options.append(opt)
+            if len(options) >= req.max_options:
+                break
+        if not options:
+            raise no_candidates(by_line())
 
-    return {
-        "trace_id": trace_id,
-        "options": [{"label": "best", "offer": payload, "jws": jws}],
-        "excluded": by_line(),
-    }
+    return {"trace_id": trace_id, "options": options, "excluded": by_line()}
 
 
 def _assemble(
@@ -906,6 +920,78 @@ def load_offer(conn: Connection, offer_id: str, *, for_update: bool = False
     d["payload"] = db.jload(d.pop("payload_json"))
     d["request"] = db.jload(d.pop("request_json"))
     return d
+
+
+# ================================================================ ranking (document 05, 4; T-501)
+
+CRITERIA = ("price", "delivery_reliability", "carbon", "labels")
+
+
+def _unit_price(p: Prepared) -> Decimal:
+    return p.unit_excl / p.per_unit
+
+
+def line_scores(prepared: list[Prepared], mandate: Mandate) -> dict[str, dict[str, Any]]:
+    """Score per candidate of one line (document 05, section 4): each criterion's weighted
+    score over the criteria that have a value, divided by the sum of those weights."""
+    weights = mandate.preferences.weights
+    preferred = list(mandate.preferences.preferred_labels or [])
+    prices = [_unit_price(p) for p in prepared]
+    carbons = [p.cand.product.carbon_kg_co2e_per_kg for p in prepared
+               if p.cand.product.carbon_kg_co2e_per_kg]
+    low_price = min(prices) if prices else None
+    low_carbon = min(carbons) if carbons else None
+    out: dict[str, dict[str, Any]] = {}
+    for p in prepared:
+        prod = p.cand.product
+        raw: dict[str, float] = {}
+        if low_price is not None and _unit_price(p) > 0:
+            raw["price"] = float(low_price / _unit_price(p))
+        if prod.delivery_reliability is not None:
+            raw["delivery_reliability"] = float(prod.delivery_reliability)
+        if low_carbon and prod.carbon_kg_co2e_per_kg:
+            raw["carbon"] = float(low_carbon) / float(prod.carbon_kg_co2e_per_kg)
+        raw["labels"] = (len(set(prod.labels) & set(preferred)) / len(preferred)
+                         if preferred else 0.0)
+        wsum = sum(weights.get(k, 0.0) for k in raw)
+        breakdown = {k: (weights.get(k, 0.0) * v / wsum if wsum else 0.0) for k, v in raw.items()}
+        out[prod.product_id] = {"total": sum(breakdown.values()), "breakdown": breakdown}
+    return out
+
+
+def ranked_variants(prepared: list[list[Prepared]], scores: list[dict[str, dict[str, Any]]]
+                    ) -> list[tuple[str, list[list[Prepared]]]]:
+    """best: by descending score; better: cheapest first; good: fewest distinct products
+    (candidates that can fill the line alone first). Listed candidates stay before the
+    gateway's substitutes in every option, so ranking never adds a substitution."""
+    def sub(p: Prepared) -> int:
+        return 1 if p.cand.role == "substitute" else 0
+
+    best = [sorted(ok, key=lambda p, sc=sc: (sub(p), -sc[p.cand.product.product_id]["total"],
+                                              p.cand.pos)) for ok, sc in zip(prepared, scores)]
+    better = [sorted(ok, key=lowest_price_key) for ok in prepared]
+    good = [sorted(ok, key=lambda p, sc=sc: (sub(p), 0 if p.capacity is None else 1,
+                                              -(p.capacity or 0),
+                                              -sc[p.cand.product.product_id]["total"], p.cand.pos))
+            for ok, sc in zip(prepared, scores)]
+    return [("best", best), ("better", better), ("good", good)]
+
+
+def option_score(filled: list[list[FilledLine]], scores: list[dict[str, dict[str, Any]]]
+                 ) -> dict[str, Any]:
+    """An option's score: its products' scores weighted by their share of the option's total
+    excl. tax. The breakdown lists each criterion's weighted part."""
+    parts: list[tuple[Decimal, dict[str, Any]]] = []
+    for fls, sc in zip(filled, scores):
+        for fl in fls:
+            parts.append((fl.units * fl.prep.unit_excl, sc[fl.prep.cand.product.product_id]))
+    total_w = sum((w for w, _ in parts), Decimal(0)) or Decimal(1)
+    breakdown: dict[str, float] = {}
+    for w, s in parts:
+        for k, v in s["breakdown"].items():
+            breakdown[k] = breakdown.get(k, 0.0) + float(w / total_w) * v
+    return {"total": round(sum(breakdown.values()), 4),
+            "breakdown": {k: round(v, 4) for k, v in breakdown.items()}}
 
 
 def lowest_price_key(p: Prepared) -> tuple[int, Decimal, int]:
