@@ -26,6 +26,7 @@ tool-call limit reached).
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -725,7 +726,9 @@ def run_task(
             if len(summary["tool_calls"]) >= max_tool_calls:
                 limit_hit = True
                 break
-            name, args = _attr(b, "name"), dict(_attr(b, "input") or {})
+            # A deep copy: hooks such as the demo's prepare() must never change the model's
+            # own tool call as it appears in its conversation history.
+            name, args = _attr(b, "name"), copy.deepcopy(dict(_attr(b, "input") or {}))
             args = ex.prepare(name, args)
             n = len(summary["tool_calls"]) + 1
             out(f"[{n}] {name}({_args_text(args)})")
