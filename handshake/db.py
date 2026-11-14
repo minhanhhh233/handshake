@@ -7,26 +7,51 @@ All state lives in MariaDB (NFR-06). One request's writes happen in one transact
 from __future__ import annotations
 
 import json
+import logging
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import Connection, Engine, create_engine, text
+import pymysql
+from sqlalchemy import Connection, Engine, create_engine, event, text
 
 from .config import get_settings
 
+log = logging.getLogger("handshake.db")
 _engine: Engine | None = None
 
 
+_RETRY_CONNECT_CODES = {2003, 2013}  # can't connect / lost connection during the handshake
+
+
 def make_engine(url: str) -> Engine:
-    return create_engine(
+    eng = create_engine(
         url,
         pool_pre_ping=True,
         pool_recycle=280,
         pool_size=5,
         max_overflow=5,
-        connect_args={"init_command": "SET time_zone = '+00:00'", "charset": "utf8mb4"},
+        hide_parameters=True,  # tracebacks must not print SQL parameters (doc 10, 3.1)
+        connect_args={"init_command": "SET time_zone = '+00:00'", "charset": "utf8mb4",
+                      "connect_timeout": 5},
     )
+
+    @event.listens_for(eng, "do_connect")
+    def _connect_with_retry(dialect, conn_rec, cargs, cparams):  # noqa: ANN001, ANN202
+        """New connections occasionally stall or drop on a local port forwarder (seen with
+        Docker Desktop's wslrelay). Fail fast and retry twice; log each retry."""
+        for attempt in range(3):
+            try:
+                return dialect.connect(*cargs, **cparams)
+            except pymysql.err.OperationalError as e:
+                if e.args[0] not in _RETRY_CONNECT_CODES or attempt == 2:
+                    raise
+                log.warning("database connect failed with %s; retry %d", e.args[0], attempt + 1)
+                time.sleep(0.3)
+        return None  # unreachable
+
+    return eng
 
 
 def engine() -> Engine:

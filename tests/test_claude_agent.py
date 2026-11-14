@@ -247,7 +247,12 @@ def test_request_payload_shape(app, catalog, clean_db, monkeypatch):
         assert "required" in t["input_schema"]
     assert tools[-1]["cache_control"] == {"type": "ephemeral"}
     assert all("cache_control" not in t for t in tools[:-1])
-    assert "10400" not in json.dumps(tools)  # no category hint unless asked
+    # The category hint is on by default (doc 07, 4.4), and reliability is defined (A-16).
+    search_tool = next(t for t in tools if t["name"] == "search_products")
+    assert search_tool["description"].endswith("Milk and milk drinks are category 10400.")
+    assert "share of ordered quantity" in search_tool["description"]
+    assert "on-time" not in json.dumps(tools).replace("not an on-time", "")
+    assert "Never suggest splitting an order" in json.dumps(first["system"])
     # model settings
     assert first["model"] == "claude-opus-5-5"
     assert first["output_config"] == {"effort": "medium"}
@@ -473,6 +478,9 @@ def test_fallbacks_switch_and_category_hint(monkeypatch):
     assert "fallbacks" not in req and "betas" not in req
     search = next(t for t in req["tools"] if t["name"] == "search_products")
     assert search["description"].endswith("Milk and milk drinks are category 10400.")
+    fake, s, out = run_stub([resp(text("hi"), stop="end_turn")], category_hint=False)
+    search = next(t for t in fake.requests[0]["tools"] if t["name"] == "search_products")
+    assert "10400" not in search["description"]
     monkeypatch.delenv("ANTHROPIC_FALLBACKS")
     fake, s, out = run_stub([resp(text("hi"), stop="end_turn")], model="claude-haiku-5-5")
     assert "fallbacks" not in fake.requests[0]  # model without server-side fallback

@@ -102,8 +102,6 @@ env.filters.update(long_date=long_date, hm=hm, hms=hms, when=when, qty=qty, mone
 
 # The approval token is in the URL: never let it reach a third party through Referer, a
 # cache or a framing page (document 08, section 0, phase 3 must-do).
-FONT_CSS = "https://fonts.googleapis.com"
-FONT_FILES = "https://fonts.gstatic.com"
 
 APPROVAL_HEADERS = {
     "Cache-Control": "no-store",
@@ -112,7 +110,7 @@ APPROVAL_HEADERS = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": (
-        f"default-src 'none'; style-src 'unsafe-inline' {FONT_CSS}; font-src {FONT_FILES}; "
+        f"default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; "
         "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
     ),
 }
@@ -123,7 +121,7 @@ CONSOLE_HEADERS = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": (
-        f"default-src 'none'; style-src 'unsafe-inline' {FONT_CSS}; font-src {FONT_FILES}; "
+        f"default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; "
         "script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; "
         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     ),

@@ -346,3 +346,14 @@ def test_console_hides_qr_outside_demo_mode(client, catalog, clean_db, admin, no
     html = client.get("/console").text
     assert "Nordlys Hotels" in html and "<svg" not in html and "/approve/" not in html
 
+
+
+def test_human_pages_load_no_external_resources(client, catalog, clean_db):
+    """No web fonts or other third-party requests (decided 2026-11-14)."""
+    o = pending_order(client, make_party())
+    r = client.get(f"/approve/{token_of(o['order_id'])}")
+    assert r.status_code == 200
+    for marker in ("googleapis", "gstatic", "<link", "src=\"http"):
+        assert marker not in r.text, marker
+    csp = r.headers.get("content-security-policy", "")
+    assert "googleapis" not in csp and "gstatic" not in csp

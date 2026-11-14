@@ -115,8 +115,8 @@ New question raised by T-005:
 
 ### 3.0 From the phase 3 live run and security review (2026-11-14)
 
-- **The approver's comment reaches the agent model unwrapped** (`approval.comment` in `GET /v1/orders/{id}`). The approver is the authenticated holder of a single-use link and the gateway enforces policy on every order, so the security review did not count it as exploitable; supplier text, by contrast, is always wrapped.
-- **Agent wording seen in the first live run (prompt quality, not policy):** after a confirmed order the Claude agent suggested "split the amount into two orders" to stay under the cap, and called delivery reliability an "on-time delivery score" (it is a fill rate, A-16). The gateway decides what is allowed, and without R7 splitting is a known limitation, but an agent advising it is a poor look in the demo. To be addressed in rehearsal (doc 07 section 4.2 prompt and the tool descriptions); the prompt in doc 07 is unchanged so far.
+- **The approver's comment** used to reach the agent model unwrapped. Since 2026-11-14 the client wraps it in an untrusted-text block (document 07, section 2).
+- **Agent wording seen in the first live run (prompt quality, not policy):** after a confirmed order the Claude agent suggested "split the amount into two orders" to stay under the cap, and called delivery reliability an "on-time delivery score" (it is a fill rate, A-16). The gateway decides what is allowed, and without R7 splitting is a known limitation, but an agent advising it is a poor look in the demo. Addressed on 2026-11-14: the prompt (document 07, section 4.2) now forbids suggesting any way around the mandate's limits, and the tool descriptions define reliability as a fill rate.
 
 ### 3.1 From the end-of-phase-2 code review (2026-11-14), recorded, not fixed
 
