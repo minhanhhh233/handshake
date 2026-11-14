@@ -1,6 +1,6 @@
 """Fill algorithm, document 09 section 2.3 (F-01 to F-12), against the real shortlist catalog.
 
-Upstream is always a FakeUpstream. F-10 (gateway substitutes) is deferred with T-404.
+Upstream is always a FakeUpstream. F-10 and the substitute tests cover T-404.
 """
 
 from __future__ import annotations
@@ -162,9 +162,151 @@ def test_f09_all_excluded(catalog, clean_db, fake):
         assert db.q(conn, "SELECT COUNT(*) FROM offers").scalar_one() == 0
 
 
-@pytest.mark.skip(reason="T-404 (gateway substitutes) deferred, document 08 section 0")
-def test_f10_official_substitute():
-    pass
+OFFICIAL_464306 = ["464201", "464398", "465039", "469363"]  # by product ID
+
+
+def dry_run(party, offer_id):
+    from fastapi.testclient import TestClient
+
+    from handshake.api import create_app
+
+    r = TestClient(create_app()).post("/v1/orders/dry-run", headers=party.headers,
+                                      json={"offer_id": offer_id})
+    assert r.status_code == 200, r.json()
+    return r.json()
+
+
+def test_f10_official_substitute(catalog, clean_db, fake):
+    f = fake(facts("464306", amount="300"),
+             facts("464201", price="1.56", comparison="1.56", amount=None))
+    party = make_party()
+    out = build(party, request(["464306"], substitution="allowed"))
+    offer = out["options"][0]["offer"]
+    assert [(ln["product_id"], ln["role"], ln["quantity"]["value"], ln["substitute_for"])
+            for ln in offer["lines"]] == [("464306", "requested", 300, None),
+                                          ("464201", "substitute", 700, "464306")]
+    assert offer["lines"][0]["differences"] is None
+    d = offer["lines"][1]["differences"]
+    assert d["source"] == "valio_aimo_substitution_rule"
+    assert d["price_per_base_unit_percent"] == 54.5  # (1.56 - 1.01) / 1.01
+    assert d["delivery_reliability_delta"] == 0.0 and d["origin_changed"] is False
+    assert offer["fulfilment"][0]["complete"] is True
+    # One upstream call: requested, official substitutes, then same-category ones.
+    assert len(f.calls) == 1
+    ids = f.calls[0][0]
+    assert ids[:5] == ["464306", *OFFICIAL_464306] and 5 < len(ids) <= 15
+    with db.connection() as conn:
+        row = db.q(conn, "SELECT role, substitute_for, substitution_source FROM offer_lines "
+                         "WHERE offer_id = :o AND line_no = 2",
+                   o=offer["offer_id"]).one()
+    assert tuple(row) == ("substitute", "464306", "valio_aimo_substitution_rule")
+    # Unpriced substitutes are excluded like any candidate, in candidate order.
+    ex = out["excluded"]
+    assert [x["product_id"] for x in ex][:3] == ["464398", "465039", "469363"]
+    assert all(x["request_line"] == 1 and x["reason"] == "price_unavailable" for x in ex)
+    # Mandate official_rules_only: R8 does not fire; only the spend cap (1395.00 > 1000.00).
+    dr = dry_run(party, offer["offer_id"])
+    assert dr["outcome"] == "needs_approval"
+    assert [r["code"] for r in dr["reasons"]] == ["spend_cap_exceeded"]
+
+
+def test_f10b_same_category_substitute_needs_approval(catalog, clean_db, fake):
+    # Official substitutes unavailable (no facts); 462626 is the most reliable same-category
+    # product (1.000, lowest ID) that is lactose-free.
+    fake(facts("464306", amount="300"),
+         facts("462626", price="1.20", comparison="1.20", amount=None))
+    party = make_party()
+    out = build(party, request(["464306"], substitution="allowed",
+                               requirements={"required_claims": ["FREE_FROM_LACTOSE"]}))
+    offer = out["options"][0]["offer"]
+    sub = offer["lines"][1]
+    assert (sub["product_id"], sub["role"], sub["substitute_for"]) == (
+        "462626", "substitute", "464306")
+    assert sub["differences"]["source"] == "same_category_same_claims"
+    assert sub["differences"]["claims_lost"] == ["LOW_FAT"]
+    assert sub["differences"]["claims_gained"] == []
+    dr = dry_run(party, offer["offer_id"])
+    codes = [(r["rule"], r["code"]) for r in dr["reasons"]]
+    assert ("R8", "substitution_needs_approval") in codes
+    r8 = next(r for r in dr["reasons"] if r["rule"] == "R8")
+    assert r8["details"]["source"] == "same_category_same_claims"
+    assert r8["details"]["substitute_for"] == "464306"
+
+
+def test_alternate_differences_milk_split(catalog, clean_db, fake):
+    fake(facts("469363", price="2.48", comparison="2.48", amount="384"),
+         facts("464306", amount=None))
+    offer = build(make_party(), request(["469363", "464306"], substitution="allowed")
+                  )["options"][0]["offer"]
+    assert [(ln["product_id"], ln["role"], ln["quantity"]["value"]) for ln in offer["lines"]] == [
+        ("469363", "requested", 384), ("464306", "alternate", 616)]
+    assert offer["lines"][0]["differences"] is None
+    d = offer["lines"][1]["differences"]
+    assert d["source"] is None and offer["lines"][1]["substitute_for"] is None
+    assert d["price_per_base_unit_percent"] == -59.3  # (1.01 - 2.48) / 2.48
+    assert d["claims_lost"] == [] and "LOW_FAT" in d["claims_gained"]
+    assert d["claims_gained"] == sorted(d["claims_gained"])
+    assert d["labels_lost"] == [] and d["labels_gained"] == []
+    assert d["origin_changed"] is False
+    assert d["delivery_reliability_delta"] is None  # 469363 has no reliability figure
+
+
+def test_alternate_differences_without_requested_price(catalog, clean_db, fake):
+    fake(facts("464398", price=None), facts("464306", amount=None))
+    offer = build(make_party(), request(["464398", "464306"]))["options"][0]["offer"]
+    d = offer["lines"][0]["differences"]
+    assert offer["lines"][0]["role"] == "alternate"
+    assert d["price_per_base_unit_percent"] is None and d["source"] is None
+    assert d["claims_gained"] == ["FREE_FROM_SWEETENERS"]
+
+
+def test_substitution_none_adds_nothing(catalog, clean_db, fake):
+    f = fake(facts("464306", amount="300"),
+             facts("464201", price="1.56", comparison="1.56", amount=None))
+    out = build(make_party(), request(["464306"]))
+    offer = out["options"][0]["offer"]
+    assert [ln["product_id"] for ln in offer["lines"]] == ["464306"]
+    assert offer["fulfilment"][0]["complete"] is False
+    assert f.calls[0][0] == ["464306"] and out["excluded"] == []
+
+
+def test_substitutes_capped_at_25(catalog, clean_db, fake):
+    with db.connection() as conn:
+        ids = [r[0] for r in db.q(
+            conn, "SELECT product_id FROM products WHERE category_code = '10400' AND "
+                  "product_id NOT IN ('464306', '464201', '464398', '465039', '469363') "
+                  "ORDER BY product_id LIMIT 18")]
+    f = fake(facts("464306", amount="10"))
+    build(make_party(), request(["464306", *ids], substitution="allowed"))
+    sent = f.calls[0][0]
+    # 19 listed + 4 official + 2 same-category = 25.
+    assert len(sent) == 25 and sent[19:23] == OFFICIAL_464306
+
+
+def test_substitutes_failing_requirements_never_sent(catalog, clean_db, fake):
+    # Official substitutes of 464306 contain milk; same-category products are chosen to meet
+    # the requirements, so none of them is listed here.
+    f = fake(facts("464306", amount="300"))
+    with pytest.raises(HandshakeError) as e:
+        build(make_party(), request(["464306"], substitution="allowed",
+                                    requirements={"forbidden_allergens": ["AM"]}))
+    ex = e.value.extra["excluded"]
+    assert [x["product_id"] for x in ex][:5] == ["464306", *OFFICIAL_464306]
+    assert all(x["reason"] == "fails_requirements" for x in ex[:5])
+    assert f.calls == [] or not set(f.calls[0][0]) & {"464306", *OFFICIAL_464306}
+
+
+def test_substitute_forbidden_by_mandate(catalog, clean_db, fake):
+    f = fake(facts("464306", amount="300"))
+    party = make_party(forbidden_allergens={"codes": ["AM"]})
+    with pytest.raises(HandshakeError) as e:
+        build(party, request(["464306"], substitution="allowed"))
+    ex = e.value.extra["excluded"]
+    assert [x["product_id"] for x in ex][:5] == ["464306", *OFFICIAL_464306]
+    assert {x["reason"] for x in ex[:5]} == {"forbidden_by_mandate"}
+    assert all(x["request_line"] == 1 for x in ex)
+    sent = f.calls[0][0] if f.calls else []
+    assert not set(sent) & {"464306", *OFFICIAL_464306}
 
 
 def test_f11_fails_requirements_before_upstream(catalog, clean_db, fake):

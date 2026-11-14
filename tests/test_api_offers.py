@@ -248,6 +248,25 @@ def test_supplied_trace_id_is_used(client, catalog, clean_db):
     assert count("SELECT COUNT(*) FROM offers WHERE trace_id = :t", t=trace) == 1
 
 
+def test_substitute_line_signed_with_differences(client, catalog, clean_db):
+    p = make_party()
+    f = fake(facts("464306", amount="300"),
+             facts("464201", price="1.56", comparison="1.56", amount=None))
+    r = client.post("/v1/offers", json=body(["464306"], substitution="allowed"),
+                    headers=p.headers)
+    assert r.status_code == 201, r.json()
+    opt = r.json()["options"][0]
+    assert signing.verify(opt["jws"], signing.jwks(), signing.TYP_OFFER) == opt["offer"]
+    sub = opt["offer"]["lines"][1]
+    assert sub["role"] == "substitute" and sub["substitute_for"] == "464306"
+    assert set(sub["differences"]) == {
+        "price_per_base_unit_percent", "claims_lost", "claims_gained", "labels_lost",
+        "labels_gained", "origin_changed", "delivery_reliability_delta", "source"}
+    assert len(f.calls) == 1
+    assert count("SELECT COUNT(*) FROM stock_holds WHERE offer_id = :o",
+                 o=opt["offer"]["offer_id"]) == 2
+
+
 def test_max_options_three_returns_one(client, catalog, clean_db):
     p = make_party()
     fake(facts("464306", amount=None))
@@ -255,3 +274,15 @@ def test_max_options_three_returns_one(client, catalog, clean_db):
     b["max_options"] = 3
     r = client.post("/v1/offers", json=b, headers=p.headers)
     assert r.status_code == 201 and len(r.json()["options"]) == 1
+
+
+def test_t406_offer_line_comparison_omits_missing_keys(client, catalog, clean_db):
+    """FR-40: offer lines carry comparison data where it exists and omit keys without data.
+    469363 has a carbon value but no delivery reliability in the data set."""
+    p = make_party(limits={"max_order_total_excl_tax": "5000.00"})
+    fake(facts("469363", price="2.48", comparison="2.48", amount="384"))
+    r = client.post("/v1/offers", headers=p.headers, json=body(["469363"], value=100))
+    assert r.status_code == 201, r.text
+    comp = r.json()["options"][0]["offer"]["lines"][0]["comparison"]
+    assert "delivery_reliability" not in comp
+    assert comp["carbon_basis"] == "product_group_average" and "carbon_kg_co2e_per_kg" in comp

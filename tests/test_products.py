@@ -194,3 +194,14 @@ def test_events_only_for_authenticated_with_trace(client):
     assert search_body["result_count"] == 35
     assert search_body["filters"]["claims"] == ["FREE_FROM_LACTOSE"]
     assert db.jload(rows[1]["body_json"])["product_id"] == "464306"
+
+
+def test_t406_comparison_keys_omitted_when_no_data(client):
+    """FR-06 / doc 03 section 3: comparison keys are omitted when the data set has no value,
+    never defaulted. 469363 has no delivery reliability in the data but has a carbon value."""
+    r = client.get("/v1/products/469363")
+    assert r.status_code == 200
+    comp = r.json()["comparison"]
+    assert "delivery_reliability" not in comp
+    assert comp["carbon_basis"] == "product_group_average"
+    assert isinstance(comp["carbon_kg_co2e_per_kg"], float)

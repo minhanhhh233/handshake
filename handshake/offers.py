@@ -34,6 +34,7 @@ from .models import (
     Comparison,
     ComparisonPrice,
     Conversion,
+    Differences,
     Excluded,
     FulfilmentSummary,
     LineAttributes,
@@ -59,6 +60,10 @@ BASE_UNITS = ("L", "KG")
 QUANTITY_UNITS = ("L", "KG", "SALES_UNIT")
 UNKNOWN_AMOUNT = Decimal("999999")  # document 06, section 1.4; Q-15
 CONVERSION_TOLERANCE = Decimal("0.02")
+MAX_CANDIDATES_PER_LINE = 25  # NFR-02; document 06, section 6 step 1
+MAX_SAME_CATEGORY = 10  # Q-14
+OFFICIAL_SOURCE = "valio_aimo_substitution_rule"
+SAME_CATEGORY_SOURCE = "same_category_same_claims"
 _CENT = Decimal("0.01")
 _BASIS = Decimal("0.0001")
 _QTY = Decimal("0.001")
@@ -226,6 +231,58 @@ def load_catalog(conn: Connection, product_ids: list[str]) -> dict[str, CatalogP
     return out
 
 
+def substitute_ids(
+    conn: Connection, line: OfferRequestLine, requested: CatalogProduct, listed: list[str],
+) -> list[tuple[str, str]]:
+    """Gateway-added substitutes for a line with `substitution: allowed` (document 06, 6 step 1).
+
+    (a) Official substitutes of the requested product, by product ID; then (b) up to 10
+    products in the requested product's category that have every required claim and are
+    declared free from every forbidden allergen of the line's requirements, by delivery
+    reliability (highest first, unknown last) then product ID (Q-14). Products already listed
+    are skipped; the line never exceeds 25 candidates. Returns (product_id, source) pairs.
+    """
+    room = MAX_CANDIDATES_PER_LINE - len(listed)
+    if room <= 0:
+        return []
+    seen = set(listed)
+    out: list[tuple[str, str]] = []
+    for (pid,) in conn.execute(text(
+            "SELECT s.substitute_product_id FROM product_substitutions s "
+            "JOIN products p ON p.product_id = s.substitute_product_id "
+            "WHERE s.product_id = :p ORDER BY s.substitute_product_id"),
+            {"p": requested.product_id}):
+        if pid not in seen and len(out) < room:
+            seen.add(pid)
+            out.append((pid, OFFICIAL_SOURCE))
+    limit = min(MAX_SAME_CATEGORY, room - len(out))
+    if limit <= 0:
+        return out
+    claims = sorted(set(line.requirements.required_claims))
+    allergens = sorted(set(line.requirements.forbidden_allergens))
+    sql = ("SELECT p.product_id FROM products p WHERE p.category_code = :c "
+           "AND p.product_id NOT IN :seen")
+    params: dict[str, Any] = {"c": requested.category_code, "seen": sorted(seen)}
+    binds = [bindparam("seen", expanding=True)]
+    if claims:
+        sql += (" AND (SELECT COUNT(DISTINCT pc.claim) FROM product_claims pc "
+                "WHERE pc.product_id = p.product_id AND pc.claim IN :claims) = :nc")
+        params |= {"claims": claims, "nc": len(claims)}
+        binds.append(bindparam("claims", expanding=True))
+    if allergens:
+        sql += (" AND (SELECT COUNT(DISTINCT pa.allergen) FROM product_allergens pa "
+                "WHERE pa.product_id = p.product_id AND pa.allergen IN :alg "
+                "AND pa.state = 'FREE_FROM') = :na")
+        params |= {"alg": allergens, "na": len(allergens)}
+        binds.append(bindparam("alg", expanding=True))
+    sql += (" ORDER BY p.delivery_reliability IS NULL, p.delivery_reliability DESC, "
+            "p.product_id LIMIT :lim")
+    params["lim"] = limit
+    for (pid,) in conn.execute(text(sql).bindparams(*binds), params):
+        out.append((pid, SAME_CATEGORY_SOURCE))
+    return out
+
+
 # ================================================================ holds
 
 
@@ -308,7 +365,10 @@ def _num(d: Decimal) -> Decimal:
 class Candidate:
     request_line: int  # 1-based
     product: CatalogProduct
-    role: str  # requested | alternate
+    role: str  # requested | alternate | substitute
+    pos: int = 0  # place in the line's order of use (0 = requested)
+    source: str | None = None  # substitution source, substitutes only
+    substitute_for: str | None = None  # the line's requested product, substitutes only
 
 
 @dataclass
@@ -465,8 +525,63 @@ def fill_line(
     return out, excluded
 
 
-def _offer_line(line_no: int, fl: FilledLine, request_unit: str) -> OfferLine:
+def _comparison(f: UpstreamFacts | None) -> tuple[Decimal, str] | None:
+    """Upstream comparison price per L/KG and its unit, or None when not priced."""
+    price = f.price if f is not None else None
+    if (price is None or price.error or price.unit_price_excl_tax is None
+            or price.unit_price_excl_tax <= 0 or price.comparison_price is None
+            or price.comparison_price <= 0 or not price.comparison_unit):
+        return None
+    return Decimal(price.comparison_price), price.comparison_unit.strip().upper()
+
+
+def differences(
+    p: CatalogProduct, requested: CatalogProduct, this_facts: UpstreamFacts | None,
+    requested_facts: UpstreamFacts | None, source: str | None,
+) -> Differences:
+    """How an alternate or substitute differs from the line's requested product (doc 03, 5).
+
+    Price: comparison price per base unit of this product against the requested product's,
+    both from upstream; null unless both are priced in the same unit. Claims, labels, origin
+    and delivery reliability come from the catalog.
+    """
+    pct: float | None = None
+    a, b = _comparison(this_facts), _comparison(requested_facts)
+    if a is not None and b is not None and a[1] == b[1]:
+        pct = float(((a[0] - b[0]) / b[0] * 100).quantize(Decimal("0.1"), ROUND_HALF_UP))
+    delta: float | None = None
+    if p.delivery_reliability is not None and requested.delivery_reliability is not None:
+        delta = float((Decimal(str(p.delivery_reliability))
+                       - Decimal(str(requested.delivery_reliability))).quantize(
+            _QTY, ROUND_HALF_UP))
+    origin = (p.country_of_origin or "").strip().upper()
+    req_origin = (requested.country_of_origin or "").strip().upper()
+    return Differences(
+        price_per_base_unit_percent=pct,
+        claims_lost=sorted(set(requested.claims) - set(p.claims)),
+        claims_gained=sorted(set(p.claims) - set(requested.claims)),
+        labels_lost=sorted(set(requested.labels) - set(p.labels)),
+        labels_gained=sorted(set(p.labels) - set(requested.labels)),
+        origin_changed=origin != req_origin,
+        delivery_reliability_delta=delta,
+        source=source,  # type: ignore[arg-type]
+    )
+
+
+@dataclass
+class LineRef:
+    """The requested product of a request line, for `differences`."""
+
+    product: CatalogProduct
+    facts: UpstreamFacts | None
+
+
+def _offer_line(line_no: int, fl: FilledLine, request_unit: str, ref: LineRef | None = None
+                ) -> OfferLine:
     prep, p, f = fl.prep, fl.prep.cand.product, fl.prep.facts
+    diff = None
+    if prep.cand.role != "requested" and ref is not None:
+        diff = differences(p, ref.product, f, ref.facts, prep.cand.source)
     price, av = f.price, f.availability
     assert price is not None and av is not None
     comparison_price = None
@@ -476,7 +591,8 @@ def _offer_line(line_no: int, fl: FilledLine, request_unit: str) -> OfferLine:
     carbon = p.carbon_kg_co2e_per_kg
     return OfferLine(
         line_no=line_no, request_line=prep.cand.request_line, product_id=p.product_id,
-        name=p.name, role=prep.cand.role, substitute_for=None,  # type: ignore[arg-type]
+        name=p.name, role=prep.cand.role,  # type: ignore[arg-type]
+        substitute_for=prep.cand.substitute_for,
         quantity=Quantity(value=_num(fl.units), unit="SALES_UNIT"),
         sales_unit=p.sales_unit or (av.sales_unit or ""),
         base_quantity=(Quantity(value=_num(fl.base), unit=request_unit)
@@ -507,7 +623,7 @@ def _offer_line(line_no: int, fl: FilledLine, request_unit: str) -> OfferLine:
             carbon_kg_co2e_per_kg=carbon,
             carbon_basis="product_group_average" if carbon is not None else None,
         ),
-        differences=None,  # T-404 deferred (document 08, section 0)
+        differences=diff,
     )
 
 
@@ -556,13 +672,32 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
                 "max_options": req.max_options, "candidates": total_candidates},
         )
 
-    # Candidates and static filter. substitution 'allowed' adds nothing yet (T-404 deferred).
+    # Step 1, candidates: the agent's IDs, then (substitution 'allowed') official substitutes
+    # and same-category products, at most 25 per line (document 06, section 6).
+    subs: dict[int, list[tuple[str, str]]] = {}
+    if any(line.substitution == "allowed" for line in req.lines):
+        with db.connection() as conn:
+            for i, line in enumerate(req.lines, start=1):
+                if line.substitution == "allowed":
+                    listed = list(dict.fromkeys(line.product_ids))
+                    subs[i] = substitute_ids(conn, line, catalog[listed[0]], listed)
+            extra = load_catalog(conn, [pid for s in subs.values() for pid, _ in s])
+        catalog = {**extra, **catalog}
+
+    # Step 2, static filter.
     excluded: list[Excluded] = []
     survivors: list[list[Candidate]] = []
+    order: dict[tuple[int, str], int] = {}  # (request line, product) -> place, for excluded[]
     for i, line in enumerate(req.lines, start=1):
+        listed = list(dict.fromkeys(line.product_ids))
+        cands = [Candidate(i, catalog[pid], "requested" if j == 0 else "alternate", pos=j)
+                 for j, pid in enumerate(listed)]
+        cands += [Candidate(i, catalog[pid], "substitute", pos=len(listed) + k, source=src,
+                            substitute_for=listed[0])
+                  for k, (pid, src) in enumerate(subs.get(i, [])) if pid in catalog]
         kept: list[Candidate] = []
-        for j, pid in enumerate(dict.fromkeys(line.product_ids)):
-            cand = Candidate(i, catalog[pid], "requested" if j == 0 else "alternate")
+        for cand in cands:
+            order[(i, cand.product.product_id)] = cand.pos
             ex = static_filter(line, cand, mandate)
             if ex:
                 excluded.append(ex)
@@ -570,9 +705,15 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
                 kept.append(cand)
         survivors.append(kept)
 
+    def by_line() -> list[dict[str, Any]]:
+        """excluded[] grouped by request line, each in the line's candidate order."""
+        excluded.sort(key=lambda e: (e.request_line or 0,
+                                     order.get((e.request_line or 0, e.product_id), 0)))
+        return [e.dump() for e in excluded]
+
     query_ids = list(dict.fromkeys(c.product.product_id for kept in survivors for c in kept))
     if not query_ids:
-        raise no_candidates([e.dump() for e in excluded])
+        raise no_candidates(by_line())
 
     facts = upstream.get_adapter().get_facts(
         query_ids, req.delivery_date, trace_id=trace_id, actor_id=agent_id)
@@ -602,9 +743,13 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
             excluded.extend(ex)
             filled.append(fls)
         if not any(filled):
-            raise no_candidates([e.dump() for e in excluded])
+            raise no_candidates(by_line())
 
-        offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings)
+        refs = []
+        for line in req.lines:
+            rid = line.product_ids[0]
+            refs.append(LineRef(catalog[rid], facts.get(rid)))
+        offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings, refs)
         payload = offer.dump()
         jws = signing.sign(payload, signing.TYP_OFFER)
         _persist(conn, offer, payload, jws, req, filled, trace_id)
@@ -612,20 +757,21 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
     return {
         "trace_id": trace_id,
         "options": [{"label": "best", "offer": payload, "jws": jws}],
-        "excluded": [e.dump() for e in excluded],
+        "excluded": by_line(),
     }
 
 
 def _assemble(
     req: OfferRequest, filled: list[list[FilledLine]], mandate: Mandate, agent_id: str,
-    customer_id: str, now: datetime, settings: Any,
+    customer_id: str, now: datetime, settings: Any, refs: list[LineRef] | None = None,
 ) -> Offer:
     lines: list[OfferLine] = []
     fulfilment: list[FulfilmentSummary] = []
     for i, (line, fls) in enumerate(zip(req.lines, filled, strict=True), start=1):
         unit = line.quantity.unit
+        ref = refs[i - 1] if refs else None
         for fl in fls:
-            lines.append(_offer_line(len(lines) + 1, fl, unit))
+            lines.append(_offer_line(len(lines) + 1, fl, unit, ref))
         offered = sum(((fl.base if fl.base is not None else fl.units) for fl in fls), Decimal(0))
         fulfilment.append(FulfilmentSummary(
             request_line=i, requested=Quantity(value=line.quantity.value, unit=unit),
@@ -681,9 +827,10 @@ def _persist(
              "substitute_for, substitution_source, quantity_sales_units, sales_unit, "
              "base_quantity, base_unit, unit_price_excl_tax, tax_rate_percent, "
              "line_total_excl_tax, line_total_incl_tax, logistic_model, assurance, "
-             "price_quote_id, availability_snapshot_id) VALUES (:o, :n, :rl, :p, :r, NULL, "
-             "NULL, :q, :su, :bq, :bu, :up, :tr, :le, :li, :lm, :as_, :pq, :av)",
+             "price_quote_id, availability_snapshot_id) VALUES (:o, :n, :rl, :p, :r, :sf, "
+             ":ss, :q, :su, :bq, :bu, :up, :tr, :le, :li, :lm, :as_, :pq, :av)",
              o=offer.offer_id, n=ln.line_no, rl=ln.request_line, p=ln.product_id, r=ln.role,
+             sf=fl.prep.cand.substitute_for, ss=fl.prep.cand.source,
              q=fl.units, su=ln.sales_unit,
              bq=fl.base.quantize(_QTY) if fl.base is not None else None,
              bu=ln.base_quantity.unit if ln.base_quantity else None,
@@ -793,5 +940,5 @@ __all__ = [
     "ALLERGEN_NAMES", "CatalogProduct", "build_offer", "convert", "expire_if_due",
     "get_offer_view", "held_quantities", "load_catalog", "load_offer",
     "mandate_product_reasons", "price_str", "release_holds", "round_down_to_step",
-    "sales_units_needed", "validate_request",
+    "differences", "sales_units_needed", "substitute_ids", "validate_request",
 ]
