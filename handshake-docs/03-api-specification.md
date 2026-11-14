@@ -445,6 +445,13 @@ Agent authentication; own orders only. P1.
 
 Event types and the chain are defined in document 05, section 7.
 
+Implementation notes (phase 4):
+
+- The receipt endpoint applies lazy approval expiry first, like `GET /v1/orders/{order_id}`, so a receipt never shows a stale `pending_approval`.
+- `chain.head` is the hash of the last event in the trace and `chain.length` counts all events, including `aimo_only` ones (A-23); the buyer's `events[]` lists only audience `both`.
+- `summary` has a sentence form for each status: confirmed (with or without approval), waiting for approval, declined, expired and rejected (with the mandate's reason messages).
+- The receipt page (`/receipts/{order_id}`) shows a wrong token, a wrong admin key, an unknown order and a malformed ID as the same 404 page, so it never reveals whether an order exists. `?key=` is swapped for an HttpOnly, SameSite=Strict cookie (`hs_receipts`, path `/receipts`, an HMAC of the key) and a redirect; with that cookie the Valio Aimo view is shown even if `?t=` is also present. The page verifies the hash chain on every view and says "Record intact: N events" or "Record altered at event N". The buyer view marks where internal events sit ("1 internal Valio Aimo event") and says how many are hidden.
+
 ## 7. Admin
 
 All require `X-Admin-Key`.

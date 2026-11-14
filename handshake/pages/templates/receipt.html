@@ -1,0 +1,160 @@
+{% extends "_base.html" %}
+{% block style %}
+{% include "_approve.css" %}
+.status-line { margin-top: 22px; font-size: var(--step--1); color: var(--slate); }
+.status-line strong { color: var(--ink); }
+.summary { margin-top: 10px; font-size: var(--step-2); line-height: 1.3; max-width: 26em;
+  overflow-wrap: anywhere; }
+.integrity { margin-top: 16px; padding-left: 14px; border-left: 3px solid var(--spruce); }
+.integrity.broken { border-left-color: var(--lingon); }
+.integrity .claim { font-weight: 700; }
+.integrity.broken .claim { color: var(--lingon); }
+.head { margin-top: 6px; font-size: var(--step--1); color: var(--slate); }
+.head summary { cursor: pointer; padding: 4px 0; }
+.head .full { display: block; margin-top: 4px; color: var(--ink); overflow-wrap: anywhere;
+  word-break: break-all; }
+
+/* The hash chain as the timeline's spine */
+.when-note { font-size: var(--step--1); color: var(--slate); margin-bottom: 18px; }
+.chain { list-style: none; padding: 0; margin: 0; }
+.node, .gap { position: relative; padding-left: 48px; }
+.node::before, .gap::before {
+  content: ""; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px;
+  background: var(--frost);
+}
+.chain > li:first-child::before { top: 16px; }
+.chain > li:last-child::before { bottom: auto; height: 16px; }
+.chain > li:only-child::before { display: none; }
+.seq {
+  position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--paper); border: 2px solid currentColor;
+  font-size: var(--step--1); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.node { padding-bottom: 6px; min-height: 32px; }
+.meta { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: baseline; padding-top: 4px;
+  font-size: var(--step--1); }
+.meta time { color: var(--slate); font-variant-numeric: tabular-nums; }
+.actor { font-weight: 700; }
+.text { margin-top: 2px; overflow-wrap: anywhere; }
+.a-agent .seq, .a-agent .actor { color: var(--ink); }
+.a-gateway .seq, .a-gateway .actor { color: var(--slate); }
+.a-approver .seq, .a-approver .actor { color: var(--spruce); }
+.a-admin .seq, .a-admin .actor { color: var(--slate); }
+.a-approver .seq { background: var(--spruce); color: var(--white); border-color: var(--spruce); }
+.aimo .text { color: var(--slate); }
+.aimo .seq { border-style: dashed; }
+.tag { display: inline-block; margin-top: 4px; font-size: var(--step--1); color: var(--slate);
+  border: 1px solid var(--frost); background: var(--white); padding: 0 8px; border-radius: 3px; }
+.snaps { list-style: none; padding: 0; margin-top: 6px; font-size: var(--step--1); }
+.snaps li { padding: 2px 0; overflow-wrap: anywhere; }
+.link { margin: 8px 0 0; padding: 4px 0 14px; font-size: var(--step--1); color: var(--slate); }
+.link .mono { color: var(--ink); }
+.altered .seq { color: var(--lingon); border-color: var(--lingon); }
+.altered .text { color: var(--lingon); }
+.altered-note { color: var(--lingon); font-size: var(--step--1); font-weight: 700; margin-top: 4px; }
+.gap { padding-top: 2px; padding-bottom: 16px; font-size: var(--step--1); color: var(--slate); }
+.gap::before { background: none; border-left: 2px dashed var(--frost); width: 0; }
+.hidden-note { margin-top: 18px; color: var(--slate); max-width: 34em; }
+
+.untrusted dt { font-size: var(--step--1); color: var(--slate); margin-top: 12px; }
+.untrusted dt:first-child { margin-top: 0; }
+.untrusted dd { margin-top: 4px; }
+.jws { margin-top: 10px; }
+.jws summary { cursor: pointer; padding: 6px 0; font-weight: 700; }
+.jws pre { margin: 8px 0 0; padding: 10px 12px; background: var(--white); border: 1px solid var(--frost);
+  font-size: 0.8125rem; white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; }
+.verify { margin-top: 14px; font-size: var(--step--1); color: var(--slate); max-width: 34em; }
+{% endblock %}
+{% block body %}
+{% set status_text = {
+  "confirmed": "Order confirmed",
+  "pending_approval": "Waiting for approval",
+  "declined": "Order declined",
+  "expired": "Approval request expired",
+  "rejected": "Order rejected by the mandate",
+}[v.status] %}
+{% set status_mark = {"confirmed": "ok", "pending_approval": "off"}.get(v.status, "no") %}
+{% macro internal(n) %}{{ n }} internal Valio Aimo event{{ "s" if n != 1 }}{% endmacro %}
+<main class="page">
+  <p class="brand"><strong>Handshake</strong> {{ "receipt" if v.audience == "buyer" else "receipt, Valio Aimo view" }}</p>
+
+  <section class="section" aria-labelledby="outcome">
+    <p class="status-line" id="outcome"><span class="mark mark-{{ status_mark }}" aria-hidden="true"></span><strong>{{ status_text }}</strong>{% if v.customer_name %} for {{ v.customer_name }}{% endif %}</p>
+    <p class="summary">{{ v.summary }}</p>
+    <div class="integrity{% if not v.chain_ok %} broken{% endif %}">
+      {% if v.chain_ok %}
+      <p class="claim">Signed by the gateway (key {{ v.signing_kid }}). Record intact: {{ v.chain_length }} event{{ "s" if v.chain_length != 1 }}.</p>
+      {% else %}
+      <p class="claim">Record altered at event {{ v.bad_seq }}: the receipt does not match the log.</p>
+      {% endif %}
+      <details class="head">
+        <summary>Chain head <span class="mono">{{ v.chain_head_short }}</span></summary>
+        <span class="full mono">{{ v.chain_head }}</span>
+      </details>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="timeline">
+    <h2 id="timeline">What happened</h2>
+    {% if v.first_day %}<p class="when-note">Times are Helsinki time on {{ v.first_day | long_date }}.</p>{% endif %}
+    <ol class="chain">
+      {% for e in v.events %}
+      {% if e.hidden_before and v.audience == "buyer" %}
+      <li class="gap">{{ internal(e.hidden_before) }}</li>
+      {% endif %}
+      <li class="node a-{{ e.actor_type }}{% if e.aimo_only %} aimo{% endif %}{% if e.altered %} altered{% endif %}">
+        <span class="seq" aria-label="Event {{ e.seq }}">{{ e.seq }}</span>
+        <p class="meta"><time datetime="{{ e.at.isoformat() }}">{{ e.at | hms }}{% if e.other_day %} on {{ e.at | long_date }}{% endif %}</time><span class="actor">{{ e.actor }}</span></p>
+        <p class="text">{{ e.text }}</p>
+        {% if e.aimo_only %}<p class="tag">Valio Aimo only</p>{% endif %}
+        {% if e.altered %}<p class="altered-note">This event no longer matches its recorded hash.</p>{% endif %}
+        {% if e.snapshots %}
+        <ul class="snaps">
+          {% for s in e.snapshots %}
+          <li>Product {{ s.product_id }}: price quote <span class="mono">{{ s.price_quote_id if s.price_quote_id is not none else "none" }}</span>, availability snapshot <span class="mono">{{ s.availability_snapshot_id if s.availability_snapshot_id is not none else "none" }}</span>{% if s.cached %} (from cache){% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <p class="link">Hash <span class="mono" title="{{ e.hash }}">{{ e.hash_short }}</span></p>
+      </li>
+      {% endfor %}
+      {% if v.hidden_after and v.audience == "buyer" %}
+      <li class="gap">{{ internal(v.hidden_after) }}</li>
+      {% endif %}
+    </ol>
+    {% if v.audience == "buyer" and v.hidden_count %}
+    <p class="hidden-note">This view leaves out {{ internal(v.hidden_count) }}. The chain covers them, so the record above is still complete.</p>
+    {% elif v.audience == "aimo" %}
+    {% set n_internal = v.events | selectattr("aimo_only") | list | length %}
+    <p class="hidden-note">This is the Valio Aimo view. It includes {{ n_internal }} internal event{{ "s" if n_internal != 1 }} that the buyer's receipt leaves out; the chain covers all {{ v.chain_length }}.</p>
+    {% endif %}
+  </section>
+
+  {% if v.reference or v.note or v.comment %}
+  <section class="section" aria-labelledby="said">
+    <h2 id="said">In their own words</h2>
+    <dl class="untrusted">
+      {% if v.reference %}<dt>Order reference from the agent (not verified)</dt><dd class="note">{{ v.reference }}</dd>{% endif %}
+      {% if v.note %}<dt>Note from the agent (not verified)</dt><dd class="note">{{ v.note }}</dd>{% endif %}
+      {% if v.comment %}<dt>Comment from {{ v.approver_name }} (not verified)</dt><dd class="note">{{ v.comment }}</dd>{% endif %}
+    </dl>
+  </section>
+  {% endif %}
+
+  <footer class="section" aria-labelledby="record">
+    <h2 id="record">The record</h2>
+    <dl class="facts">
+      <dt>Order</dt><dd>{{ v.order_id }}</dd>
+      <dt>Offer</dt><dd>{{ v.offer_id }}</dd>
+      <dt>Trace</dt><dd>{{ v.trace_id }}</dd>
+      {% if v.totals.excl_tax %}<dt>Total</dt><dd><span class="mono">{{ v.totals.excl_tax | money }}</span> EUR excl. tax</dd>{% endif %}
+    </dl>
+    <details class="jws">
+      <summary>Show the signed offer</summary>
+      <pre class="mono">{{ v.offer_jws }}</pre>
+    </details>
+    <p class="verify">To check this record, verify the signed offer above and the signed receipt your agent received against the gateway's public key at <a href="/.well-known/jwks.json">/.well-known/jwks.json</a>, then compare its chain head with the one shown here.</p>
+  </footer>
+</main>
+{% endblock %}

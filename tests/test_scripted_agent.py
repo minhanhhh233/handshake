@@ -186,6 +186,88 @@ def test_api_error_is_readable(app, catalog, clean_db):
     assert "ERROR: gateway answered 422 no_candidates" in text
 
 
+# ---------------------------------------------------------------- allergy_guard (T-405)
+
+KOIVULA_ALLERGENS = {"codes": ["AM"], "states": ["CONTAINS", "MAY_CONTAIN"], "unknown": "reject"}
+
+
+def spy_after_offer(calls: list[str]):
+    """Record any dry-run or order call the agent makes."""
+    def hook(c: HandshakeClient) -> None:
+        for name in ("dry_run_order", "place_order", "get_order", "get_receipt"):
+            orig = getattr(c, name)
+            setattr(c, name, lambda *a, _n=name, _o=orig, **k: calls.append(_n) or _o(*a, **k))
+    return hook
+
+
+def test_allergy_guard_refused(app, catalog, clean_db):
+    d = delivery()
+    closing = timeutil.now() + timedelta(days=1)
+    fake = FakeUpstream([make_facts(pid, price="1.50", comparison="1.50", amount=None,
+                                    available_date=d, closing=closing)
+                         for pid in ["464306", *scripted.SHORTLIST_PREFERENCE]])
+    upstream.set_adapter(fake)  # the app fixture resets the adapter afterwards
+    p = make_party(name="Koivula School Kitchens",
+                   limits={"max_order_total_excl_tax": "500.00"},
+                   forbidden_allergens=KOIVULA_ALLERGENS)
+    calls: list[str] = []
+    s, text = run(app, p, scenario="allergy_guard", hook=spy_after_offer(calls))
+    assert s["error"] is None, text
+    assert s["final_status"] == "refused" and s["outcome"] == "rejected"
+    assert s["code"] == "no_candidates"
+    assert s["excluded"] and s["excluded"][0]["product_id"] == "464306"
+    assert all(x["reason"] == "forbidden_by_mandate" for x in s["excluded"])
+    assert all("Lactose-free is not milk-free." in x["message"] for x in s["excluded"])
+    assert ("This mandate forbids milk (AM): contains or may contain; unknown status is "
+            "rejected.") in text
+    assert "AM CONTAINS" in text
+    assert "Refused by the gateway: no candidate can be offered under this mandate." in text
+    assert "Lactose-free is not milk-free." in text
+    assert calls == [] and s["offer_id"] is None and s["order_id"] is None
+    assert "dry_run_order(" not in text and "place_order(" not in text
+    assert fake.calls == []  # static mandate filter: 422 before any upstream call
+    with db.connection() as conn:
+        assert db.q(conn, "SELECT COUNT(*) FROM offers").scalar_one() == 0
+        assert db.q(conn, "SELECT COUNT(*) FROM orders").scalar_one() == 0
+
+
+def test_allergy_guard_offer_without_allergy_mandate_is_failure(app, catalog, clean_db):
+    p = make_party(limits={"max_order_total_excl_tax": "5000.00"})  # Nordlys: nothing forbidden
+    calls: list[str] = []
+    s, text = run(app, p, scenario="allergy_guard", hook=spy_after_offer(calls))
+    assert s["error"]["type"] == "unexpected_offer"
+    assert s["final_status"] is None and s["offer_id"]
+    assert "FAIL: the gateway issued an offer" in text
+    assert "This mandate forbids no allergens." in text
+    assert calls == [] and s["order_id"] is None
+    with db.connection() as conn:
+        assert db.q(conn, "SELECT COUNT(*) FROM orders").scalar_one() == 0
+
+
+def test_allergy_guard_cli_default_agent_and_exit_codes(monkeypatch, capsys):
+    seen: dict[str, object] = {}
+
+    def fake_key(key, agent):
+        seen["agent"] = agent
+        return "hsk_test"
+
+    results = iter([
+        {"scenario": "allergy_guard", "final_status": "refused", "error": None},
+        {"scenario": "allergy_guard", "final_status": None,
+         "error": {"type": "unexpected_offer"}},
+        {"scenario": "allergy_guard", "final_status": "confirmed", "error": None},
+    ])
+    monkeypatch.setattr(scripted, "resolve_key", fake_key)
+    monkeypatch.setattr(scripted, "run", lambda *a, **k: next(results))
+    assert scripted.main(["--scenario", "allergy_guard", "--json"]) == 0
+    assert seen["agent"] == "koivula"
+    assert '"final_status": "refused"' in capsys.readouterr().out
+    assert scripted.main(["--scenario", "allergy_guard", "--agent", "nordlys"]) == 1
+    assert seen["agent"] == "nordlys"
+    assert scripted.main(["--scenario", "allergy_guard", "--key", "hsk_x"]) == 1
+    assert seen["agent"] is None
+
+
 # ---------------------------------------------------------------- unit
 
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from .. import orders
+from .. import orders, receipts
 from ..models import DryRunRequest, OrderRequest
 from .deps import AgentContext, require_agent
 
@@ -53,4 +53,16 @@ async def get_order(
     """Current status: pending_approval, confirmed, declined, expired or rejected."""
     result = await run_in_threadpool(orders.get_order, order_id, agent.agent_id)
     request.state.trace_id = result["trace_id"]
+    return JSONResponse(result)
+
+
+@router.get("/v1/orders/{order_id}/receipt", summary="Signed receipt for one of your orders")
+async def get_receipt(
+    order_id: str, request: Request, agent: AgentContext = Depends(require_agent)
+) -> JSONResponse:
+    """The order's timeline (events visible to the buyer), the hash chain head and length
+    over every event of the trace, and the original signed offer, signed as
+    `handshake-receipt+jwt`. `human_url` opens the receipt page for people."""
+    result = await run_in_threadpool(receipts.get_receipt, order_id, agent.agent_id)
+    request.state.trace_id = result["receipt"]["trace_id"]
     return JSONResponse(result)

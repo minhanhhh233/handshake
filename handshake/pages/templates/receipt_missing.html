@@ -1,0 +1,11 @@
+{% extends "_base.html" %}
+{% block style %}{% include "_approve.css" %}{% endblock %}
+{% block body %}
+<main class="page">
+  <p class="brand"><strong>Handshake</strong> receipt</p>
+  <section class="result">
+    <h1><span class="mark mark-off" aria-hidden="true"></span>This receipt link is not valid.</h1>
+    <p class="lede">Check that you opened the whole link. Your agent can fetch the receipt again and give you a fresh link.</p>
+  </section>
+</main>
+{% endblock %}

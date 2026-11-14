@@ -12,15 +12,20 @@ same kind of console output: each tool call and a compact result.
 Scenarios:
   milk_order  1,000 L of lactose-free milk, 464306 first, then the rest of the shortlist.
   milk_split  1,000 L with 469363 first, then 464306 (substitution allowed): 384 + 616 units.
+  allergy_guard  the milk_order request under a milk-allergy mandate (default agent koivula).
+              The gateway MUST refuse with 422 no_candidates; that refusal is the success
+              (exit 0, final_status "refused"). An issued offer is a failure (exit 1); the
+              agent never retries with other products and never dry-runs or orders.
 
 Like any third-party agent it uses only `handshake_client` (never the gateway package). It never
 approves anything and never asks for an approval link (FR-35): a human approves out of band.
 
 Key: --key, else --agent NAME from keys/demo_agents.json when given, else HANDSHAKE_AGENT_KEY,
-else the "nordlys" entry of keys/demo_agents.json. Base URL: --base-url, else
+else the "nordlys" entry of keys/demo_agents.json; for allergy_guard without --key or --agent
+the agent is "koivula". Base URL: --base-url, else
 HANDSHAKE_BASE_URL, else http://127.0.0.1:8000.
 
-Exit codes: 0 the order reached a final status; 1 an error (gateway error, signature failure,
+Exit codes: 0 the order reached a final status (allergy_guard: the expected refusal); 1 an error (gateway error, signature failure,
 bad arguments); 3 still pending approval when --poll-timeout passed.
 """
 
@@ -75,8 +80,26 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "fill_from_search": False,
         "reference_suffix": "milk-split",
     },
+    # Task T-405 (FR-37; document 09, sections 3 API-21, 4 and 6 step 9): the milk-allergy
+    # mandate asks for the same lactose-free milk as milk_order. The gateway MUST refuse.
+    "allergy_guard": {
+        "title": "lactose-free milk under a milk-allergy mandate (expect a refusal)",
+        "lead": ["464306"],
+        "fill_from_search": True,
+        "reference_suffix": "allergy",
+        "expect_refusal": True,
+        "default_agent": "koivula",
+    },
 }
 FINAL_STATUSES = {"confirmed", "declined", "expired", "rejected"}
+REFUSED = "refused"  # allergy_guard: the expected 422 no_candidates (a success for that scenario)
+ALLERGEN_NAMES = {"AM": "milk"}
+STATE_WORDS = {"CONTAINS": "contains", "MAY_CONTAIN": "may contain"}
+UNKNOWN_WORDS = {
+    "reject": "unknown status is rejected",
+    "needs_approval": "unknown status needs approval",
+    "allow": "unknown status is allowed",
+}
 
 Out = Callable[..., Any]
 
@@ -214,11 +237,76 @@ def _print_offer(out: Out, data: dict[str, Any]) -> dict[str, Any]:
     return option
 
 
+def _forbidden_text(mandate: dict[str, Any]) -> str:
+    """Plain words for the mandate's forbidden allergens, e.g. 'This mandate forbids milk (AM):
+    contains or may contain; unknown status is rejected.'"""
+    fa = mandate.get("forbidden_allergens") or {}
+    codes = fa.get("codes") or []
+    if not codes:
+        return "This mandate forbids no allergens."
+    what = ", ".join(f"{ALLERGEN_NAMES.get(c, c)} ({c})" if c in ALLERGEN_NAMES else c
+                     for c in codes)
+    states = " or ".join(STATE_WORDS.get(s, s) for s in fa.get("states") or [])
+    unknown = UNKNOWN_WORDS.get(fa.get("unknown"), f"unknown status: {fa.get('unknown')}")
+    return f"This mandate forbids {what}: {states or 'any state'}; {unknown}."
+
+
+def _print_allergens(out: Out, res: dict[str, Any], codes: list[str]) -> None:
+    """For each search result, the state of the mandate's forbidden allergens (default AM)."""
+    items = res.get("items") or []
+    codes = codes or ["AM"]
+    states_seen: list[str] = []
+    for i in items:
+        stmts = {a.get("code"): a.get("state") for a in i.get("allergens") or []}
+        shown = ", ".join(f"{c} {stmts.get(c) or 'UNKNOWN'}" for c in codes)
+        states_seen.append(stmts.get(codes[0]) or "UNKNOWN")
+        out(f"     {i.get('product_id')}  {_short(_name(i), 52)}  [{shown}]")
+    if items and all(s == "CONTAINS" for s in states_seen):
+        out(f"  All {len(items)} results are lactose-free AND carry {codes[0]} CONTAINS. "
+            "Lactose-free is not milk-free.")
+
+
 def _print_order(out: Out, order: dict[str, Any]) -> None:
     out(f"  -> order {order.get('order_id')}: status {order.get('status')}, outcome "
         f"{order.get('outcome')}")
     for r in _reasons(order.get("reasons")):
         out(f"     reason {r}")
+
+
+def _refusal(out: Out, summary: dict[str, Any], e: HandshakeAPIError) -> dict[str, Any]:
+    """allergy_guard: print the gateway's refusal and fill the summary. Never works around it.
+
+    Success only when every candidate was excluded forbidden_by_mandate; a 422 for any other
+    reason (dates, prices) is not the refusal this scenario demonstrates.
+    """
+    excluded = (e.problem or {}).get("excluded") or []
+    out(f"  -> gateway answered {e.status} {e.code}")
+    out("")
+    out("Refused by the gateway: no candidate can be offered under this mandate.")
+    for x in excluded:
+        pr = x.get("policy_reason") or {}
+        msg = pr.get("message") or x.get("message") or ""
+        rule = f" [{pr.get('rule')}]" if pr.get("rule") else ""
+        out(f"  {x.get('product_id')}  {x.get('reason')}{rule}: {msg}")
+    summary["final_status"] = REFUSED
+    summary["outcome"] = "rejected"
+    summary["code"] = e.code
+    summary["excluded"] = [
+        {"product_id": x.get("product_id"), "reason": x.get("reason"),
+         "policy_reason": (x.get("policy_reason") or {}).get("code"),
+         "message": (x.get("policy_reason") or {}).get("message") or x.get("message")}
+        for x in excluded
+    ]
+    if not excluded or any(x.get("reason") != "forbidden_by_mandate" for x in excluded):
+        other = sorted({str(x.get("reason")) for x in excluded} - {"forbidden_by_mandate"})
+        out("FAIL: the refusal is not (only) a mandate refusal"
+            + (f": also {', '.join(other)}" if other else ": no excluded products listed")
+            + ".")
+        summary["error"] = {"type": "unexpected_refusal", "status": e.status, "code": e.code,
+                            "message": "not every candidate was excluded forbidden_by_mandate"}
+        return summary
+    out("Result: refused as expected; no dry-run, no order.")
+    return summary
 
 
 # ---------------------------------------------------------------- the scenario
@@ -269,12 +357,21 @@ def run(
         out(f"  -> mandate {mandate.get('mandate_id')} v{mandate.get('version')}: cap "
             f"{limits.get('max_order_total_excl_tax')} {limits.get('currency', 'EUR')} per order "
             f"excl. tax" + (f"; approver {approvers}" if approvers else ""))
+        expect_refusal = bool(spec.get("expect_refusal"))
+        forbidden_codes = list((mandate.get("forbidden_allergens") or {}).get("codes") or [])
+        if expect_refusal or forbidden_codes:
+            out(f"     {_forbidden_text(mandate)}")
 
         call(f"search_products(category={MILK_CATEGORY!r}, claims={MILK_CLAIMS}, "
              f"name_excludes={NAME_EXCLUDES})")
         found = client.search_products(category=MILK_CATEGORY, claims=MILK_CLAIMS,
                                        name_excludes=NAME_EXCLUDES)
-        _print_search(out, found)
+        if expect_refusal:
+            items = found.get("items") or []
+            out(f"  -> {found.get('count', len(items))} products:")
+            _print_allergens(out, found, forbidden_codes)
+        else:
+            _print_search(out, found)
         found_ids = {i.get("product_id") for i in found.get("items") or []}
 
         product_ids = list(spec["lead"])
@@ -303,6 +400,20 @@ def run(
         except SignatureVerificationError as e:
             raise ScriptStop("signature", f"Offer signature verification FAILED: {e}. The offer "
                              "is not used; stopping before dry-run.") from None
+        except HandshakeAPIError as e:
+            if expect_refusal and e.status == 422 and e.code == "no_candidates":
+                return _refusal(out, summary, e)
+            raise
+        if expect_refusal:
+            # An offer under a milk-allergy mandate is the failure this scenario guards against.
+            _print_offer(out, data)
+            out("FAIL: the gateway issued an offer for lactose-free milk under this mandate; "
+                "expected a refusal (422 no_candidates). Stopping: no dry-run, no order.")
+            summary["offer_id"] = ((data.get("options") or [{}])[0].get("offer") or {}).get(
+                "offer_id")
+            summary["error"] = {"type": "unexpected_offer",
+                                "message": "an offer was issued; expected 422 no_candidates"}
+            return summary
         option = _print_offer(out, data)
         offer = option["offer"]
         offer_id = offer["offer_id"]
@@ -431,7 +542,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--scenario", required=True, choices=sorted(SCENARIOS))
     ap.add_argument("--base-url", default=os.environ.get("HANDSHAKE_BASE_URL", DEFAULT_BASE_URL))
     ap.add_argument("--key", help="agent bearer key")
-    ap.add_argument("--agent", help="demo agent name in keys/demo_agents.json (default nordlys)")
+    ap.add_argument("--agent", help="demo agent name in keys/demo_agents.json (default nordlys; "
+                                    "koivula for allergy_guard)")
     ap.add_argument("--delivery-date", type=date.fromisoformat,
                     help="YYYY-MM-DD (default: next Monday, Europe/Helsinki)")
     ap.add_argument("--poll-timeout", type=float, default=120.0,
@@ -445,7 +557,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         pass
-    key = resolve_key(args.key, args.agent)
+    agent = args.agent
+    if not args.key and not agent:  # allergy_guard runs as Koivula unless told otherwise
+        agent = SCENARIOS[args.scenario].get("default_agent")
+    key = resolve_key(args.key, agent)
     delivery = args.delivery_date or next_monday()
     interval = max(MIN_POLL_INTERVAL, args.poll_interval)
     with HandshakeClient(args.base_url, key) as client:
@@ -459,6 +574,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary, ensure_ascii=False))
     if summary.get("error"):
         return 1
+    if args.scenario == "allergy_guard":  # only the expected refusal is a success
+        return 0 if summary.get("final_status") == REFUSED else 1
     return 0 if summary.get("final_status") in FINAL_STATUSES else 3
 
 

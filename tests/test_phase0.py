@@ -153,7 +153,7 @@ def test_loader_transform_follows_documented_mapping():
 @pytest.mark.db
 def test_loader_end_to_end_on_synthetic_file(test_engine, tmp_path):
     """Runs the loader against its own scratch schema so the shared test catalog survives."""
-    from sqlalchemy import create_engine
+    from handshake.db import make_engine
 
     from .conftest import SCHEMA, _statements
 
@@ -162,7 +162,7 @@ def test_loader_end_to_end_on_synthetic_file(test_engine, tmp_path):
     with test_engine.begin() as conn:
         conn.exec_driver_sql(f"DROP DATABASE IF EXISTS `{scratch_name}`")
         conn.exec_driver_sql(f"CREATE DATABASE `{scratch_name}` CHARACTER SET utf8mb4")
-    eng = create_engine(scratch)
+    eng = make_engine(scratch.render_as_string(hide_password=False))  # timeout, retry, logging
     with eng.begin() as conn:
         for stmt in _statements(SCHEMA.read_text(encoding="utf-8")):
             conn.exec_driver_sql(stmt)
