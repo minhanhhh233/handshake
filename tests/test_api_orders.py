@@ -162,7 +162,8 @@ def test_api10_over_cap_pending_approval_no_token(client, catalog, clean_db):
                                              "approval.requested", "holds.changed"]
     pe = next(e for e in evs if e["type"] == "policy.evaluated")
     assert pe["text"] == ("Total 1010.00 EUR exceeded the 1000.00 EUR cap. "
-                          "Sent to Maria Virtanen for approval.")
+                          "Sent to Maria Virtanen for approval. Evaluated against mandate "
+                          "version 1 (per-order cap 1000.00 EUR).")
     assert pe["actor_type"] == "gateway" and pe["audience"] == "both"
     assert not any(token in e["text"] for e in evs)
 

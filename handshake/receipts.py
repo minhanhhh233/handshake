@@ -247,6 +247,7 @@ def receipt_view(conn: Connection, order_id: str, audience: ViewAudience) -> dic
         "comment": approval["comment_untrusted"] if approval else None,
         "totals": payload.get("totals") or {},
         "delivery_date": payload.get("delivery_date"),
+        "mandate_version": order.get("mandate_version"),
     }
 
 

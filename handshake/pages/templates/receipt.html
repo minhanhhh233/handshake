@@ -148,6 +148,7 @@
       <dt>Order</dt><dd>{{ v.order_id }}</dd>
       <dt>Offer</dt><dd>{{ v.offer_id }}</dd>
       <dt>Trace</dt><dd>{{ v.trace_id }}</dd>
+      {% if v.mandate_version %}<dt>Mandate in force</dt><dd>version {{ v.mandate_version }}</dd>{% endif %}
       {% if v.totals.excl_tax %}<dt>Total</dt><dd><span class="mono">{{ v.totals.excl_tax | money }}</span> EUR excl. tax</dd>{% endif %}
     </dl>
     <details class="jws">

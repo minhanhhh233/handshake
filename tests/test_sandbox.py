@@ -190,3 +190,51 @@ def test_run_page_of_a_sandbox_run_needs_that_sandbox(client):  # noqa: F811
     assert other.get(url).status_code == 404
     card(other)
     assert other.get(url).status_code == 404
+
+
+def test_cap_change_is_an_event_and_later_receipts_name_the_version(client):  # noqa: F811
+    import json
+    import re
+    from urllib.parse import urlparse
+
+    card(client, "hotel")
+    sid = sandbox.parse_cookie(client.cookies.get(sandbox.COOKIE))
+    r = client.post("/demo/sandbox/cap", json={"persona": "hotel", "cap": "1200"})
+    assert r.status_code == 200
+    with db.connection() as conn:
+        ev = db.q(conn, "SELECT actor_type, actor_id, audience, text, body_json FROM events "
+                        "WHERE type = 'mandate.changed'").one()
+    assert ev[0] == "approver" and ev[1] == sandbox.MANAGER and ev[2] == "both"
+    assert "from 1000.00 to 1200.00 EUR" in ev[3] and json.loads(ev[4])["version"] == 2
+    # The console (Valio Aimo view) lists it.
+    from handshake.config import get_settings
+
+    con = client.get(f"/console?key={get_settings().admin_key}", follow_redirects=True)
+    assert "1200.00 EUR excl. tax (mandate version 2)" in con.text
+    # A later order states the version in force; its receipt page shows it.
+    pt = sandbox.party(sid, "hotel")
+    key = sandbox.agent_key(pt["agent_id"])
+    h = {"Authorization": f"Bearer {key}"}
+    o = client.post("/v1/offers", headers=h, json={
+        "delivery_date": _deliverable().isoformat(),
+        "lines": [{"product_ids": ["464306"], "quantity": {"value": 1000, "unit": "L"}}]}).json()
+    oid = o["options"][0]["offer"]["offer_id"]
+    order = client.post("/v1/orders", headers={**h, "Idempotency-Key": "cap-change-order"},
+                        json={"offer_id": oid}).json()
+    assert order["status"] == "confirmed"  # 1010 EUR is now under the 1200 EUR cap
+    with db.connection() as conn:
+        text_ = db.q(conn, "SELECT text FROM events WHERE type = 'policy.evaluated' AND "
+                           "trace_id = :t", t=order["trace_id"]).scalar_one()
+    assert "Evaluated against mandate version 2 (per-order cap 1200.00 EUR)" in text_
+    rec = client.get(f"/v1/orders/{order['order_id']}/receipt", headers=h).json()
+    page = client.get(urlparse(rec["human_url"]).path + "?" + urlparse(rec["human_url"]).query)
+    assert "Mandate in force" in page.text and re.search(r"version 2", page.text)
+    assert "mandate version 2" in page.text
+
+
+def test_hospital_unknown_needs_approval_and_footer(client):  # noqa: F811
+    hosp = {x["name"]: x["value"] for x in card(client, "hospital").json()["card"]["rules"]}
+    assert "unknown data needs approval" in hosp["Allergens"]
+    school = {x["name"]: x["value"] for x in card(client, "school").json()["card"]["rules"]}
+    assert "unknown data is refused" in school["Allergens"]
+    assert "All customers and people shown are fictional." in client.get("/").text

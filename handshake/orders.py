@@ -378,6 +378,16 @@ def _replay(stored: dict[str, Any], sha: str) -> tuple[int, dict[str, Any]]:
     return stored["status"], stored["body"]
 
 
+def _mandate_text(mandate: Any) -> str:
+    """The mandate version in force, for the policy.evaluated event (and so the receipt)."""
+    cap = mandate.limits.max_order_total_excl_tax
+    week = mandate.limits.max_weekly_total_excl_tax
+    limits = f"per-order cap {cap} EUR" if cap is not None else "no per-order cap"
+    if week is not None:
+        limits += f", weekly cap {week} EUR"
+    return f"Evaluated against mandate version {mandate.version} ({limits})."
+
+
 def _policy_text(ev: Evaluation, offer: Offer, approver: str) -> str:
     total = offer.totals.excl_tax
     if ev.outcome == "accepted":
@@ -522,7 +532,7 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
     )
     events.append(
         conn, trace_id=trace, type="policy.evaluated", actor_type="gateway", audience="both",
-        text=_policy_text(ev, offer, approver.name),
+        text=(_policy_text(ev, offer, approver.name) + " " + _mandate_text(mandate)),
         body={"order_id": order_id, "outcome": ev.outcome, "reasons": reasons,
               "mandate_id": mandate.mandate_id, "mandate_version": mandate.version},
     )

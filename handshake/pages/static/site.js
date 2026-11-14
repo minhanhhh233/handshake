@@ -153,6 +153,7 @@
     var head = el("p", "who-is", c.label);
     if (c.customer) head.appendChild(el("span", "", " for " + c.customer));
     cardBox.appendChild(head);
+    if (c.rules) cardBox.appendChild(el("p", "set-by", "Set by the customer's purchasing manager (you, in this demo)"));
     cardBox.appendChild(el("p", "", c.blurb));
     if (c.rules) {
       var dl = el("dl");

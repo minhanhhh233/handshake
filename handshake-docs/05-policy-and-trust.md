@@ -229,8 +229,9 @@ Available quantity is computed as in document 04, section 4. When several option
 | `order.confirmed` | Order reached `confirmed` | gateway | both |
 | `order.closed` | Order reached `declined`, `expired` or `rejected` | gateway | both |
 | `holds.changed` | Holds committed or released | gateway | aimo_only |
+| `mandate.changed` | The customer's purchasing manager changed the mandate (public demo cap edit; its own trace) | approver | both |
 
-Every event has a plain-language `text`, for example: "Total 1070.00 EUR exceeded the 1000.00 EUR cap. Sent to Maria Virtanen for approval."
+`policy.evaluated` text ends with the mandate version in force, for example "Evaluated against mandate version 2 (per-order cap 250.00 EUR, weekly cap 800.00 EUR)." (added 2026-11-14), so a receipt names the limits the order was judged by. Every event has a plain-language `text`, for example: "Total 1070.00 EUR exceeded the 1000.00 EUR cap. Sent to Maria Virtanen for approval."
 
 ### 7.2 Trace
 

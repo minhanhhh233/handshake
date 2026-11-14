@@ -20,7 +20,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from . import db, mandates, public_demo, timeutil
+from . import db, events, mandates, public_demo, timeutil
 from .api.deps import key_hash
 from .config import get_settings
 from .ids import is_id, new_id
@@ -32,6 +32,8 @@ COOKIE = "hs_sbx"
 MAX_NEW_PER_HOUR = 10
 MAX_CAP = Decimal("100000")
 DEMO_APPROVER = [{"name": "You (demo approver)", "contact": None}]
+#: Who sets the mandate in the demo (the card's label, and the actor of mandate.changed).
+MANAGER = "Purchasing manager (you)"
 #: The school mandate's disallowed category (stage 1): energy and sports drinks, 78 products
 #: in the challenge data (Red Bull, Monster, protein milkshakes).
 SCHOOL_FORBIDDEN_CATEGORY = "22701"
@@ -74,11 +76,11 @@ PERSONAS: dict[str, dict[str, Any]] = {
         "label": "Hospital kitchen", "customer": "Saari Hospital Kitchen",
         "agent": "Saari hospital agent",
         "blurb": "Strict allergens (peanuts, tree nuts, sesame, crustaceans, molluscs; unknown "
-                 "rejected) and no substitute without approval.",
+                 "data goes to a person for approval) and no substitute without approval.",
         "mandate": {"limits": {"max_order_total_excl_tax": "1500.00"},
                     "forbidden_allergens": {"codes": ["AP", "AN", "AS", "AC", "UM"],
                                             "states": ["CONTAINS", "MAY_CONTAIN"],
-                                            "unknown": "reject"},
+                                            "unknown": "needs_approval"},
                     "substitution": {"auto_approve": "none"},
                     "delivery": {"allowed_weekdays": [1, 2, 3, 4, 5, 6, 7]}},
     },
@@ -266,11 +268,25 @@ def set_cap(sandbox_id: str, slug: str, cap: Any) -> dict[str, Any]:
     with db.transaction() as conn:
         m = mandates.get_current(conn, pt["agent_id"])
         assert m is not None
+        old = m.limits.max_order_total_excl_tax
         base = m.dump()
         for k in ("mandate_id", "version", "agent_id", "customer_id"):
             base.pop(k, None)
-        mandates.replace(conn, pt["agent_id"], pt["customer_id"],
-                         _mandate_body(slug, f"{value}", base))
+        new = mandates.replace(conn, pt["agent_id"], pt["customer_id"],
+                               _mandate_body(slug, f"{value}", base))
+        # The change is an event of its own trace (Valio Aimo view: console and operations);
+        # orders evaluated later state the version in force in their own receipts.
+        events.append(
+            conn, trace_id=new_id("trc"), type="mandate.changed", actor_type="approver",
+            actor_id=MANAGER, audience="both",
+            text=(f"{MANAGER} changed {pt['customer']}'s per-order cap from "
+                  f"{old if old is not None else 'no cap'} to {value} EUR excl. tax "
+                  f"(mandate version {new.version})."),
+            body={"agent_id": pt["agent_id"], "customer_id": pt["customer_id"],
+                  "mandate_id": new.mandate_id, "version": new.version,
+                  "field": "limits.max_order_total_excl_tax",
+                  "from": str(old) if old is not None else None, "to": f"{value}"},
+        )
     return card(sandbox_id, slug)
 
 
