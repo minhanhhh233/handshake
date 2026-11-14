@@ -1,22 +1,20 @@
 {% extends "_base.html" %}
 {% block style %}
-.wrap { max-width: 48rem; margin: 0 auto; padding: 28px var(--gutter) 56px; }
-.brand { color: var(--slate); padding-bottom: 14px; border-bottom: 1px solid var(--frost); }
-.brand strong { color: var(--ink); }
-h1 { margin-top: 28px; font-size: var(--step-3); line-height: 1.2; }
-.sub { margin-top: 8px; color: var(--slate); }
-ol.steps { list-style: none; padding: 0; margin-top: 26px; position: relative; }
+.wrap { max-width: 52rem; margin: 0 auto; padding: 18px var(--gutter) 56px; }
+h1 { margin-top: 34px; font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1.08; letter-spacing: -0.03em; font-weight: 800; }
+.sub { margin-top: 10px; color: var(--slate); font-size: var(--step-1); max-width: 40em; }
+ol.steps { list-style: none; padding: 0; margin-top: 34px; position: relative; }
 ol.steps::before { content: ""; position: absolute; left: 15px; top: 6px; bottom: 6px; width: 2px;
   background: var(--frost); }
-.step { position: relative; padding: 0 0 22px 48px; }
+.step { position: relative; padding: 0 0 26px 52px; }
 .num { position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 700; font-size: var(--step--1);
-  background: var(--paper); border: 2px solid var(--ink); }
+  display: grid; place-items: center; font-weight: 800; font-size: var(--step--1);
+  background: var(--paper); border: 2px solid var(--accent); color: var(--accent); }
 .step.warn .num { border-color: var(--lingon); color: var(--lingon); }
 .step.bad .num, .step.refused .num { background: var(--lingon); border-color: var(--lingon);
   color: var(--white); }
-.step.ok .num { border-color: var(--spruce); color: var(--spruce); }
-.step h2 { font-size: var(--step-1); line-height: 1.3; padding-top: 4px; }
+.step.ok .num { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.step h2 { font-size: var(--step-1); line-height: 1.3; padding-top: 4px; letter-spacing: -0.01em; }
 .step p { margin-top: 6px; max-width: 40em; overflow-wrap: anywhere; }
 .step.refused p { color: var(--lingon); }
 details { margin-top: 8px; }
@@ -28,18 +26,14 @@ pre { margin-top: 8px; padding: 12px; background: var(--white); border: 1px soli
 {% for i in range(1, 12) %}.reveal .step:nth-child({{ i }}) { animation-delay: {{ (i - 1) * 0.35 }}s; }
 {% endfor %}
 @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.turn { margin-top: 10px; padding: 22px; border: 2px solid var(--ink); border-radius: 10px;
-  background: var(--white); display: grid; gap: 16px; }
-.turn h2 { font-size: var(--step-2); line-height: 1.25; }
+.turn { margin-top: 14px; padding: 26px; border: 1px solid var(--frost); border-top: 4px solid var(--accent);
+  border-radius: 14px; background: var(--white); display: grid; gap: 16px; }
+.turn h2 { font-size: var(--step-2); line-height: 1.2; letter-spacing: -0.02em; font-weight: 800; }
 .turn .qr { width: 220px; max-width: 100%; }
 .turn .qr svg { width: 100%; height: auto; display: block; }
-.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px;
-  padding: 0 22px; border-radius: 8px; font-weight: 700; font-size: var(--step-1);
-  text-decoration: none; background: var(--spruce); color: var(--white); }
-.btn.quiet { background: var(--white); color: var(--ink); border: 2px solid var(--ink); }
 .waiting { color: var(--slate); }
-.done { border-color: var(--spruce); }
-.stopped { border-color: var(--lingon); }
+.done { border-top-color: var(--accent); }
+.stopped { border-top-color: var(--lingon); }
 @media (min-width: 720px) {
   .turn.has-qr { grid-template-columns: 1fr 220px; align-items: start; }
   .turn.has-qr .qr { grid-column: 2; grid-row: 1 / span 3; }
@@ -93,11 +87,11 @@ pre { margin-top: 8px; padding: 12px; background: var(--white); border: 1px soli
     <section class="turn stopped" aria-label="Result">
       <h2>{% if order.status == "declined" %}Declined. Nothing was ordered.{% else %}The approval request expired. Nothing was ordered.{% endif %}</h2>
       <p>The stock that was held for this order has been released.</p>
-      <p><a class="btn quiet" href="{{ order.receipt_url }}" rel="noreferrer">Open the signed receipt</a></p>
+      <p><a class="btn secondary" href="{{ order.receipt_url }}" rel="noreferrer">Open the signed receipt</a></p>
     </section>
     {% endif %}
   {% endif %}
 
-  <p class="again"><a class="btn quiet" href="/">Back to the start page</a></p>
+  <p class="again"><a class="btn secondary" href="/">Back to the start page</a></p>
 </main>
 {% endblock %}

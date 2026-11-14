@@ -41,7 +41,7 @@ def landing() -> Response:
     return render("landing.html", headers=PUBLIC_HEADERS, title="Handshake",
                   base=get_settings().public_base_url, kid=get_settings().signing_kid,
                   limit=public_demo.RUNS_PER_WINDOW,
-                  window_min=public_demo.WINDOW_SECONDS // 60)
+                  window_min=public_demo.WINDOW_SECONDS // 60, stats=public_demo.site_stats())
 
 
 @router.post("/demo/run")

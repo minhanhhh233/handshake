@@ -17,8 +17,10 @@
   --spruce-dark: #23543D;
   --lingon: #B3263E;
   --white: #FFFFFF;
-  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --accent: #2E6B4F;   /* the one accent: actions, tags, active steps, focus */
+  --accent-dark: #23543D;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --step--1: 0.875rem;
   --step-0: 1rem;
   --step-1: 1.1875rem;
@@ -38,7 +40,24 @@ body {
 }
 h1, h2, h3, p, ul, ol, dl, dd, figure, blockquote { margin: 0; }
 a { color: var(--ink); text-underline-offset: 3px; }
-:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+/* Shared site chrome: top bar (every page's .brand line) and footer disclaimer. */
+.brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: var(--step--1); color: var(--slate); padding: 4px 0 16px;
+  border-bottom: 1px solid var(--frost); }
+.brand::before { content: ""; width: 14px; height: 14px; border-radius: 4px;
+  background: var(--accent); box-shadow: 5px 5px 0 0 var(--ink); margin-right: 6px; }
+.brand strong { color: var(--ink); font-size: var(--step-0); letter-spacing: -0.01em; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 50px; padding: 0 22px; border-radius: 10px; font: inherit; font-weight: 700;
+  font-size: var(--step-0); text-decoration: none; cursor: pointer; border: 2px solid var(--accent);
+  background: var(--accent); color: var(--white); }
+.btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn.secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
+.btn.secondary:hover { background: var(--frost); }
+.site-foot { max-width: 72rem; margin: 0 auto; padding: 22px var(--gutter) 34px;
+  border-top: 1px solid var(--frost); color: var(--slate); font-size: var(--step--1); }
+.site-foot p { max-width: 60em; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--slate); }
 .visually-hidden {
@@ -53,5 +72,6 @@ a { color: var(--ink); text-underline-offset: 3px; }
 </head>
 <body>
 {% block body %}{% endblock %}
+{% block site_footer %}<footer class="site-foot"><p>Prototype built for the Valio Aimo challenge at Junction 2026. Not an official Valio Aimo service. Product data is challenge data and not fully accurate.</p></footer>{% endblock %}
 </body>
 </html>

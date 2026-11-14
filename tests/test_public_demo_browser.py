@@ -69,12 +69,15 @@ def test_landing_and_example_order(browser, demo_server, w, h, tag):  # noqa: F8
     page = ctx.new_page()
     page.goto(demo_server + "/")
     assert _no_hscroll(page)
+    assert page.get_by_role("link", name="View API docs").is_visible()
     for name in ("Run the example order", "Run the allergy guard", "Search without a key"):
-        b = page.get_by_role("button", name=name)
-        assert b.is_visible() and b.bounding_box()["height"] >= 44
+        for b in page.get_by_role("button", name=name).all():
+            b.scroll_into_view_if_needed()
+            assert b.is_visible() and b.bounding_box()["height"] >= 44
+    page.get_by_text("Prototype built for the Valio Aimo challenge at Junction 2026").is_visible()
     page.screenshot(path=str(SCREENS / f"landing-{tag}.png"), full_page=True)
 
-    page.get_by_role("button", name="Run the example order").click()
+    page.get_by_role("button", name="Run the example order", exact=True).click()
     page.wait_for_url("**/demo/runs/**")
     assert _no_hscroll(page)
     assert page.get_by_text("Your turn: approve this order").is_visible()
@@ -84,10 +87,16 @@ def test_landing_and_example_order(browser, demo_server, w, h, tag):  # noqa: F8
 
     # The visitor approves on the approval page (same server; the link's host is PUBLIC_BASE_URL).
     page.goto(demo_server + urlparse(approve).path)
+    assert _no_hscroll(page)
+    page.screenshot(path=str(SCREENS / f"approval-{tag}.png"), full_page=True)
     page.get_by_role("button", name="Approve order").click()
     page.wait_for_load_state()
     page.goto(run_url)
     assert page.get_by_text("Approved. The order is confirmed.").is_visible()
     assert page.get_by_role("link", name="Open the signed receipt").is_visible()
     page.screenshot(path=str(SCREENS / f"demo-confirmed-{tag}.png"), full_page=True)
+    receipt = page.get_by_role("link", name="Open the signed receipt").get_attribute("href")
+    page.goto(demo_server + urlparse(receipt).path + "?" + urlparse(receipt).query)
+    assert _no_hscroll(page) and "Record intact" in page.inner_text("body")
+    page.screenshot(path=str(SCREENS / f"receipt-{tag}.png"), full_page=True)
     ctx.close()

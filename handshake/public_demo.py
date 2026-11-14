@@ -52,6 +52,31 @@ class DemoUnavailable(Exception):
     """The public demo parties are not seeded (scripts/seed_demo.py)."""
 
 
+# ---------------------------------------------------------------- landing page figures
+
+#: Tools an agent gets (document 07, section 2); tests/test_mcp_server.py asserts exactly these 8.
+AGENT_TOOLS = 8
+_stats_cache: tuple[float, dict[str, int]] | None = None
+
+
+def site_stats() -> dict[str, int]:
+    """Real figures for the landing page, cached in-process for 10 minutes."""
+    global _stats_cache
+    import time
+    from typing import get_args
+
+    from .models import Outcome
+
+    now = time.monotonic()
+    if _stats_cache is None or now - _stats_cache[0] > 600:
+        with db.connection() as conn:
+            products = int(db.q(conn, "SELECT COUNT(*) FROM products").scalar_one())
+        _stats_cache = (now, {
+            "products": products, "tools": AGENT_TOOLS, "outcomes": len(get_args(Outcome)),
+            "offer_minutes": get_settings().offer_ttl_seconds // 60})
+    return _stats_cache[1]
+
+
 # ---------------------------------------------------------------- identity, tokens, limits
 
 

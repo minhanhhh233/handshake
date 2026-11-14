@@ -1,91 +1,186 @@
 {% extends "_base.html" %}
 {% block style %}
-.wrap { max-width: 46rem; margin: 0 auto; padding: 28px var(--gutter) 56px; }
-.brand { font-size: var(--step-0); color: var(--slate); padding-bottom: 14px;
+.shell { max-width: 72rem; margin: 0 auto; padding: 18px var(--gutter) 0; }
+section { padding: 64px 0; }
+
+/* 1. Hero */
+.hero { padding-top: 56px; padding-bottom: 56px; display: grid; gap: 22px; max-width: 52rem; }
+.eyebrow { color: var(--accent); font-weight: 700; font-size: var(--step--1); }
+.hero h1 { font-size: clamp(2.4rem, 7vw, 4.25rem); line-height: 1.02; letter-spacing: -0.035em;
+  font-weight: 800; max-width: 15ch; }
+.sub { font-size: var(--step-1); line-height: 1.5; color: var(--slate); max-width: 38em; }
+.term { display: flex; align-items: stretch; max-width: 46rem; border-radius: 10px;
+  background: var(--ink); color: #E9F1F5; font-family: var(--mono); font-size: 14px;
+  overflow: hidden; }
+.term .prompt { padding: 14px 0 14px 16px; color: #9FD3B4; user-select: none; }
+.term code { padding: 14px 16px 14px 10px; white-space: nowrap; overflow-x: auto;
+  user-select: all; cursor: text; }
+.hint { font-size: var(--step--1); color: var(--slate); margin-top: -12px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
+.badges li { border: 1px solid var(--frost); background: var(--white); border-radius: 999px;
+  padding: 5px 12px; font-size: var(--step--1); font-weight: 600; }
+
+/* 2. Capabilities */
+.caps h2, .how h2, .demo h2 { font-size: var(--step-3); line-height: 1.1; letter-spacing: -0.02em;
+  font-weight: 800; }
+.caps .intro, .how .intro { margin-top: 10px; color: var(--slate); max-width: 40em; }
+.grid { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: 1fr; list-style: none;
+  padding: 0; }
+.card { border: 1px solid var(--frost); background: var(--white); border-radius: 12px;
+  padding: 20px 20px 22px; }
+.card .tag { color: var(--accent); font-weight: 700; font-size: var(--step--1); }
+.card h3 { margin-top: 8px; font-size: var(--step-1); line-height: 1.3; }
+.card p { margin-top: 6px; color: var(--slate); }
+
+/* 3. Stats */
+.stats { padding: 0; }
+.stats dl { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--ink);
   border-bottom: 1px solid var(--frost); }
-.brand strong { color: var(--ink); }
-.request { margin-top: 36px; font-size: clamp(1.75rem, 5.4vw, 2.75rem); line-height: 1.15;
-  font-weight: 700; letter-spacing: -0.01em; max-width: 22ch; }
-.request q { quotes: "\201C" "\201D"; }
-.who { margin-top: 12px; color: var(--slate); font-size: var(--step-1); }
-.lede { margin-top: 22px; font-size: var(--step-1); line-height: 1.55; max-width: 38em; }
-.how { margin-top: 26px; padding-left: 1.15em; display: grid; gap: 8px; max-width: 38em; }
-.how li::marker { color: var(--spruce); }
-.demos { margin-top: 40px; border-top: 2px solid var(--ink); }
-.demo { display: grid; gap: 10px; padding: 22px 0; border-bottom: 1px solid var(--frost); }
-.demo h2 { font-size: var(--step-2); line-height: 1.25; }
-.demo p { color: var(--slate); max-width: 36em; }
-.demo form { margin: 0; }
-button { font: inherit; font-weight: 700; font-size: var(--step-1); min-height: 52px;
-  padding: 0 22px; border-radius: 8px; cursor: pointer; border: 2px solid var(--ink);
-  background: var(--white); color: var(--ink); }
-button.primary { background: var(--spruce); border-color: var(--spruce); color: var(--white); }
-button.primary:hover { background: var(--spruce-dark); }
-button:hover { background: var(--frost); }
-.note { margin-top: 14px; font-size: var(--step--1); color: var(--slate); }
-.dev { margin-top: 36px; display: grid; gap: 6px; }
-.dev h2 { font-size: var(--step-1); }
-.dev ul { list-style: none; padding: 0; display: grid; gap: 6px; }
-.dev .mono { font-size: var(--step--1); color: var(--slate); }
-footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--frost);
-  font-size: var(--step--1); color: var(--slate); }
-@media (min-width: 720px) {
-  .demo { grid-template-columns: 1fr auto; align-items: center; column-gap: 28px; }
-  .demo h2, .demo p { grid-column: 1; }
-  .demo form { grid-column: 2; grid-row: 1 / span 2; }
+.stats div { padding: 22px 16px 22px 0; }
+.stats div + div { padding-left: 16px; }
+.stats div:nth-child(3) { padding-left: 0; border-top: 1px solid var(--frost); }
+.stats div:nth-child(4) { border-top: 1px solid var(--frost); }
+.stats div:nth-child(2n) { border-left: 1px solid var(--frost); }
+.stats dt { font-size: var(--step--1); color: var(--slate); }
+.stats dd { order: -1; font-size: clamp(2rem, 6vw, 2.75rem); font-weight: 800; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats div { display: flex; flex-direction: column; gap: 4px; }
+
+/* 4. Live demo: the visual centre */
+.demo-band { background: var(--ink); color: var(--paper); margin-top: 64px; }
+.demo { max-width: 72rem; margin: 0 auto; padding: 64px var(--gutter); }
+.demo h2 { color: var(--white); }
+.demo .intro { margin-top: 10px; color: #C3D3DC; max-width: 40em; }
+.tiles { margin-top: 30px; display: grid; gap: 14px; }
+.tile { margin: 0; }
+.tile button { width: 100%; text-align: left; display: grid; gap: 6px; padding: 22px;
+  border-radius: 14px; border: 1px solid #355A73; background: #1B3F59; color: var(--white);
+  font: inherit; cursor: pointer; }
+.tile button:hover { border-color: #9FD3B4; }
+.tile .t { font-size: var(--step-2); font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
+.tile .d { color: #C3D3DC; }
+.tile .go { margin-top: 8px; font-weight: 700; color: #9FD3B4; }
+.tile.primary button { background: var(--accent); border-color: var(--accent); }
+.tile.primary button:hover { background: var(--accent-dark); }
+.tile.primary .d { color: #E3F0E8; }
+.tile.primary .go { color: var(--white); }
+.demo .note { margin-top: 18px; font-size: var(--step--1); color: #A9BDC9; }
+
+/* 5. How it works */
+.steps5 { margin-top: 28px; display: grid; gap: 0; list-style: none; padding: 0; counter-reset: s; }
+.steps5 li { counter-increment: s; position: relative; padding: 0 0 22px 52px; }
+.steps5 li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 34px; height: 34px;
+  border-radius: 50%; border: 2px solid var(--accent); color: var(--accent); font-weight: 800;
+  display: grid; place-items: center; background: var(--paper); }
+.steps5 li::after { content: ""; position: absolute; left: 17px; top: 36px; bottom: 2px; width: 2px;
+  background: var(--frost); }
+.steps5 li:last-child::after { display: none; }
+.steps5 h3 { font-size: var(--step-1); padding-top: 4px; }
+.steps5 p { color: var(--slate); margin-top: 2px; }
+
+.dev { padding-top: 0; font-size: var(--step--1); color: var(--slate); }
+.dev a { font-weight: 600; }
+
+@media (min-width: 760px) {
+  .grid { grid-template-columns: repeat(3, 1fr); }
+  .stats dl { grid-template-columns: repeat(4, 1fr); }
+  .stats div:nth-child(n) { border-top: 0; padding-left: 20px; border-left: 1px solid var(--frost); }
+  .stats div:first-child { padding-left: 0; border-left: 0; }
+  .tiles { grid-template-columns: 1.3fr 1fr 1fr; }
+  .steps5 { grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .steps5 li { padding: 52px 0 0 0; }
+  .steps5 li::after { left: 40px; right: -12px; top: 17px; bottom: auto; width: auto; height: 2px; }
 }
 {% endblock %}
 {% block body %}
-<main class="wrap">
-  <p class="brand"><strong>Handshake</strong> agent gateway for Valio Aimo, Junction 2026 prototype</p>
+<div class="shell">
+  <p class="brand"><strong>Handshake</strong> agent gateway</p>
 
-  <h1 class="request"><q>I need 1,000 litres of lactose-free milk by Monday.</q></h1>
-  <p class="who">A hotel's purchasing agent, asking Valio Aimo</p>
-
-  <p class="lede">Handshake is the gateway that lets a software agent do this safely. The agent can
-    look up products, it receives a signed price it can check, and any order outside the limits a
-    person set waits for that person to approve it.</p>
-  <ul class="how">
-    <li>Prices and stock come only as signed, time-limited offers. Anyone can verify the signature.</li>
-    <li>Every order is checked against the customer's mandate on the gateway, never on the agent.</li>
-    <li>Each step is logged in a hash-chained record and summarised in a signed receipt.</li>
-  </ul>
-
-  <section class="demos" aria-label="Try it">
-    <div class="demo">
-      <h2>Run the example order</h2>
-      <p>The agent finds lactose-free milk, gets a signed offer for 1,000 litres, and checks it
-        against its mandate. The total is over its limit, so you approve it yourself.</p>
+  <section class="hero" aria-labelledby="hero-title">
+    <p class="eyebrow">Agent gateway prototype · Junction 2026</p>
+    <h1 id="hero-title">Let purchasing agents order within limits people set.</h1>
+    <p class="sub">Handshake sits between a buyer's AI agent and a food wholesaler: the agent searches, receives a signed fixed price, and any order over its mandate waits for a person to approve it.</p>
+    <div class="term" aria-label="Fetch the discovery document">
+      <span class="prompt" aria-hidden="true">$</span>
+      <code>curl {{ base }}/.well-known/handshake.json</code>
+    </div>
+    <p class="hint">Click the command once to select it, then copy.</p>
+    <div class="actions">
       <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
-        <button class="primary" type="submit">Run the example order</button></form>
+        <button class="btn" type="submit">Run the example order</button></form>
+      <a class="btn secondary" href="/docs">View API docs</a>
     </div>
-    <div class="demo">
-      <h2>Milk-allergy guard</h2>
-      <p>A school kitchen's mandate forbids milk. Lactose-free milk still contains milk, so the
-        gateway refuses every product and says why.</p>
-      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="allergy_guard">
-        <button type="submit">Run the allergy guard</button></form>
-    </div>
-    <div class="demo">
-      <h2>Anonymous search</h2>
-      <p>Without an agent key you can search products and read their attributes, but you never
-        see a price or a stock level.</p>
-      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="anonymous_search">
-        <button type="submit">Search without a key</button></form>
-    </div>
-  </section>
-  <p class="note">The demo runs against Valio Aimo's live challenge data as a separate demo customer.
-    Up to {{ limit }} runs every {{ window_min }} minutes per visitor; demo orders expire after 30 minutes.</p>
-
-  <section class="dev">
-    <h2>For developers</h2>
-    <ul>
-      <li><a href="/docs">API documentation</a> <span class="mono">/docs</span></li>
-      <li><a href="/.well-known/handshake.json">Discovery document</a> <span class="mono">/.well-known/handshake.json</span></li>
-      <li><a href="/.well-known/jwks.json">Public signing keys</a> <span class="mono">/.well-known/jwks.json</span> (key {{ kid }})</li>
+    <ul class="badges" aria-label="Standards used">
+      <li>MCP</li><li>OpenAPI</li><li>JWS EdDSA</li><li>JWKS</li><li>GS1 GTIN</li>
     </ul>
   </section>
 
-  <footer>Fictional customers and people. Prices and stock come from Valio Aimo's challenge APIs.</footer>
-</main>
+  <section class="caps" aria-labelledby="caps-title">
+    <h2 id="caps-title">What the gateway does</h2>
+    <p class="intro">Every rule lives on the gateway. The agent decides what to ask for; Handshake decides what is allowed.</p>
+    <ul class="grid">
+      <li class="card"><p class="tag">Lookup</p><h3>Structured product search</h3>
+        <p>Filter by category, claims, allergens and labels. Supplier text is marked untrusted.</p></li>
+      <li class="card"><p class="tag">Offers</p><h3>Signed, fixed prices</h3>
+        <p>Every offer is an Ed25519-signed JWS with expiry. Any agent can verify it with the public key.</p></li>
+      <li class="card"><p class="tag">Mandates</p><h3>Limits a person sets</h3>
+        <p>Spend caps, allergens, categories and delivery days, checked on every order. Never on the agent.</p></li>
+      <li class="card"><p class="tag">Approval</p><h3>Human sign-off</h3>
+        <p>Orders over the mandate wait for a named approver on a phone. The agent never sees the link.</p></li>
+      <li class="card"><p class="tag">Receipts</p><h3>Tamper-evident record</h3>
+        <p>Each step is hash-chained. The signed receipt carries the chain head, so changes show.</p></li>
+      <li class="card"><p class="tag">Open</p><h3>Works with any agent</h3>
+        <p>Plain HTTPS with an OpenAPI description, a discovery document, and an MCP server.</p></li>
+    </ul>
+  </section>
+
+  <section class="stats" aria-label="The system in figures">
+    <dl>
+      <div><dt>products in the catalogue</dt><dd>{{ "{:,}".format(stats.products) }}</dd></div>
+      <div><dt>tools an agent can call</dt><dd>{{ stats.tools }}</dd></div>
+      <div><dt>possible outcomes per order</dt><dd>{{ stats.outcomes }}</dd></div>
+      <div><dt>minutes an offer stays valid</dt><dd>{{ stats.offer_minutes }}</dd></div>
+    </dl>
+  </section>
+</div>
+
+<div class="demo-band">
+  <section class="demo" id="demo" aria-labelledby="demo-title">
+    <h2 id="demo-title">Try it live</h2>
+    <p class="intro">These run on the real gateway with Valio Aimo's challenge data, as a separate demo customer. No sign-in.</p>
+    <div class="tiles">
+      <form class="tile primary" method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
+        <button type="submit"><span class="t">Run the example order</span>
+          <span class="d">1,000 litres of lactose-free milk. The total is over the agent's limit, so you approve it yourself.</span>
+          <span class="go">Start the order</span></button></form>
+      <form class="tile" method="post" action="/demo/run"><input type="hidden" name="scenario" value="allergy_guard">
+        <button type="submit"><span class="t">Milk-allergy guard</span>
+          <span class="d">A school kitchen's mandate forbids milk. Lactose-free milk still contains it.</span>
+          <span class="go">Run the allergy guard</span></button></form>
+      <form class="tile" method="post" action="/demo/run"><input type="hidden" name="scenario" value="anonymous_search">
+        <button type="submit"><span class="t">Anonymous search</span>
+          <span class="d">Without a key you see products and attributes, never prices or stock.</span>
+          <span class="go">Search without a key</span></button></form>
+    </div>
+    <p class="note">Up to {{ limit }} runs every {{ window_min }} minutes per visitor. Demo orders expire after 30 minutes.</p>
+  </section>
+</div>
+
+<div class="shell">
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">How it works</h2>
+    <p class="intro">The path of one order, as the agent and the gateway see it.</p>
+    <ol class="steps5">
+      <li><h3>Search</h3><p>The agent filters the catalogue by structured attributes.</p></li>
+      <li><h3>Offer</h3><p>The gateway prices and signs a time-limited offer.</p></li>
+      <li><h3>Check</h3><p>A dry run tests the order against the mandate.</p></li>
+      <li><h3>Approve</h3><p>Over the limit, a named person signs off.</p></li>
+      <li><h3>Receipt</h3><p>A signed, hash-chained record of every step.</p></li>
+    </ol>
+  </section>
+  <section class="dev" aria-label="For developers">
+    <p>For developers: <a href="/docs">API documentation</a>, <a href="/.well-known/handshake.json">discovery document</a>, <a href="/.well-known/jwks.json">public signing keys</a> (key {{ kid }}).</p>
+  </section>
+</div>
 {% endblock %}

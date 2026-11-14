@@ -166,6 +166,8 @@ The submission's live URL is the landing page `https://minhanhhh233--handshake-w
 | Milk-allergy guard | The milk-allergy agent's offer request is refused for every product, with "Lactose-free is not milk-free." | Unknown is not safe |
 | Anonymous search | Search without a key: structured attributes, no price or stock field | Data ownership |
 
+Landing page structure (redesign 2026-11-14): hero with the discovery `curl` command (selected with one click; no scripts), "Run the example order" and "View API docs", and badges for the standards used (MCP, OpenAPI, JWS EdDSA, JWKS, GS1 GTIN); six capability cards; four figures read from the system (product count from the database, 8 agent tools, 3 outcomes, offer lifetime from configuration); the live demo band; a five-step "How it works" strip; and the footer disclaimer, which also appears on the approval, run and receipt pages. One accent colour (spruce); lingonberry is kept only as a status colour for over-limit, declined and refused states.
+
 Rules: separate public-demo customer and agents (rehearsal data untouched); no Claude API calls; 5 runs per 10 minutes per visitor; public-demo approvals expire after 30 minutes; the admin key, the console and other orders' approval links are never reachable from these pages. Tests: `tests/test_public_demo.py` (scenarios, approval, expiry, limit, tokens) and `tests/test_public_demo_browser.py` (390 and 1280 px).
 
 ### Fallbacks
