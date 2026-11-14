@@ -836,7 +836,8 @@
   if (beh === "rogue") {
     var rb = form.querySelector('input[name="behaviour"][value="rogue"]');
     if (rb) rb.checked = true;
-    if (needsBuyer(persona)) persona = "restaurant";
+    // The Restaurant has both a per-order and a weekly cap, so splitting an order is caught.
+    persona = "restaurant";
   }
   syncRogue();
   if (!document.querySelector('.pb[data-persona="' + persona + '"]')) persona = "hotel";

@@ -188,6 +188,7 @@ def test_decline_on_the_approval_page_and_rogue_preselect(browser, demo_server):
     page.goto(demo_server + "/live?behaviour=rogue")
     page.locator("#rules-list li").first.wait_for(timeout=10000)
     assert page.locator('input[name="behaviour"][value="rogue"]').is_checked()
+    assert page.locator('.pb[data-persona="restaurant"]').get_attribute("aria-pressed") == "true"
     assert page.locator("#rogue-note").is_visible()
     page.screenshot(path=str(SCREENS / "live-rogue-selected-390.png"), full_page=True)
     # Start here, step 1 from the empty Handshake frame; then the person declines.
