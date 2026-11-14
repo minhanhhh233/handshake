@@ -51,7 +51,7 @@ SERVER_NAME = "handshake"
 SERVER_VERSION = "0.1.0"
 
 TOOL_NAMES = ("search_products", "get_product", "get_mandate", "request_offer", "dry_run_order",
-              "place_order", "get_order", "get_receipt")
+              "place_order", "get_order", "get_receipt", "list_proposals", "decline_proposal")
 
 #: The Claude agent's executor spaces get_order calls itself; here the assistant polls.
 GET_ORDER_DESCRIPTION = (
@@ -78,7 +78,7 @@ _FORBIDDEN_KEYS = {"approval_url", "approval_token", "approve_url", "token"}
 
 
 def mcp_tool_definitions() -> list[types.Tool]:
-    """The eight tools of document 07, section 2, with the input schemas and descriptions of
+    """The ten tools of document 07, section 2, with the input schemas and descriptions of
     `agent.claude_agent.tool_definitions()` (Anthropic-only fields dropped)."""
     tools = []
     for t in tool_definitions(category_hint=True):
@@ -124,6 +124,10 @@ def run_tool(hs: HandshakeClient, name: str, args: dict[str, Any]) -> tuple[Any,
             res = hs.get_order(str(args["order_id"]))
         elif name == "get_receipt":
             res = _trim_receipt(hs.get_receipt(str(args["order_id"])))
+        elif name == "list_proposals":
+            res = hs.list_proposals()
+        elif name == "decline_proposal":
+            res = hs.decline_proposal(str(args["proposal_id"]))
         else:
             return {"error": "unknown_tool", "detail": f"No tool named {name!r}."}, True
         return res, False

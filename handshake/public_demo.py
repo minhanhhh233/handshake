@@ -55,7 +55,7 @@ class DemoUnavailable(Exception):
 # ---------------------------------------------------------------- landing page figures
 
 #: Tools an agent gets (document 07, section 2); tests/test_mcp_server.py asserts exactly these 8.
-AGENT_TOOLS = 8
+AGENT_TOOLS = 10
 _stats_cache: tuple[float, dict[str, int]] | None = None
 
 

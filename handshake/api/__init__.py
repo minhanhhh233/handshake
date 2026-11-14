@@ -129,13 +129,14 @@ def create_app() -> FastAPI:
         err = HandshakeError(code, str(exc.detail), status=exc.status_code)
         return problem_response(err, trace_id_of(request))
 
-    from . import admin, mandates, offers, orders, products, wellknown
+    from . import admin, mandates, offers, orders, products, proposals, wellknown
 
     app.include_router(wellknown.router)
     app.include_router(products.router)
     app.include_router(mandates.router)
     app.include_router(offers.router)
     app.include_router(orders.router)
+    app.include_router(proposals.router)
     app.include_router(admin.router)
 
     try:

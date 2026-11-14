@@ -170,6 +170,47 @@
       var msg = el("span", "msg", "");
       f.appendChild(lab); f.appendChild(inp); f.appendChild(save); f.appendChild(msg);
       if (c.ladder) { lab.hidden = true; inp.hidden = true; save.hidden = true; }
+      if (c.proactive) {
+        var pa = el("div", "proactive");
+        pa.appendChild(el("span", "chips-h", "Proactive offers from Valio Aimo"));
+        var onLab = el("label", "pa-on");
+        var on = el("input"); on.type = "checkbox"; on.checked = !!c.proactive.enabled;
+        onLab.appendChild(on); onLab.appendChild(document.createTextNode(" Allow proactive offers"));
+        pa.appendChild(onLab);
+        var cats = el("div", "pa-cats");
+        c.proactive.choices.forEach(function (ch) {
+          var l = el("label");
+          var cb = el("input"); cb.type = "checkbox"; cb.value = ch.code;
+          cb.checked = (c.proactive.categories || []).indexOf(ch.code) >= 0;
+          l.appendChild(cb); l.appendChild(document.createTextNode(" " + ch.name));
+          cats.appendChild(l);
+        });
+        pa.appendChild(cats);
+        var mrow = el("label", "pa-max", "At most ");
+        var mx = el("input"); mx.type = "number"; mx.min = "0"; mx.max = "20"; mx.value = c.proactive.max_per_week;
+        mrow.appendChild(mx); mrow.appendChild(document.createTextNode(" proposals per week"));
+        pa.appendChild(mrow);
+        var psave = el("button", "save", "Save consent"); psave.type = "button";
+        psave.addEventListener("click", function () {
+          psave.disabled = true;
+          var chosen = Array.prototype.map.call(cats.querySelectorAll("input:checked"), function (x) { return x.value; });
+          fetch("/demo/sandbox/proactive", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ persona: persona, enabled: on.checked, categories: chosen, max_per_week: parseInt(mx.value || "0", 10) }),
+            credentials: "same-origin" })
+            .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+            .then(function (res) {
+              psave.disabled = false;
+              if (res.status === 200) {
+                renderCard(res.body.card, res.body.sandbox);
+                var m3 = cardBox.querySelector(".msg");
+                if (m3) m3.textContent = "Consent saved (mandate version " + res.body.card.mandate_version + ").";
+              }
+            })
+            .catch(function () { psave.disabled = false; });
+        });
+        pa.appendChild(psave);
+        cardBox.appendChild(pa);
+      }
       if (c.preferences) {
         var pr = el("div", "prefs");
         pr.appendChild(el("span", "chips-h", "Rank offers by"));
@@ -324,6 +365,7 @@
       body: JSON.stringify(payload), credentials: "same-origin" })
       .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); });
   }
+  var lastSendNote = "";
   function renderOps(o) {
     inboxBox.textContent = "";
     var agents = o.agents || [];
@@ -355,6 +397,42 @@
       d.appendChild(acts);
       inboxBox.appendChild(d);
     });
+    var buyers = agents.filter(function (a) { return a.persona; });
+    if (buyers.length) {
+      inboxBox.appendChild(el("p", "chips-h", "Send seasonal offer (Valio Aimo selling agent, scripted)"));
+      var sendRow = el("div", "acts");
+      var sel = el("select", "pa-select");
+      sel.setAttribute("aria-label", "Buyer");
+      buyers.forEach(function (a) { var op = el("option", "", a.persona_label + ": " + a.customer); op.value = a.agent_id; sel.appendChild(op); });
+      var sendB = el("button", "", "Send seasonal offer"); sendB.type = "button";
+      var sendNote = el("p", "", lastSendNote);
+      sendB.addEventListener("click", function () {
+        sendB.disabled = true;
+        opsPost("/demo/ops/propose", { agent_id: sel.value }).then(function (res) {
+          sendB.disabled = false;
+          var b = res.body || {};
+          lastSendNote = res.status !== 200 ? (b.message || "Not sent.") :
+            (b.status === "open" ? "Sent: proposal " + b.proposal_id + " for product " + b.product_id + ", " + b.total_excl_tax + " EUR excl. tax, valid 30 minutes."
+                                 : "Blocked by the gateway: " + b.reason);
+          sendNote.textContent = lastSendNote;
+          fetch("/demo/ops", { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (v) { renderOps(v); });
+        }).catch(function () { sendB.disabled = false; });
+      });
+      sendRow.appendChild(sel); sendRow.appendChild(sendB);
+      inboxBox.appendChild(sendRow);
+      inboxBox.appendChild(sendNote);
+    }
+    var props = o.proposals || [];
+    if (props.length) {
+      inboxBox.appendChild(el("p", "chips-h", "Proposals"));
+      var pl = el("ul", "ops-list");
+      props.forEach(function (x) {
+        pl.appendChild(el("li", "", x.proposal_id + ": " + x.status + ", product " + x.product_id + ", " + x.agent +
+          (x.blocked_reason ? ". Refused: " + x.blocked_reason.replace(/\.$/, "") : "") +
+          (x.reason_untrusted ? ". Seller's note (untrusted): " + x.reason_untrusted : "")));
+      });
+      inboxBox.appendChild(pl);
+    }
     var orders = o.orders || [];
     inboxBox.appendChild(el("p", "chips-h", "Orders, with the full Valio Aimo receipt view"));
     if (!orders.length) inboxBox.appendChild(el("p", "", "No orders yet."));
@@ -494,6 +572,12 @@
       fillRes(r, s.status === "bad" ? "error" : "response", s.detail, s.status === "bad");
       var opts = s.title === "request_offer" && s.detail && s.detail.options;
       if (opts && opts.length > 1) compareRow(opts);
+    } else if (s.kind === "seller") {
+      r = row("seller");
+      r.req.className = "lv-cell req empty";
+      fillRes(r, s.status === "bad" ? "blocked" : "sent", s.detail, s.status === "bad");
+      r.res.querySelector(".who span").textContent = "Valio Aimo selling agent (scripted), initiator";
+      r.res.appendChild(el("p", "cmp-note", s.summary + (s.detail && s.detail.reason && s.status === "bad" ? ": " + s.detail.reason : "")));
     } else if (s.kind === "probe") {
       r = row("probe");
       var verdict = (s.detail || {}).verdict || "";

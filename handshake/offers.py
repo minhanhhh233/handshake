@@ -655,7 +655,8 @@ def _qty_text(q: Quantity) -> str:
 
 
 def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id: str,
-                ttl_seconds: int | None = None) -> dict[str, Any]:
+                ttl_seconds: int | None = None, requested_by: str | None = None
+                ) -> dict[str, Any]:
     """POST /v1/offers (document 03, section 5; document 06, section 6). Returns the 201 body.
 
     Raises HandshakeError: invalid_request, forbidden (no mandate), no_candidates,
@@ -693,10 +694,12 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
         f"candidate product(s)" for line in req.lines)
     with db.transaction() as conn:
         events.append(
-            conn, trace_id=trace_id, type="offer.requested", actor_type="agent",
-            actor_id=agent_id, audience="both",
-            text=f"Agent requested an offer for {req_text}, delivery "
-                 f"{req.delivery_date.isoformat()}.",
+            conn, trace_id=trace_id, type="offer.requested",
+            actor_type="admin" if requested_by else "agent",
+            actor_id=requested_by or agent_id, audience="both",
+            text=f"{requested_by or 'Agent'} requested an offer for {req_text}, delivery "
+                 f"{req.delivery_date.isoformat()}"
+                 + (f" (a proactive offer to agent {agent_id})." if requested_by else "."),
             body={"delivery_date": req.delivery_date.isoformat(), "lines": [
                 {"product_ids": line.product_ids,
                  "quantity": line.quantity.dump(), "fulfilment": line.fulfilment,
@@ -1001,7 +1004,7 @@ def lowest_price_key(p: Prepared) -> tuple[int, Decimal, int]:
     return (1 if p.cand.role == "substitute" else 0, p.unit_excl / p.per_unit, p.cand.pos)
 
 
-def withdraw_offer(offer_id: str, agent_id: str) -> None:
+def withdraw_offer(offer_id: str, agent_id: str, reason: str = "replaced") -> None:
     """`replaces_offer_id`: withdraw the agent's own active offer and release its holds.
 
     An offer of another agent is reported as not found; an offer that is no longer active
@@ -1017,11 +1020,13 @@ def withdraw_offer(offer_id: str, agent_id: str) -> None:
                    "AND status = 'active'", o=offer_id)
         events.append(
             conn, trace_id=row["trace_id"], type="offer.expired", actor_type="gateway",
-            audience="both", text=f"Offer {offer_id} was withdrawn: the agent replaced it with "
-                                  f"a new request.",
-            body={"offer_id": offer_id, "reason": "replaced"},
+            audience="both",
+            text=(f"Offer {offer_id} was withdrawn: the agent replaced it with a new request."
+                  if reason == "replaced" else f"Offer {offer_id} was withdrawn: {reason}."),
+            body={"offer_id": offer_id, "reason": reason},
         )
-        release_holds(conn, offer_id, row["trace_id"], "offer replaced")
+        release_holds(conn, offer_id, row["trace_id"],
+                      "offer replaced" if reason == "replaced" else reason)
 
 
 def release_holds(conn: Connection, offer_id: str, trace_id: str, why: str) -> list[dict]:

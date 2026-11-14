@@ -4,8 +4,8 @@ import re
 import secrets
 
 _ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
-PREFIXES = ("agt", "cus", "mnd", "off", "ord", "apr", "evt", "trc", "sbx")
-ID_RE = re.compile(r"^(agt|cus|mnd|off|ord|apr|evt|trc|sbx)_[a-z2-7]{20}$")
+PREFIXES = ("agt", "cus", "mnd", "off", "ord", "apr", "evt", "trc", "sbx", "prp")
+ID_RE = re.compile(r"^(agt|cus|mnd|off|ord|apr|evt|trc|sbx|prp)_[a-z2-7]{20}$")
 
 
 def new_id(prefix: str) -> str:

@@ -570,6 +570,9 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
                   "reason_codes": [r.code for r in ev.reasons]},
         )
         offers.release_holds(conn, offer_id, trace, "order rejected")
+    from . import proposals
+
+    proposals.note_order(conn, offer_id, order_id, trace, agent_id)  # accepting a proposal
     if ev.outcome in ("accepted", "rejected"):
         from . import trust
 

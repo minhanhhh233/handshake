@@ -34,7 +34,7 @@ PROMPT = ("I need 1,000 litres of lactose-free milk by Monday. Find an option th
           "requirements based on price and availability.")
 TODAY = "Saturday 14 November 2026"
 TOOL_NAMES = ["search_products", "get_product", "get_mandate", "request_offer", "dry_run_order",
-              "place_order", "get_order", "get_receipt"]
+              "place_order", "get_order", "get_receipt", "list_proposals", "decline_proposal"]
 
 
 # ---------------------------------------------------------------- fake Anthropic client

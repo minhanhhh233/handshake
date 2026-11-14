@@ -395,3 +395,32 @@ def test_trust_ladder_and_conformance(browser, demo_server, monkeypatch, w, h, t
     assert _no_hscroll(page)
     page.locator("#live").screenshot(path=str(SCREENS / f"conformance-{tag}.png"))
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_proactive_offers(browser, demo_server, w, h, tag):  # noqa: F811
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="restaurant"]').click()
+    page.locator("#lv-card").get_by_text("Proactive offers from Valio Aimo").wait_for(timeout=10000)
+    page.locator('.chip[data-scenario="proposal_accept"]').click()
+    seller = page.locator(".lv-row.seller")
+    seller.wait_for(timeout=20000)
+    assert "initiator" in seller.inner_text()
+    page.get_by_text("The order is confirmed.").wait_for(timeout=20000)
+    assert _no_hscroll(page)
+    page.locator("#live").screenshot(path=str(SCREENS / f"proposal-accept-{tag}.png"))
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator('.pb[data-persona="restaurant"]').click()
+    page.locator("#lv-card").get_by_text("on: Ground coffee, at most 2 per week").wait_for(
+        timeout=10000)
+    page.locator('.pb[data-persona="operations"]').click()
+    page.locator("select.pa-select").select_option(label="Restaurant: Bistro Kallio")
+    page.get_by_role("button", name="Send seasonal offer").click()
+    page.get_by_text("Sent: proposal").wait_for(timeout=15000)
+    page.locator("#lv-inbox").screenshot(path=str(SCREENS / f"ops-send-offer-{tag}.png"))
+    assert _no_hscroll(page)
+    ctx.close()

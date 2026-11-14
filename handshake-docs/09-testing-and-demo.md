@@ -188,6 +188,19 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6i. Proactive selling agent, with consent (stage 6, added 2026-11-14)
+
+- Consent on the mandate card: a "Proactive offers from Valio Aimo" switch, six categories (ground coffee, coffee beans, milk and milk drinks, rye bread, other bread, pasta) and a maximum per week. Off by default; saving writes a new mandate version and `mandate.changed`.
+- Valio Aimo operations: "Send seasonal offer" to a chosen buyer of the sandbox; the scripted selling agent picks the seasonal product of the buyer's first opted-in category (no model). The result (sent, or blocked with the reason) and every proposal appear in the operations view.
+- Chips (scripted): Restaurant "Opt in, receive an offer, accept it" (opt in to ground coffee, 2 per week; the selling agent proposes 2 x Kulta Katriina 467004, 170.42 EUR; the buyer agent lists proposals, dry-runs and orders it: confirmed with no person, under the 300 EUR cap); Hotel chain "Not opted in: nothing is sent" (blocked, and the agent's list is empty); School kitchen "Offer blocked by the mandate" (opted in to milk drinks, proposed lactose-free milk 464306: blocked by R3, "Lactose-free is not milk-free."). In the two panels the selling agent is the initiator on the right; the buyer agent's calls and decisions are on the left.
+- Events `proposal.sent`, `proposal.accepted` and `proposal.declined` appear on the receipt; `proposal.blocked` in the operations view.
+
+Measured on the hosted gateway at 390 and 1280 px: the three chips as above, "Send seasonal offer" to the Restaurant sent proposal 467004 at 170.42 EUR, no console errors. Security review (2026-11-14): no findings (sandbox scoping of list, decline, order and send; no policy shortcut; secrets; SQL; escaping); its minor note (non-text categories) was fixed.
+
+Tests: `tests/test_proposals.py` (not opted in, outside categories, weekly maximum, mandate rejection, signed offer with a hold and an untrusted reason, accept by order with the dry run and policy unchanged and both events on the receipt, decline releases the hold, an over-cap acceptance still needs approval, no sandbox crossing for list, decline, order or send, the admin route needs the key, the three chips) and the browser test (consent card, accept chip with the seller as initiator, operations send, 390 and 1280 px).
+
+After this stage, feature work is finished.
+
 ### 6h. Trusted with (stage 5, added 2026-11-14)
 
 - New agent on probation: its mandate has a trust ladder 50 → 150 → 300 EUR, one step up after 3 confirmed orders in a row, back to 50 EUR after a rejected or declined order. The rules and the current step are on the mandate card (the cap editor is hidden for a ladder). Chips: "Build trust: 3 small orders" (three 30 L milk orders confirmed, then a 120 L dry run is accepted at the 150 EUR step) and "Over the cap: decline it" (an order over the current step waits for approval; declining sends the ladder back to 50 EUR). Each change of level is a `trust.level_changed` event on that order's receipt.

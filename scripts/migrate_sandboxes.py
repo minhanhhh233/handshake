@@ -39,6 +39,16 @@ def main() -> int:
                    "text_en VARCHAR(500) NOT NULL, created_at DATETIME(3) NOT NULL, "
                    "PRIMARY KEY (sandbox_id, product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
         print("sandbox_overlays: table present")
+        db.q(conn, "CREATE TABLE IF NOT EXISTS proposals ("
+                   "proposal_id VARCHAR(32) NOT NULL PRIMARY KEY, agent_id VARCHAR(32) NOT NULL, "
+                   "customer_id VARCHAR(32) NOT NULL, offer_id VARCHAR(32) NULL, "
+                   "product_id VARCHAR(16) NOT NULL, status ENUM('open','accepted','declined',"
+                   "'expired','blocked') NOT NULL, reason_untrusted VARCHAR(500) NULL, "
+                   "blocked_reason VARCHAR(500) NULL, trace_id VARCHAR(32) NOT NULL, "
+                   "created_at DATETIME(3) NOT NULL, expires_at DATETIME(3) NULL, "
+                   "decided_at DATETIME(3) NULL, KEY ix_proposal_agent (agent_id, created_at), "
+                   "KEY ix_proposal_offer (offer_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+        print("proposals: table present")
         ocols = {r[0] for r in db.q(conn, "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
                                           "WHERE TABLE_SCHEMA = DATABASE() AND "
                                           "TABLE_NAME = 'orders'").all()}

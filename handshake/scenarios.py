@@ -552,6 +552,58 @@ def conformance(s: Script) -> None:
                                                                  "live_run": trace})
 
 
+def _seller(s: Script, out: dict[str, Any]) -> None:
+    """Valio Aimo's selling agent is the initiator: shown on the right."""
+    shown = {k: out.get(k) for k in ("proposal_id", "status", "product_id", "reason")}
+    if out.get("status") == "open":
+        o = out["offer"]
+        shown["offer"] = {"offer_id": o["offer_id"], "totals": o["totals"],
+                          "lines": [{"product_id": ln["product_id"], "name": ln.get("name"),
+                                     "quantity": ln["quantity"]} for ln in o["lines"]],
+                          "expires_at": o["expires_at"]}
+    s.r.step("Valio Aimo selling agent", "Proactive offer" if out.get("status") == "open"
+             else "Proactive offer blocked by the gateway",
+             "ok" if out.get("status") == "open" else "bad", kind="seller", detail=shown)
+
+
+def proposal_accept(s: Script) -> None:
+    s.say("The Restaurant's purchasing manager opts in to proactive offers for ground coffee, "
+          "at most 2 per week.")
+    sbx.set_proactive(s.sandbox_id, "restaurant", True, ["22300"], 2)
+    from . import ops
+
+    _seller(s, ops.propose(s.sandbox_id, s.party["agent_id"], trace_id=s.r.trace_id))
+    res, ok = s.call("list_proposals", "GET /v1/proposals", {}, s.hs.list_proposals)
+    items = (res or {}).get("items") or []
+    if not ok or not items:
+        return s.say("No open proposal reached the agent.")
+    oid = items[0]["offer"]["offer_id"]
+    s.say("The buyer agent checks the proposal against its mandate before accepting it.")
+    s.dry_run(oid)
+    s.order(oid, reference="PROPOSAL-ACCEPTED")
+
+
+def proposal_not_opted(s: Script) -> None:
+    s.say("The Hotel chain has not opted in to proactive offers. Valio Aimo's selling agent "
+          "tries anyway.")
+    from . import ops
+
+    _seller(s, ops.propose(s.sandbox_id, s.party["agent_id"], trace_id=s.r.trace_id))
+    s.call("list_proposals", "GET /v1/proposals", {}, s.hs.list_proposals)
+    s.say("Nothing was sent: the gateway refused it, and the agent has no proposals.")
+
+
+def proposal_blocked(s: Script) -> None:
+    s.say("The School kitchen opts in to offers for milk and milk drinks. The selling agent "
+          "proposes lactose-free milk, which contains milk.")
+    sbx.set_proactive(s.sandbox_id, "school", True, ["10400"], 2)
+    from . import ops
+
+    _seller(s, ops.propose(s.sandbox_id, s.party["agent_id"], "464306", trace_id=s.r.trace_id))
+    s.call("list_proposals", "GET /v1/proposals", {}, s.hs.list_proposals)
+    s.say("Blocked by the mandate: consent to a category never overrides a forbidden allergen.")
+
+
 def any_tomorrow(s: Script) -> None:
     tomorrow = timeutil.today_helsinki() + timedelta(days=1)
     s.say(f"Needed tomorrow, {tomorrow.isoformat()}.")
@@ -661,6 +713,12 @@ SCENARIOS: dict[str, dict[str, Any]] = {
                           "fn": probation_decline},
     "conformance": {"label": "Conformance check (4 probes)", "personas": sbx.BUYERS,
                     "fn": conformance},
+    "proposal_accept": {"label": "Opt in, receive an offer, accept it",
+                        "personas": ["restaurant"], "fn": proposal_accept},
+    "proposal_not_opted": {"label": "Not opted in: nothing is sent", "personas": ["hotel"],
+                           "fn": proposal_not_opted},
+    "proposal_blocked": {"label": "Offer blocked by the mandate", "personas": ["school"],
+                         "fn": proposal_blocked},
     "compare_options": {"label": "Compare three offers", "personas": sbx.BUYERS,
                         "fn": compare_options},
     "suspended_probe": {"label": "Suspended agent tries to order", "personas": sbx.BUYERS,

@@ -257,6 +257,8 @@ class TrustLadder(_Model):
 class ProactiveOffers(_Model):
     enabled: bool = False
     categories: list[str] = Field(default_factory=list)
+    #: Stage 6: at most this many proposals per ISO week (Europe/Helsinki).
+    max_per_week: int = Field(default=2, ge=0, le=20)
 
 
 class MandateBody(_Model):

@@ -262,6 +262,10 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
             f"{CATEGORY_NAMES.get(c, 'category')} ({c})" for c in m.forbidden_categories)))
     elif m.allowed_categories is None:
         rules.append(("Categories", "all"))
+    po = m.proactive_offers
+    rules.append(("Proactive offers", (
+        f"on: {', '.join(PROACTIVE_CATEGORIES.get(c, c) for c in po.categories) or 'no categories'}"
+        f", at most {po.max_per_week} per week") if po.enabled else "off (no offers from Valio Aimo)"))
     days = m.delivery.allowed_weekdays
     names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     rules.append(("Delivery", "any day" if len(days) == 7 else
@@ -281,6 +285,11 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
     return {"persona": slug, "label": PERSONAS[slug]["label"], "customer": pt["customer"],
             "agent": PERSONAS[slug]["agent"], "blurb": PERSONAS[slug]["blurb"],
             "mandate_version": m.version, "preference": pref,
+            "proactive": {"enabled": m.proactive_offers.enabled,
+                          "categories": m.proactive_offers.categories,
+                          "max_per_week": m.proactive_offers.max_per_week,
+                          "choices": [{"code": k, "name": v}
+                                      for k, v in PROACTIVE_CATEGORIES.items()]},
             "ladder": ladder_state is not None,
             "preferences": [{"id": k, "label": v["label"]} for k, v in PREFERENCES.items()],
             "cap": str(lim.max_order_total_excl_tax) if lim.max_order_total_excl_tax else None,
@@ -376,6 +385,51 @@ def set_preference(sandbox_id: str, slug: str, pref: Any) -> dict[str, Any]:
                   "mandate_id": new.mandate_id, "version": new.version,
                   "field": "preferences", "to": base["preferences"]},
         )
+    return card(sandbox_id, slug)
+
+
+#: Categories a buyer can opt in to for proactive offers (stage 6), with names for the card.
+PROACTIVE_CATEGORIES = {
+    "22300": "Ground coffee", "22410": "Coffee beans", "10400": "Milk and milk drinks",
+    "10900": "Rye bread", "10901": "Other bread", "21380": "Pasta",
+}
+
+
+def set_proactive(sandbox_id: str, slug: str, enabled: Any, categories: Any,
+                  max_per_week: Any) -> dict[str, Any]:
+    """Consent to proactive offers: a new mandate version and mandate.changed (stage 6)."""
+    if not isinstance(enabled, bool):
+        raise SandboxError(400, "invalid_request", "enabled must be true or false.")
+    cats = categories if isinstance(categories, list) else []
+    if any(not isinstance(c, str) or c not in PROACTIVE_CATEGORIES for c in cats):
+        raise SandboxError(400, "invalid_request", "Unknown category.")
+    try:
+        mpw = int(max_per_week)
+    except (TypeError, ValueError):
+        raise SandboxError(400, "invalid_request", "max_per_week must be a number.") from None
+    if not 0 <= mpw <= 20:
+        raise SandboxError(400, "invalid_request", "max_per_week must be 0 to 20.")
+    pt = party(sandbox_id, slug)
+    with db.transaction() as conn:
+        m = mandates.get_current(conn, pt["agent_id"])
+        assert m is not None
+        base = m.dump()
+        for k in ("mandate_id", "version", "agent_id", "customer_id"):
+            base.pop(k, None)
+        base["proactive_offers"] = {"enabled": enabled, "categories": sorted(set(cats)),
+                                    "max_per_week": mpw}
+        new = mandates.replace(conn, pt["agent_id"], pt["customer_id"],
+                               _mandate_body(slug, None, base))
+        names = ", ".join(PROACTIVE_CATEGORIES[c] for c in sorted(set(cats))) or "no categories"
+        events.append(
+            conn, trace_id=new_id("trc"), type="mandate.changed", actor_type="approver",
+            actor_id=MANAGER, audience="both",
+            text=(f"{MANAGER} turned proactive offers {'on' if enabled else 'off'} for "
+                  f"{pt['customer']}" + (f" ({names}, at most {mpw} per week)" if enabled else "")
+                  + f" (mandate version {new.version})."),
+            body={"agent_id": pt["agent_id"], "customer_id": pt["customer_id"],
+                  "mandate_id": new.mandate_id, "version": new.version,
+                  "field": "proactive_offers", "to": base["proactive_offers"]})
     return card(sandbox_id, slug)
 
 

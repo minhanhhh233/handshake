@@ -213,6 +213,7 @@ Request:
 | `lines[].substitution` | `none` (default) or `allowed`. When allowed, the gateway may add products not in `product_ids`. |
 | `lines[].prefer` | `listed_order` (default): fill in the agent's order. `lowest_price`: after the filters, the gateway sorts the line's listed candidates by price excl. tax per requested unit (per L or KG after conversion, per sales unit otherwise), cheapest first, ties in the agent's order; substitutes stay after the listed candidates. Roles (`requested`, `alternate`) still follow the agent's list. Added 2026-11-14 (FR-21). |
 | Order `rationale` | Optional on `POST /v1/orders`, at most 500 characters (stage 3): the agent's stated reason for its choice. Stored as untrusted text (`orders.rationale_untrusted`), recorded in the `order.submitted` event body as `rationale_untrusted`, and shown on the receipt page as "The agent's stated reason for its choice (not verified)". Never evaluated. |
+| (Proposals) | See section 5b: a proposal's offer is accepted with `POST /v1/orders` like any other offer. |
 | `replaces_offer_id` | Optional. An offer of the same agent that this request corrects. If it is still `active`, the gateway sets it `expired`, writes `offer.expired` with `reason: "replaced"` and releases its holds before filling this request; if it is no longer active nothing changes. Another agent's offer gives `404 not_found`. Added 2026-11-14 (FR-22). |
 | `max_options` | 1 to 3, default 1. With 1 the gateway returns one option, `best`, filled in the agent's order (or `prefer`), with no `score`, as before. With 2 or 3 (T-501, restored 2026-11-14, stage 3) it returns ranked options in this order: `best` (by descending score under the mandate's `preferences`, document 05, section 4), `better` (cheapest first), `good` (fewest distinct products: candidates that can fill a line alone first). An option is left out when it would be identical to an earlier one. Each option is a separate offer with its own ID, holds and signature, and carries `score: {total, breakdown}`; the option's score is its products' scores weighted by their share of the option's total excl. tax. Listed candidates stay before the gateway's substitutes in every option. |
 
@@ -334,6 +335,16 @@ Errors: `400`, `401`, `422 no_candidates`, `503 upstream_unavailable`.
 ### `GET /v1/offers/{offer_id}`
 
 Agent authentication; own offers only. Returns `{ "offer": { ... }, "jws": "..." }` with the current `status` (`active`, `expired`, `consumed`). The signed payload always carries the status at issue time, `active`.
+
+## 5b. Proactive offers (proposals, stage 6, added 2026-11-14)
+
+| Method and path | Auth | Purpose |
+|---|---|---|
+| `GET /v1/proposals` | Agent key (active) | The agent's open proposals: `{count, items: [{proposal_id, offer, jws, reason: {notice, text}, expires_at, how_to_accept, how_to_decline}]}`. `reason.text` is the seller's note, untrusted |
+| `POST /v1/proposals/{proposal_id}/decline` | Agent key (active) | Decline an open proposal of this agent: the offer is withdrawn (`offer.expired`, reason "proposal declined") and its holds released; `proposal.declined`. Another agent's or a blocked proposal is `404`; a decided one is `400` |
+| `POST /v1/admin/proposals` | Admin key | Valio Aimo's selling side: `{agent_id, product_id, quantity (sales units), reason}`. Returns the proposal (`status: open` with the signed offer) or `status: blocked` with `reason` |
+
+Rules (enforced by the gateway in `handshake/proposals.py`): a proposal is not sent (status `blocked`, event `proposal.blocked`, audience aimo_only) when the buyer's mandate has `proactive_offers.enabled` false, the agent is suspended, the product's category is not in `proactive_offers.categories`, the agent already has `max_per_week` non-blocked proposals this ISO week (Europe/Helsinki), the mandate would reject the product (R2, R3, R4 with effect rejected), or no deliverable date or offer can be made. Otherwise it is a normal signed offer (same JWS, fixed price, stock held) built with a 30-minute lifetime; its `offer.requested` event names "Valio Aimo selling agent" as the requester, and `proposal.sent` (audience both) records it with the seller's note as `reason_untrusted`. Accepting a proposal is `POST /v1/orders` with its `offer_id`: the dry run, every policy rule and approval apply unchanged; the order marks the proposal accepted (`proposal.accepted`). The agent tools are `list_proposals` and `decline_proposal` (document 07).
 
 ## 6. Orders
 
@@ -497,6 +508,8 @@ Server-rendered HTML, outside `/v1`.
 | `POST /demo/ops/suspend` | Sandbox cookie | JSON `{agent_id, suspended}` for an agent of the caller's sandbox: sets `agents.status` and writes `agent.status_changed` (actor admin, aimo_only). A suspended agent is refused with `403 agent_suspended` on mandate, offers, dry runs and orders; public search still works |
 | `POST /demo/ops/tamper` | Sandbox cookie | JSON `{order_id}` of a sandbox order: rewrites the body of that trace's `policy.evaluated` event (outcome `accepted`) without updating its hash, so the receipt reports the record as broken. Demo control; sandbox orders only |
 | `GET /demo/ops/receipts/{order_id}` | Sandbox cookie | The full Valio Aimo receipt view (all events) of an order in the caller's sandbox; `404` otherwise |
+| `POST /demo/sandbox/proactive` | Sandbox cookie | JSON `{persona, enabled, categories, max_per_week}` from the mandate card's "Proactive offers" switch (categories from a fixed list of six, 0 to 20 per week): a new mandate version and `mandate.changed` (stage 6) |
+| `POST /demo/ops/propose` | Sandbox cookie | Valio Aimo operations, "Send seasonal offer" to one of the caller's sandbox agents: the selling agent picks the seasonal product of the buyer's first opted-in category and the gateway sends or blocks it (section 5b) |
 | `GET /llms.txt` | None | Plain-text description of the gateway for language models: rules for agents, endpoints, links to discovery, JWKS and OpenAPI |
 | `GET /static/site.js` | None | The one self-hosted script used by the landing and run pages (copy buttons, playground) |
 

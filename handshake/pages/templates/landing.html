@@ -194,6 +194,18 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 .lv-cell.probe-pass .who span:last-child { color: var(--accent-text); font-weight: 800; }
 .lv-cell.probe-fail .who span:last-child { color: var(--lingon); font-weight: 800; }
 
+
+/* Proactive offers */
+.proactive { display: grid; gap: 6px; border-top: 1px solid var(--frost); padding-top: 8px; }
+.proactive label { font-size: var(--step--1); display: flex; gap: 6px; align-items: center; }
+.pa-cats { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.pa-max input { width: 4.5rem; }
+.pa-select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--frost);
+  border-radius: 8px; min-height: 38px; padding: 0 8px; max-width: 100%; }
+.lv-row.seller .lv-cell.res { border-left: 3px solid var(--accent-text); }
+.lv-row.seller .lv-cell.res.bad { border-left-color: var(--lingon); }
+@media (max-width: 899px) { .lv-row.seller .lv-cell.req.empty { display: none; } }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }

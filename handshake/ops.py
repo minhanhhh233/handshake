@@ -17,6 +17,16 @@ from . import db, timeutil
 from . import sandbox as sbx
 
 ACCESS_TYPES = ("search.performed", "product.read", "upstream.queried", "offer.requested")
+#: The selling agent's seasonal offer per category: product, sales units, reason line.
+SEASONAL = {
+    "22300": ("467004", 2, "Seasonal offer: Kulta Katriina filter coffee for your winter guests."),
+    "22410": ("464146", 2, "Seasonal offer: organic Fairtrade coffee beans for the holidays."),
+    "10400": ("464306", 24, "Seasonal offer: lactose-free milk at this week's price."),
+    "10900": ("472236", 24, "Seasonal offer: Finnish whole grain rye bread."),
+    "10901": ("466005", 12, "Seasonal offer: toast bread for breakfast service."),
+    "21380": ("465236", 4, "Seasonal offer: Rummo spaghetti for your pasta night."),
+}
+DEFAULT_SEASONAL = SEASONAL["22300"]
 
 
 class OpsError(Exception):
@@ -73,7 +83,19 @@ def view(sandbox_id: str) -> dict[str, Any]:
                                "status": r["status"], "total_excl_tax": r["total"],
                                "created_at": timeutil.iso(timeutil.from_db(r["created_at"])),
                                "receipt_path": f"/demo/ops/receipts/{r['order_id']}"})
-    return {"agents": [{"agent_id": a["agent_id"], "name": a["name"], "status": a["status"],
+        props: list[dict[str, Any]] = []
+        if ids:
+            for r in db.q(conn, f"SELECT proposal_id, agent_id, product_id, status, "
+                                f"reason_untrusted, blocked_reason, created_at FROM proposals "
+                                f"WHERE agent_id IN ({ph}) ORDER BY created_at DESC LIMIT 30",
+                          **params).mappings().all():
+                props.append({"proposal_id": r["proposal_id"], "agent": names.get(r["agent_id"]),
+                              "product_id": r["product_id"], "status": r["status"],
+                              "reason_untrusted": r["reason_untrusted"],
+                              "blocked_reason": r["blocked_reason"],
+                              "created_at": timeutil.iso(timeutil.from_db(r["created_at"]))})
+    return {"proposals": props,
+            "agents": [{"agent_id": a["agent_id"], "name": a["name"], "status": a["status"],
                         "customer": a["customer"], "persona": a["persona"],
                         "persona_label": sbx.PERSONAS.get(a["persona"] or "", {}).get("label")}
                        for a in agents],
@@ -139,3 +161,20 @@ def tamper(sandbox_id: str, order_id: Any) -> dict[str, Any]:
     return {"order_id": o["order_id"], "seq": ev["seq"], "type": ev["type"],
             "changed": {"outcome": {"from": before, "to": "accepted"}},
             "receipt_path": f"/demo/ops/receipts/{o['order_id']}"}
+
+
+def propose(sandbox_id: str, agent_id: Any, product_id: Any = None,
+            trace_id: str | None = None) -> dict[str, Any]:
+    """"Send seasonal offer": the selling agent picks a product in a category the buyer opted in
+    to (or the demo's chosen product) and asks the gateway to send it. The gateway decides."""
+    from . import mandates, proposals
+
+    with db.connection() as conn:
+        a = _own_agent(conn, sandbox_id, agent_id)
+        m = mandates.get_current(conn, a["agent_id"])
+    cats = list(m.proactive_offers.categories) if m and m.proactive_offers.enabled else []
+    pick = SEASONAL.get(cats[0], DEFAULT_SEASONAL) if cats else DEFAULT_SEASONAL
+    if isinstance(product_id, str) and product_id:
+        pick = next((v for v in SEASONAL.values() if v[0] == product_id),
+                    (product_id, 12, "Seasonal offer from Valio Aimo."))
+    return proposals.send(a["agent_id"], pick[0], pick[1], pick[2], trace_id=trace_id)

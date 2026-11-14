@@ -578,3 +578,52 @@ def ops_receipt(request: Request, order_id: str) -> Response:
                       title="Receipt not found")
     return render("receipt.html", headers=APPROVAL_HEADERS,
                   title="Receipt, Valio Aimo view (your sandbox)", v=v)
+
+
+# ---------------------------------------------------------------- proactive offers (stage 6)
+
+
+@router.post("/demo/sandbox/proactive")
+async def sandbox_proactive(request: Request) -> Response:
+    """The buyer's consent to proactive offers, from the mandate card (stage 6)."""
+    body = await _json_body(request)
+    if isinstance(body, Response):
+        return body
+    persona = body.get("persona")
+    if persona not in sandbox.BUYERS:
+        return JSONResponse({"code": "unknown_persona", "message": "Choose a buyer persona."},
+                            status_code=400, headers=_JSON_HEADERS)
+    sb = _sandbox_or_409(request)
+    if isinstance(sb, Response):
+        return sb
+    try:
+        card = sandbox.set_proactive(sb["sandbox_id"], persona, body.get("enabled"),
+                                     body.get("categories"), body.get("max_per_week"))
+    except sandbox.SandboxError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    return JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS)
+
+
+@router.post("/demo/ops/propose")
+async def ops_propose(request: Request) -> Response:
+    """Valio Aimo operations: "Send seasonal offer" to one of the sandbox's buyer agents."""
+    from .. import ops
+
+    body = await _json_body(request)
+    if isinstance(body, Response):
+        return body
+    sb = _sandbox_or_409(request)
+    if isinstance(sb, Response):
+        return sb
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        out = await run_in_threadpool(ops.propose, sb["sandbox_id"], body.get("agent_id"))
+    except ops.OpsError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    keep = {k: out.get(k) for k in ("proposal_id", "status", "reason", "product_id")}
+    if out.get("status") == "open":
+        keep["total_excl_tax"] = out["offer"]["totals"]["excl_tax"]
+    return JSONResponse(keep, headers=_JSON_HEADERS)

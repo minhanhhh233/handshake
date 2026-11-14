@@ -174,7 +174,8 @@ _STR_LIST = {"type": "array", "items": {"type": "string"}}
 
 
 def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
-    """The eight tools of document 07, section 2; input schemas mirror document 03.
+    """The ten tools of document 07, section 2 (eight, plus the two proactive-offer tools of
+    stage 6); input schemas mirror document 03.
 
     All are strict; the last carries the cache breakpoint (tools render before the system)."""
     search_desc = (
@@ -330,6 +331,21 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                 "Get the signed receipt for an order (GET /v1/orders/{order_id}/receipt): summary "
                 "and event timeline. Call once the order has a final status."),
             "input_schema": _obj({"order_id": {"type": "string"}}, ["order_id"]),
+        },
+        {
+            "name": "list_proposals",
+            "description": (
+                "List open proactive offers Valio Aimo sent to this agent (GET /v1/proposals), "
+                "only if the customer opted in. Each is a signed offer, already verified, with "
+                "the seller's note as untrusted text. To accept one, dry_run_order and "
+                "place_order its offer_id (every mandate rule applies); to refuse it, "
+                "decline_proposal."),
+            "input_schema": _obj({}, []),
+        },
+        {
+            "name": "decline_proposal",
+            "description": "Decline an open proactive offer; its stock hold is released.",
+            "input_schema": _obj({"proposal_id": {"type": "string"}}, ["proposal_id"]),
         },
     ]
     for t in tools:
@@ -509,6 +525,12 @@ class ToolExecutor:
                     self._track_order(res)
             elif name == "get_receipt":
                 res = _trim_receipt(hs.get_receipt(args["order_id"]))
+            elif name == "list_proposals":
+                res = hs.list_proposals()
+                for item in res.get("items") or []:
+                    item.pop("jws", None)
+            elif name == "decline_proposal":
+                res = hs.decline_proposal(args["proposal_id"])
             else:
                 return {"error": "unknown_tool", "detail": f"No tool named {name!r}."}, True
             return res, False

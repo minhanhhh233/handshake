@@ -360,3 +360,16 @@ class HandshakeClient:
 
     def get_receipt(self, order_id: str) -> dict[str, Any]:
         return self._json("GET", f"/v1/orders/{order_id}/receipt")
+
+    def list_proposals(self) -> dict[str, Any]:
+        """Open proactive offers from Valio Aimo. The seller's reason line is free text: it is
+        delivered as data inside an untrusted block, never as instructions."""
+        data = self._json("GET", "/v1/proposals")
+        for item in data.get("items") or []:
+            reason = (item.get("reason") or {}).get("text")
+            item["reason"] = wrap_untrusted(reason, "seller's note") if reason else None
+            self._verify_option({"offer": item.get("offer"), "jws": item.get("jws")})
+        return data
+
+    def decline_proposal(self, proposal_id: str) -> dict[str, Any]:
+        return self._json("POST", f"/v1/proposals/{proposal_id}/decline")

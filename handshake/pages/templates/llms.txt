@@ -38,7 +38,7 @@ Agent keys are issued per agent by the gateway operator and sent as `Authorizati
 
 ## MCP
 
-The same eight tools (search_products, get_product, get_mandate, request_offer, dry_run_order, place_order, get_order, get_receipt) are available over MCP via the stdio server in the project repository (`python -m mcp_server.server`, configured with HANDSHAKE_BASE_URL and HANDSHAKE_AGENT_KEY).
+The same ten tools (search_products, get_product, get_mandate, request_offer, dry_run_order, place_order, get_order, get_receipt, list_proposals, decline_proposal) are available over MCP via the stdio server in the project repository (`python -m mcp_server.server`, configured with HANDSHAKE_BASE_URL and HANDSHAKE_AGENT_KEY).
 
 ## Try it without a key
 

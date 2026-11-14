@@ -93,6 +93,25 @@ CREATE TABLE sandbox_overlays (
   PRIMARY KEY (sandbox_id, product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Proactive offers from Valio Aimo's selling agent (stage 6): sent proposals point to a normal
+-- signed offer; blocked ones record why the gateway refused to send them.
+CREATE TABLE proposals (
+  proposal_id      VARCHAR(32)  NOT NULL PRIMARY KEY,
+  agent_id         VARCHAR(32)  NOT NULL,
+  customer_id      VARCHAR(32)  NOT NULL,
+  offer_id         VARCHAR(32)  NULL,
+  product_id       VARCHAR(16)  NOT NULL,
+  status           ENUM('open','accepted','declined','expired','blocked') NOT NULL,
+  reason_untrusted VARCHAR(500) NULL,
+  blocked_reason   VARCHAR(500) NULL,
+  trace_id         VARCHAR(32)  NOT NULL,
+  created_at       DATETIME(3)  NOT NULL,
+  expires_at       DATETIME(3)  NULL,
+  decided_at       DATETIME(3)  NULL,
+  KEY ix_proposal_agent (agent_id, created_at),
+  KEY ix_proposal_offer (offer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- One row per visitor sandbox of the public demo; its parties expire with it (2 hours).
 CREATE TABLE sandboxes (
   sandbox_id  VARCHAR(32) NOT NULL PRIMARY KEY,
