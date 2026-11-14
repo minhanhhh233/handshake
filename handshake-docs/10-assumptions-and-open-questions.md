@@ -106,7 +106,7 @@ New question raised by T-005:
 - Contract pricing per customer is not demonstrated.
 - No key rotation or agent key revocation flow beyond suspending an agent.
 - No notification channel for approvers other than the demo QR code.
-- Without rule R7, the per-order cap can be avoided by splitting orders. R7 and R10 were cut for the deadline (document 08, section 0).
+- R10 (`require_confirmed`) is cut (document 08, section 0). R7 (weekly cap) is built since 2026-11-14, so splitting orders to dodge the per-order cap is caught when a mandate sets `max_weekly_total_excl_tax`; the demo mandates do not set one.
 - No rate limiting (T-504 cut). Candidate limits (25 per line, 10 lines) still apply.
 - No MCP server (T-502 cut) and one option per offer request (T-501 cut).
 - The live demo cannot show an `unconfirmed` (Terminal) line: every Terminal shortlist product's cut-off has passed (Q-11). The behaviour is covered by test F-04.

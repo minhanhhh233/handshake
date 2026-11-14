@@ -329,3 +329,20 @@ def test_overlapping_same_key_request_replays_instead_of_offer_consumed(
     # A different key on the consumed offer is still refused.
     monkeypatch.setattr(orders, "_stored", real)
     assert order(client, p, off["offer_id"], key="overlap-key-2").json()["code"] == "offer_consumed"
+
+
+def test_r7_weekly_cap_counts_this_weeks_orders(client, catalog, clean_db):
+    """R7 end to end: the second 1,000 L order of the week exceeds a 1500.00 weekly cap."""
+    p = make_party(limits={"max_order_total_excl_tax": "5000.00",
+                           "max_weekly_total_excl_tax": "1500.00"})
+    first = order(client, p, new_offer(client, p)["offer_id"], key="week-key-1")
+    assert first.status_code == 201 and first.json()["outcome"] == "accepted"
+    off2 = new_offer(client, p)
+    dry = client.post("/v1/orders/dry-run", headers=p.headers,
+                      json={"offer_id": off2["offer_id"]}).json()
+    assert dry["outcome"] == "needs_approval"
+    assert [r["code"] for r in dry["reasons"]] == ["period_cap_exceeded"]
+    assert dry["reasons"][0]["details"]["week_total_excl_tax"] == "1010.00"
+    assert dry["reasons"][0]["details"]["projected_total_excl_tax"] == "2020.00"
+    second = order(client, p, off2["offer_id"], key="week-key-2")
+    assert second.status_code == 202 and second.json()["status"] == "pending_approval"

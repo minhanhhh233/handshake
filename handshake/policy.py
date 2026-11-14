@@ -212,6 +212,28 @@ def _r9_delivery_day(offer: Offer, mandate: Mandate) -> list[Reason]:
 # ================================================================ evaluate
 
 
+def _r7_period_cap(offer: Offer, mandate: Mandate, week_total: Decimal) -> list[Reason]:
+    """R7 (document 05, section 3): this ISO week's confirmed and pending orders plus this one
+    exceed `max_weekly_total_excl_tax`. Restored 2026-11-14 (document 08, section 0)."""
+    cap = mandate.limits.max_weekly_total_excl_tax
+    if cap is None:
+        return []
+    order_total = Decimal(offer.totals.excl_tax)
+    projected = Decimal(week_total) + order_total
+    if projected <= Decimal(cap):
+        return []
+    cur = mandate.limits.currency
+    return [Reason(
+        rule="R7", code="period_cap_exceeded", effect="needs_approval",
+        message=(f"This order ({money(order_total)} {cur} excl. tax) would bring this week's "
+                 f"total to {money(projected)} {cur}, above the weekly cap of {money(cap)} "
+                 f"{cur}."),
+        details={"week_total_excl_tax": money(week_total), "order_total_excl_tax":
+                 money(order_total), "projected_total_excl_tax": money(projected),
+                 "cap": money(cap), "currency": cur},
+    )]
+
+
 def _sort_key(r: Reason) -> tuple[int, int]:
     return int(r.rule[1:]), r.line_no if r.line_no is not None else 0
 
@@ -236,7 +258,7 @@ def evaluate(
 ) -> Evaluation:
     """Evaluate every built rule and report every firing one. Pure and deterministic.
 
-    `week_total` is accepted for the interface but unused (R7 is cut). A line whose product
+    `week_total` is this ISO week's confirmed + pending order totals excl. tax (R7). A line whose product
     is missing from `facts` is evaluated fail-closed as an unknown product: unknown category,
     no allergen data, no claims.
     """
@@ -251,6 +273,7 @@ def evaluate(
         reasons += _r5_requirement_not_met(line, pf, reqs.get(line.request_line))
         reasons += _r8_substitution(line, mandate)
     reasons += _r6_spend_cap(offer, mandate)
+    reasons += _r7_period_cap(offer, mandate, week_total)
     reasons += _r9_delivery_day(offer, mandate)
     reasons.sort(key=_sort_key)  # stable: same-rule, same-line reasons keep code order
     return Evaluation(outcome=outcome_of(reasons), reasons=reasons)  # type: ignore[arg-type]

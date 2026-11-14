@@ -106,9 +106,10 @@ def _facts(**over: Any) -> dict[str, ProductFacts]:
 
 def _eval(offer: Offer | None = None, mandate: Mandate | None = None, status: str = "active",
           facts: dict[str, ProductFacts] | None = None, now: datetime = NOW,
-          requirements: dict[int, Requirements] | None = None):  # noqa: ANN202
+          requirements: dict[int, Requirements] | None = None,
+          week_total: Decimal = Decimal(0)):  # noqa: ANN202
     return evaluate(offer or _offer(), mandate or _mandate(), status, facts or _facts(),
-                    Decimal(0), now, requirements)
+                    week_total, now, requirements)
 
 
 def _codes(ev) -> list[str]:  # noqa: ANN001
@@ -293,9 +294,26 @@ def test_p23_unconfirmed_stock() -> None:
     pass
 
 
-@pytest.mark.skip(reason="cut: T-503")
 def test_p24_period_cap() -> None:
-    pass
+    """Weekly cap 1500.00; week total 1200.00; this order 500.00 -> needs_approval (R7)."""
+    m = _mandate(limits={"max_weekly_total_excl_tax": "1500.00"})
+    ev = _eval(_offer("500.00"), m, week_total=Decimal("1200.00"))
+    assert ev.outcome == "needs_approval" and _codes(ev) == ["period_cap_exceeded"]
+    r = ev.reasons[0]
+    assert r.rule == "R7" and r.effect == "needs_approval" and r.line_no is None
+    assert r.details["projected_total_excl_tax"] == "1700.00" and r.details["cap"] == "1500.00"
+    assert "1700.00 EUR, above the weekly cap of 1500.00 EUR" in r.message
+
+
+def test_r7_boundaries() -> None:
+    m = _mandate(limits={"max_weekly_total_excl_tax": "1500.00"})
+    assert _eval(_offer("500.00"), m, week_total=Decimal("1000.00")).outcome == "accepted"
+    assert _eval(_offer("500.00"), m, week_total=Decimal("1000.01")).outcome == "needs_approval"
+    # No weekly cap: R7 never fires, whatever the week total.
+    assert _eval(_offer("500.00"), week_total=Decimal("99999")).outcome == "accepted"
+    # R6 and R7 together are both reported.
+    ev = _eval(_offer("1000.01"), m, week_total=Decimal("600.00"))
+    assert _codes(ev) == ["spend_cap_exceeded", "period_cap_exceeded"]
 
 
 def test_p25_deterministic() -> None:
@@ -321,9 +339,9 @@ def test_p26_lactose_free_is_not_milk_free() -> None:
 
 
 def test_ignored_cut_fields() -> None:
-    m = _mandate(limits={"max_weekly_total_excl_tax": "100.00"},
-                 stock={"require_confirmed": True})
-    ev = evaluate(_offer(), m, "active", _facts(), Decimal("5000.00"), NOW)
+    """R10 stays cut: require_confirmed is stored but not evaluated (R7 was restored)."""
+    m = _mandate(stock={"require_confirmed": True})
+    ev = evaluate(_offer(), m, "active", _facts(), Decimal("0"), NOW)
     assert ev.outcome == "accepted"
 
 

@@ -264,6 +264,24 @@ def _requirements(offer_row: dict[str, Any]) -> dict[int, Requirements]:
             for i, line in enumerate(lines)}
 
 
+def week_total(conn: Connection, agent_id: str, now: datetime) -> Decimal:
+    """R7 input: totals excl. tax of this agent's confirmed and pending-approval orders created
+    in the current ISO week (Monday 00:00 to Monday 00:00, Europe/Helsinki)."""
+    local = now.astimezone(timeutil.HELSINKI)
+    start = (local - timedelta(days=local.isoweekday() - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=7)
+    total = db.q(
+        conn,
+        "SELECT COALESCE(SUM(f.total_excl_tax), 0) FROM orders o JOIN offers f "
+        "ON f.offer_id = o.offer_id WHERE o.agent_id = :a "
+        "AND o.status IN ('confirmed', 'pending_approval') "
+        "AND o.created_at >= :s AND o.created_at < :e",
+        a=agent_id, s=timeutil.to_db(start), e=timeutil.to_db(end),
+    ).scalar_one()
+    return Decimal(total)
+
+
 def _evaluate(conn: Connection, offer_row: dict[str, Any], agent_status: str,
               now: datetime) -> tuple[Offer, Mandate, Evaluation]:
     mandate = mandates.get_current(conn, offer_row["agent_id"])
@@ -273,7 +291,8 @@ def _evaluate(conn: Connection, offer_row: dict[str, Any], agent_status: str,
     offer = Offer.model_validate(offer_row["payload"])
     catalog = offers.load_catalog(conn, [ln.product_id for ln in offer.lines])
     facts = {pid: cp.facts() for pid, cp in catalog.items()}
-    ev = policy.evaluate(offer, mandate, agent_status, facts, Decimal(0), now,
+    ev = policy.evaluate(offer, mandate, agent_status, facts,
+                         week_total(conn, offer_row["agent_id"], now), now,
                          _requirements(offer_row))
     return offer, mandate, ev
 

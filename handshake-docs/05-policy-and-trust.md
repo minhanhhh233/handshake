@@ -88,7 +88,7 @@ Notes:
 - R8: `official_rules_only` passes substitutes whose `substitution_source` is `valio_aimo_substitution_rule`. `any_meeting_requirements` passes all substitutes. `none` passes none. Lines with role `alternate` never fire R8, because the agent listed them itself.
 - Evaluation always uses the mandate that is current at evaluation time, and records its version on the order.
 - Without R7, an agent could stay under the per-order cap by placing several small orders. State this limitation if R7 is not built.
-- **Cut for the deadline (document 08, section 0).** R10 (T-503) is not built: `stock.require_confirmed` is accepted and stored but not evaluated. R7 was restored on 2026-11-14 (document 08, section 0) and is built after phase 4; until then the order-splitting limitation applies.
+- **Cut for the deadline (document 08, section 0).** R10 (T-503) is not built: `stock.require_confirmed` is accepted and stored but not evaluated. R7 was restored and built on 2026-11-14: `week_total` is the sum of `total_excl_tax` of the same agent's orders with status `confirmed` or `pending_approval` created in the current ISO week (Monday 00:00 to Monday 00:00, Europe/Helsinki); the rule fires when `week_total` plus this order's total excl. tax is greater than `max_weekly_total_excl_tax`. Dry-run and order evaluation both use it. The cap is per agent, as the mandate is (A-10).
 
 ### Reason object
 
