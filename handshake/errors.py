@@ -15,6 +15,7 @@ ERROR_CODES: dict[str, tuple[int, str]] = {
     "invalid_request": (400, "Invalid request"),
     "unauthenticated": (401, "Unauthenticated"),
     "forbidden": (403, "Forbidden"),
+    "agent_suspended": (403, "Agent suspended"),
     "not_found": (404, "Not found"),
     "offer_expired": (409, "Offer expired"),
     "offer_consumed": (409, "Offer consumed"),

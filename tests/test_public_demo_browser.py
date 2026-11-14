@@ -324,6 +324,7 @@ def test_behaviour_selector_over_orders(browser, demo_server, monkeypatch, w, h,
     txt = alter.inner_text()
     assert "Original request from the agent" in txt and "Sent to Handshake instead" in txt
     assert '"value": 100' in txt and '"value": 1000' in txt
+    assert "so the agent could see it did not match its request" in txt
     assert _no_hscroll(page)
     page.locator("#live").screenshot(path=str(SCREENS / f"behaviour-over-orders-{tag}.png"))
     ctx.close()
@@ -353,6 +354,6 @@ def test_operations_role(browser, demo_server, w, h, tag):  # noqa: F811
     rec.close()
     page.get_by_role("button", name="Suspend").first.click()
     page.get_by_role("button", name="Show it being refused").click()
-    page.locator("#lv-steps").get_by_text("mandate_inactive").first.wait_for(timeout=20000)
+    page.locator("#lv-steps").get_by_text("agent_suspended").first.wait_for(timeout=20000)
     assert _no_hscroll(page)
     ctx.close()

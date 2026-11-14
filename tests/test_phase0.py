@@ -77,7 +77,8 @@ def test_problem_json_shape():
     assert body["status"] == 409 and body["code"] == "offer_expired"
     assert body["type"].endswith("/offer_expired") and body["trace_id"] == "trc_abc"
     assert set(ERROR_CODES) == {
-        "invalid_request", "unauthenticated", "forbidden", "not_found", "offer_expired",
+        "invalid_request", "unauthenticated", "forbidden", "agent_suspended", "not_found",
+        "offer_expired",
         "offer_consumed", "idempotency_conflict", "no_candidates", "rate_limited",
         "upstream_unavailable",
     }

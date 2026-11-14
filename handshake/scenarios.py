@@ -401,12 +401,16 @@ def compare_options(s: Script) -> None:
 
 
 def suspended_probe(s: Script) -> None:
-    s.say("This agent was suspended by Valio Aimo operations. It still asks for an offer and "
-          "tries to order.")
+    s.say("This agent was suspended by Valio Aimo operations. It tries to read its mandate, "
+          "search, get a price and order.")
     school = (s.party or {}).get("persona") == "school"
+    s.mandate()
+    s.search(category="10901" if school else "10400", limit=3)
     offer, _ = s.offer([L(BREAD[:2], 5, "KG")] if school else [L(["464306"], 10)])
     if offer:
         s.order(offer["offer_id"], reference="SUSPENDED")
+    s.say("Refused with agent_suspended: no mandate, no prices, no stock held. Public product "
+          "search still works.")
 
 
 def any_tomorrow(s: Script) -> None:

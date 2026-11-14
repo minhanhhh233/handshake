@@ -8,14 +8,14 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import offers
 from ..models import OfferRequest
-from .deps import AgentContext, require_agent
+from .deps import AgentContext, require_active_agent, require_agent
 
 router = APIRouter(tags=["offers"])
 
 
 @router.post("/v1/offers", status_code=201, summary="Request a signed offer")
 async def create_offer(
-    body: OfferRequest, request: Request, agent: AgentContext = Depends(require_agent)
+    body: OfferRequest, request: Request, agent: AgentContext = Depends(require_active_agent)
 ) -> JSONResponse:
     """Builds, holds, signs and stores one offer (`best`). See document 03, section 5."""
     result = await run_in_threadpool(

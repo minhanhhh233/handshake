@@ -34,6 +34,7 @@ Errors use `application/problem+json`.
 | 400 | `invalid_request` | Body or parameters fail validation; `errors[]` lists fields |
 | 401 | `unauthenticated` | Missing or unknown agent key |
 | 403 | `forbidden` | Resource belongs to another agent, or admin key missing |
+| 403 | `agent_suspended` | The agent is suspended by Valio Aimo. Returned by `POST /v1/offers`, `POST /v1/orders/dry-run`, `POST /v1/orders` and `GET /v1/mandates/current`, so a suspended agent cannot read prices, place holds or order; public product search stays available (added 2026-11-14) |
 | 404 | `not_found` | Unknown product, offer or order |
 | 409 | `offer_expired` | Offer passed `expires_at` |
 | 409 | `offer_consumed` | Offer already used for an order |
@@ -493,7 +494,7 @@ Server-rendered HTML, outside `/v1`.
 | `POST /demo/scenario` | Sandbox cookie, rate-limited | JSON `{id, persona}`: runs a one-click scripted scenario (document 09, section 6d) as the sandbox's party for that persona, with no Claude call, and answers `202 {trace_id, k}`; the run is polled with `GET /demo/live/{trace_id}`. `400` unknown scenario for the persona, `409` no sandbox, `429` after 10 scripted runs in 10 minutes from one visitor (added 2026-11-14, stage 2) |
 | `GET /demo/approvals` | Sandbox cookie | The Approver role's inbox: the caller's sandbox's pending approvals (customer, persona, total, delivery date, reasons, expiry, `approve_path`). `GET /demo/sandbox?persona=approver` returns the same list as `inbox`. Decisions post to `approve_path` like the approval page's form |
 | `GET /demo/ops` | Sandbox cookie | Valio Aimo operations for the caller's sandbox only (stage 4): agents with status, data access (`search.performed`, `product.read`, `upstream.queried`, `offer.requested` of the sandbox's agents), offers, orders with `receipt_path`. `GET /demo/sandbox?persona=operations` returns the same as `ops` |
-| `POST /demo/ops/suspend` | Sandbox cookie | JSON `{agent_id, suspended}` for an agent of the caller's sandbox: sets `agents.status` and writes `agent.status_changed` (actor admin, aimo_only). A suspended agent still gets offers; its orders are rejected by R1 |
+| `POST /demo/ops/suspend` | Sandbox cookie | JSON `{agent_id, suspended}` for an agent of the caller's sandbox: sets `agents.status` and writes `agent.status_changed` (actor admin, aimo_only). A suspended agent is refused with `403 agent_suspended` on mandate, offers, dry runs and orders; public search still works |
 | `POST /demo/ops/tamper` | Sandbox cookie | JSON `{order_id}` of a sandbox order: rewrites the body of that trace's `policy.evaluated` event (outcome `accepted`) without updating its hash, so the receipt reports the record as broken. Demo control; sandbox orders only |
 | `GET /demo/ops/receipts/{order_id}` | Sandbox cookie | The full Valio Aimo receipt view (all events) of an order in the caller's sandbox; `404` otherwise |
 | `GET /llms.txt` | None | Plain-text description of the gateway for language models: rules for agents, endpoints, links to discovery, JWKS and OpenAPI |

@@ -499,6 +499,7 @@
       r.req.appendChild(jsonBlock(s.request || {}));
       fillRes(r, "altered by the over-ordering behaviour", s.detail, true);
       r.res.querySelector(".who span").textContent = "Sent to Handshake instead";
+      r.res.appendChild(el("p", "cmp-note", "The signed offer states the quantity quoted, so the agent could see it did not match its request."));
     } else if (s.kind === "inject") {
       r = row("inject");
       r.req.appendChild(who("Prompt injection (this sandbox only)"));

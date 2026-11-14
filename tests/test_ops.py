@@ -67,9 +67,11 @@ def test_ops_receipt_suspend_and_tamper(world):  # noqa: F811
     r = c.post("/demo/ops/suspend", json={"agent_id": agent["agent_id"], "suspended": True})
     assert r.status_code == 200 and r.json()["agents"][0]["status"] == "suspended"
     v = run(sid, "suspended_probe", "hotel", "198.51.100.83")
-    placed = [s for s in v["steps"] if s["kind"] == "result" and s["title"] == "place_order"]
-    assert placed[-1]["detail"]["status"] == "rejected"
-    assert "mandate_inactive" in [x["code"] for x in placed[-1]["detail"]["reasons"]]
+    res = {s["title"]: s for s in v["steps"] if s["kind"] == "result"}
+    for t in ("get_mandate", "request_offer"):
+        assert res[t]["detail"]["status"] == 403 and res[t]["detail"]["code"] == "agent_suspended"
+    assert res["search_products"]["status"] == "ok"  # public search still works
+    assert "place_order" not in res
     with db.connection() as conn:
         assert db.q(conn, "SELECT COUNT(*) FROM events WHERE type = 'agent.status_changed'"
                     ).scalar_one() == 1
@@ -78,3 +80,36 @@ def test_ops_receipt_suspend_and_tamper(world):  # noqa: F811
     assert c.post("/demo/ops/suspend", json={"agent_id": 5}).status_code == 400
     assert "suspended_probe" not in [x["id"] for x in c.get(
         "/demo/sandbox?persona=hotel").json()["scenarios"]["scripted"]]
+
+
+def test_suspended_agent_refused_on_api_and_r1_remains(world):  # noqa: F811
+    from handshake import sandbox
+
+    c, sid, d = world
+    pt = sandbox.party(sid, "hotel")
+    h = {"Authorization": f"Bearer {sandbox.agent_key(pt['agent_id'])}"}
+    o = c.post("/v1/offers", headers=h, json={"delivery_date": d.isoformat(), "lines": [
+        {"product_ids": ["464306"], "quantity": {"value": 10, "unit": "L"}}]}).json()
+    oid = o["options"][0]["offer"]["offer_id"]
+    with db.transaction() as conn:
+        db.q(conn, "UPDATE agents SET status = 'suspended' WHERE agent_id = :a",
+             a=pt["agent_id"])
+    for method, path, body in (("GET", "/v1/mandates/current", None),
+                               ("POST", "/v1/offers", {"delivery_date": d.isoformat(), "lines": [
+                                   {"product_ids": ["464306"],
+                                    "quantity": {"value": 10, "unit": "L"}}]}),
+                               ("POST", "/v1/orders/dry-run", {"offer_id": oid}),
+                               ("POST", "/v1/orders", {"offer_id": oid})):
+        r = c.request(method, path, headers={**h, "Idempotency-Key": "suspended-1234"},
+                      json=body)
+        assert r.status_code == 403 and r.json()["code"] == "agent_suspended", (path, r.text)
+    assert c.get("/v1/products?category=10400&limit=2", headers=h).status_code == 200
+    # R1 stays as the defensive check inside order evaluation.
+    from handshake import orders
+    from handshake.models import OrderRequest
+
+    _, out = orders.place_order(OrderRequest(offer_id=oid), agent_id=pt["agent_id"],
+                                customer_id=pt["customer_id"], agent_status="suspended",
+                                idem_key="r1-defensive-check")
+    assert out["status"] == "rejected" and "mandate_inactive" in [
+        x["code"] for x in out["reasons"]]

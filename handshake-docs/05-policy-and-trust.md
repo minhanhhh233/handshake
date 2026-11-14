@@ -71,7 +71,7 @@ All rules are evaluated and every firing rule is reported. The outcome is `rejec
 
 | Rule | Code | Fires when | Effect | Priority |
 |---|---|---|---|---|
-| R1 | `mandate_inactive` | Agent is suspended, or now is outside the mandate's validity window | rejected | P0 |
+| R1 | `mandate_inactive` | Agent is suspended, or now is outside the mandate's validity window. Since 2026-11-14 a suspended agent is already refused at the API (`403 agent_suspended` on mandate, offers, dry runs and orders), so R1 for suspension is the defensive check at order time | rejected | P0 |
 | R2 | `category_not_allowed` | A line's category is not in `allowed_categories` (when not null), or is in `forbidden_categories` | rejected | P0 |
 | R3 | `forbidden_allergen` | A line's product has a forbidden code in one of the listed states | rejected | P0 |
 | R4 | `allergen_data_missing` | A line's product has no statement for a forbidden code | per `forbidden_allergens.unknown`: rejected, needs_approval, or does not fire | P0 |

@@ -8,14 +8,14 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import orders, receipts
 from ..models import DryRunRequest, OrderRequest
-from .deps import AgentContext, require_agent
+from .deps import AgentContext, require_active_agent, require_agent
 
 router = APIRouter(tags=["orders"])
 
 
 @router.post("/v1/orders/dry-run", summary="Evaluate an offer against the mandate")
 async def dry_run(
-    body: DryRunRequest, request: Request, agent: AgentContext = Depends(require_agent)
+    body: DryRunRequest, request: Request, agent: AgentContext = Depends(require_active_agent)
 ) -> JSONResponse:
     """Runs the policy evaluation without ordering. The offer stays active."""
     result, trace = await run_in_threadpool(
@@ -30,7 +30,7 @@ async def dry_run(
                200: {"description": "rejected"}},
 )
 async def create_order(
-    body: OrderRequest, request: Request, agent: AgentContext = Depends(require_agent),
+    body: OrderRequest, request: Request, agent: AgentContext = Depends(require_active_agent),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> JSONResponse:
     """Consumes the offer. 201 confirmed, 202 pending_approval, 200 rejected.

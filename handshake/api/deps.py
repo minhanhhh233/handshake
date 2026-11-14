@@ -86,6 +86,22 @@ def require_agent(
     return agent
 
 
+def require_active_agent(
+    request: Request, authorization: str | None = Header(default=None)
+) -> AgentContext:
+    """A valid key of an agent that is not suspended (prices, holds, orders, mandate). A
+    suspended agent may still search public product data; R1 stays as the defensive check
+    at order time."""
+    agent = require_agent(request, authorization)
+    if agent.status != "active":
+        raise HandshakeError(
+            "agent_suspended",
+            "This agent is suspended by Valio Aimo. It cannot read its mandate, request "
+            "offers or place orders; public product search still works.",
+            next="Ask Valio Aimo to reinstate the agent.")
+    return agent
+
+
 def _admin_ok(supplied: str | None) -> bool:
     expected = get_settings().admin_key
     return bool(expected and supplied) and hmac.compare_digest(supplied, expected)
@@ -110,5 +126,6 @@ def ensure_owner(agent: AgentContext, owner_agent_id: str) -> None:
 
 __all__ = [
     "AgentContext", "HandshakeError", "ensure_owner", "key_hash", "lookup_agent",
-    "optional_agent", "require_admin", "require_admin_page", "require_agent",
+    "optional_agent", "require_active_agent", "require_admin", "require_admin_page",
+    "require_agent",
 ]
