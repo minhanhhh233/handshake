@@ -190,7 +190,8 @@ def test_home_page(client):
     r = client.get("/")
     assert r.status_code == 200
     html = r.text
-    assert "The wholesale interface built for AI purchasing agents" in html
+    assert "The wholesale interface built <span class=\"grad\">for AI purchasing agents</span>" in html
+    assert "Start here" not in html
     assert "marketplace" not in html.lower()
     for point in ("Signed fixed-price offers", "Limits set by people", "Human approval",
                   "Open standards"):

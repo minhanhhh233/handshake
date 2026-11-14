@@ -47,7 +47,7 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     assert _no_hscroll(page)
 
     # The scenario menu, grouped by theme.
-    page.locator("#scenarios summary").click()
+    page.locator("#scen-toggle").click()
     for g in ("Ordering", "Limits and approval", "Exceptions", "Misbehaving agents",
               "Proactive offers"):
         assert page.locator("#scen-groups h3", has_text=g).count() == 1, g
@@ -104,7 +104,7 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     item.get_by_role("button", name="Approve").click()
     page.get_by_text("Nothing is waiting.").wait_for(timeout=10000)
     page.locator('.pb[data-persona="hotel"]').click()
-    page.get_by_text("The order is confirmed.").wait_for(timeout=15000)
+    page.get_by_text("The order is confirmed").wait_for(timeout=15000)
     assert page.get_by_role("link", name="Open the signed receipt").is_visible()
     page.screenshot(path=str(SCREENS / f"live-confirmed-{tag}.png"), full_page=True)
 
@@ -129,7 +129,7 @@ def test_start_links_and_misbehaving(browser, demo_server):  # noqa: F811
     # The scripted misbehaving sequence from the menu, as the restaurant.
     page.locator('.pb[data-persona="restaurant"]').click()
     page.locator("#scen-groups .scen.scripted").first.wait_for(state="attached", timeout=10000)
-    page.locator("#scenarios summary").click()
+    page.locator("#scen-toggle").click()
     sec = page.locator("#scen-groups > div", has=page.locator("h3", has_text="Misbehaving agents"))
     sec.locator(".scen.scripted").first.click()
     page.wait_for_function("() => document.getElementById('lv-status').innerText.length > 0 && "

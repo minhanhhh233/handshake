@@ -1,69 +1,69 @@
 {% extends "_base.html" %}
 {% block head %}<script src="/static/site.js" defer></script>{% endblock %}
-{% block style %}
-.shell { max-width: 64rem; margin: 0 auto; padding: 18px var(--gutter) 0; }
-section { padding: 72px 0 0; }
-h2.sec { font-size: var(--step-3); line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; }
-.intro { margin-top: 10px; color: var(--slate); max-width: 42em; }
-.panel { border: 1px solid var(--frost); background: var(--surface); border-radius: 14px; }
-pre.code { margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.5; overflow: auto; white-space: pre;
-  max-height: 20rem; background: var(--raised); border: 1px solid var(--frost); border-radius: 8px; }
-.copy { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: transparent;
-  border: 1px solid var(--frost); border-radius: 999px; padding: 5px 12px; cursor: pointer; min-height: 32px; }
-.copy:hover { border-color: var(--slate); }
-.copy[data-copied] { color: var(--accent-text); border-color: var(--accent); }
-.pill { display: inline-block; border: 1px solid var(--frost); border-radius: 999px; padding: 2px 10px;
-  font-size: 12px; font-weight: 600; color: var(--slate); white-space: nowrap; }
+{% block style %}{% include "_light.css" %}
+.shell { max-width: 68rem; margin: 0 auto; padding: 18px var(--gutter) 0; }
+section { padding-top: 64px; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.sec-head h2 { font-size: var(--step-1); font-weight: 750; letter-spacing: -0.01em; }
+.sec-head .tag { font-family: var(--mono); font-size: 12px; color: var(--slate); }
+.intro { margin-top: 4px; color: var(--slate); font-size: var(--step--1); }
 
-/* Hero: the claim, one sentence, the way in */
-.hero { padding-top: 64px; display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); }
-.hero h1 { font-size: clamp(2.3rem, 6.4vw, 4.1rem); line-height: 1.03; letter-spacing: -0.035em; font-weight: 800;
-  max-width: 17ch; }
-.hero .sub { font-size: var(--step-1); line-height: 1.5; color: var(--slate); max-width: 36em; }
-.go-live { justify-self: start; min-height: 54px; padding: 0 26px; font-size: var(--step-1); }
+/* Hero */
+.hero { padding-top: 48px; display: grid; gap: 22px; justify-items: start; }
+.hero h1 { font-size: clamp(2.3rem, 6.2vw, 4rem); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800;
+  color: var(--navy); max-width: 26ch; }
+.hero h1 .grad { display: block; width: fit-content; background: linear-gradient(90deg, #3657E0 0%, #7A3FF2 70%); -webkit-background-clip: text;
+  background-clip: text; color: transparent; }
+.hero .sub { font-size: var(--step-1); line-height: 1.55; color: var(--slate); max-width: 38em; }
+.go-live { min-height: 52px; padding: 0 24px; }
 
-/* Selling points: four facts, each a term and its proof */
-.points { margin: 8px 0 0; display: grid; gap: 0; grid-template-columns: minmax(0, 1fr);
-  border-top: 1px solid var(--frost); }
-.points div { padding: 18px 0; border-bottom: 1px solid var(--frost); display: grid; gap: 4px; }
-.points dt { font-weight: 800; font-size: var(--step-1); }
-.points dd { margin: 0; color: var(--slate); max-width: 40em; }
+/* Selling points: four small cards in a row */
+.points { margin-top: 48px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); padding: 0; list-style: none; }
+.points li { padding: 18px; display: grid; gap: 6px; align-content: start; }
+.points h3 { font-size: var(--step-0); font-weight: 700; color: var(--navy); }
+.points p { font-size: var(--step--1); color: var(--slate); }
 
-/* Discovery */
-.disc { margin-top: 28px; list-style: none; padding: 0; }
-.disc li { display: grid; gap: 6px 16px; padding: 16px 18px; border-top: 1px solid var(--frost);
-  grid-template-columns: 1fr auto; align-items: center; }
+/* Discovery: a table in one card */
+.disc { margin-top: 16px; list-style: none; padding: 6px 0; }
+.disc li { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  padding: 12px 18px; border-top: 1px solid var(--frost); }
 .disc li:first-child { border-top: 0; }
-.disc .path { font-family: var(--mono); font-size: 14px; color: var(--accent-text); overflow-wrap: anywhere; }
-.disc .path .m { color: var(--slate); margin-right: 6px; }
-.disc .desc { grid-column: 1 / -1; color: var(--slate); font-size: var(--step--1); }
-.disc .ct { font-family: var(--mono); font-size: 12px; color: var(--slate); }
-.disc .open { font-size: var(--step--1); font-weight: 600; }
-.disc .meta { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.disc .m { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--mint); }
+.disc .m.post { color: var(--accent-text); }
+.disc .path { font-family: var(--mono); font-size: 13.5px; color: var(--navy); overflow-wrap: anywhere; }
+.disc .desc { grid-column: 2 / -1; color: var(--slate); font-size: var(--step--1); }
+.disc .ct { font-family: var(--mono); font-size: 12px; color: var(--slate); background: var(--raised);
+  border: 1px solid var(--frost); border-radius: 8px; padding: 2px 8px; white-space: nowrap; }
+.disc .open { font-size: var(--step--1); font-weight: 650; color: var(--accent-text); text-decoration: none; }
+.disc .open:hover { text-decoration: underline; }
+.disc .meta { grid-column: 2 / -1; display: flex; gap: 12px; align-items: center; justify-content: start; }
 
 /* Quick start */
-.qs { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); list-style: none; padding: 0; }
+.qs { margin-top: 16px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); list-style: none; padding: 0; }
 .qsc { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; min-width: 0; }
 .qsc .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.qsc h3 { font-size: var(--step-1); }
+.qsc h3 { font-size: var(--step-0); font-weight: 700; color: var(--navy); }
 .qsc p { color: var(--slate); font-size: var(--step--1); }
+pre.code { margin: 0; padding: 12px 14px; font-size: 12.5px; line-height: 1.55; overflow: auto; white-space: pre;
+  max-height: 20rem; background: var(--raised); border: 1px solid var(--frost); border-radius: 10px; color: var(--ink); }
+.copy { font: inherit; font-size: 12px; font-weight: 600; color: var(--slate); background: var(--raised);
+  border: 1px solid var(--frost); border-radius: 8px; padding: 4px 10px; cursor: pointer; min-height: 30px; }
+.copy:hover { color: var(--ink); }
+.copy[data-copied] { color: var(--mint); border-color: rgba(14, 159, 117, 0.35); }
 
-.start-here { list-style: none; padding: 0; margin-top: 20px; display: grid; gap: 8px; counter-reset: st;
-  grid-template-columns: minmax(0, 1fr); }
-.start-here li { counter-increment: st; }
-.start-here a { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 10px 14px; border-radius: 10px;
-  border: 1px solid var(--frost); background: var(--surface); text-decoration: none; font-weight: 600; }
-.start-here a::before { content: counter(st); flex: none; width: 26px; height: 26px; border-radius: 50%;
-  display: grid; place-items: center; background: var(--accent); color: var(--white); font-weight: 800; font-size: 13px; }
-.start-here a:hover { border-color: var(--slate); }
-.closing { padding: 72px 0 72px; display: grid; gap: 16px; }
-.closing p { color: var(--slate); max-width: 38em; }
+/* Closing band */
+.closing { margin: 64px 0 56px; padding: 26px 24px; border-radius: 20px; display: flex; gap: 18px; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--frost);
+  background: linear-gradient(100deg, rgba(150, 125, 255, 0.18), rgba(255, 255, 255, 0.7) 50%, rgba(110, 215, 190, 0.22)); }
+.closing p { font-size: var(--step-1); font-weight: 650; color: var(--navy); max-width: 30em; line-height: 1.4; }
 
-@media (min-width: 820px) {
-  .points { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; }
+@media (min-width: 640px) {
+  .points { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 900px) {
+  .points { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .qs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .start-here { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .disc li { grid-template-columns: minmax(16rem, 1.2fr) 2fr auto; }
+  .disc li { grid-template-columns: 3.2rem minmax(14rem, 1fr) minmax(0, 1.4fr) auto; }
   .disc .desc { grid-column: auto; }
   .disc .meta { grid-column: auto; justify-content: end; }
 }
@@ -73,58 +73,47 @@ pre.code { margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.5; ove
   <p class="brand"><strong>Handshake</strong> agent gateway for Valio Aimo</p>
 
   <section class="hero" aria-labelledby="hero-title">
-    <h1 id="hero-title">The wholesale interface built for AI purchasing agents</h1>
+    <span class="pill-live">Live API, v1</span>
+    <h1 id="hero-title">The wholesale interface built <span class="grad">for AI purchasing agents</span></h1>
     <p class="sub">A buyer's agent finds products, gets a signed price it can rely on, and orders within limits that people set, with a person signing off whenever an order goes beyond them.</p>
     <a class="btn go-live" href="/live">See how it works in live action</a>
-    <dl class="points">
-      <div><dt>Signed fixed-price offers</dt>
-        <dd>Every offer is an Ed25519-signed JWS with a price, quantity, delivery date and expiry. Any agent can check it against the published key.</dd></div>
-      <div><dt>Limits set by people</dt>
-        <dd>Spend caps, weekly totals, allergens, categories and delivery days live in the customer's mandate and are checked by the gateway on every order.</dd></div>
-      <div><dt>Human approval</dt>
-        <dd>An order over the limits waits for a named person to approve it on a phone. The agent never sees the approval link.</dd></div>
-      <div><dt>Open standards</dt>
-        <dd>Plain HTTPS with an OpenAPI description, a discovery document, JWKS, llms.txt and an MCP server, so any agent can connect.</dd></div>
-    </dl>
   </section>
 
-  <section class="start" aria-labelledby="start-title">
-    <h2 class="sec" id="start-title">Start here</h2>
-    <p class="intro">Four first steps on the live demo, in this order.</p>
-    <ol class="start-here">
-      <li><a href="/live?start=example">Order milk, then approve it</a></li>
-      <li><a href="/live?start=misbehave">Watch an agent misbehave</a></li>
-      <li><a href="/live?start=school">See a school refuse milk</a></li>
-      <li><a href="/live?start=verify">Verify a signature yourself</a></li>
-    </ol>
-  </section>
+  <ul class="points" aria-label="What Handshake guarantees">
+    <li class="card"><h3>Signed fixed-price offers</h3>
+      <p>Ed25519-signed offers with price, quantity, delivery date and expiry, checked against the published key.</p></li>
+    <li class="card"><h3>Limits set by people</h3>
+      <p>Spend caps, weekly totals, allergens, categories and delivery days, enforced by the gateway on every order.</p></li>
+    <li class="card"><h3>Human approval</h3>
+      <p>Orders over the limits wait for a person to approve on a phone. The agent never sees the link.</p></li>
+    <li class="card"><h3>Open standards</h3>
+      <p>HTTPS with OpenAPI, a discovery document, JWKS, llms.txt and an MCP server.</p></li>
+  </ul>
 
   <section id="discovery" aria-labelledby="disc-title">
-    <h2 class="sec" id="disc-title">Discovery</h2>
+    <div class="sec-head"><h2 id="disc-title">Discovery</h2><span class="tag">public, no key</span></div>
     <p class="intro">The public endpoints an agent can read before it has a key.</p>
-    <ul class="disc panel">
+    <ul class="disc card">
       {% for d in discovery %}
       <li>
-        <span class="path"><span class="m">{{ d.method }}</span>{{ d.path }}</span>
+        <span class="m{% if d.method != 'GET' %} post{% endif %}">{{ d.method }}</span>
+        <span class="path">{{ d.path }}</span>
         <span class="desc">{{ d.desc }}</span>
-        <span class="meta"><span class="pill">{{ d.std }}</span><span class="ct">{{ d.ct }}</span>
-          {% if d.method == "GET" %}<a class="open" href="{{ d.href }}">Open</a>{% else %}<a class="open" href="/docs">In docs</a>{% endif %}</span>
+        <span class="meta"><span class="ct">{{ d.ct }}</span>
+          {% if d.method == "GET" %}<a class="open" href="{{ d.href }}">Open</a>{% else %}<a class="open" href="/docs">Docs</a>{% endif %}</span>
       </li>
       {% endfor %}
     </ul>
   </section>
 
   <section id="quick-start" aria-labelledby="qs-title">
-    <h2 class="sec" id="qs-title">Quick start</h2>
-    <p class="intro">Four things to try from a terminal.</p>
+    <div class="sec-head"><h2 id="qs-title">Quick start</h2><span class="tag">terminal</span></div>
     <ul class="qs">
-      <li class="qsc panel"><div class="top"><h3>Read the discovery file</h3><button class="copy" type="button" data-copy="qs-1">Copy</button></div>
-        <p>API base, signing scheme, capabilities and authentication.</p>
+      <li class="qsc card"><div class="top"><h3>Read the discovery file</h3><button class="copy" type="button" data-copy="qs-1">Copy</button></div>
         <pre class="code" id="qs-1">curl {{ base }}/.well-known/handshake.json</pre></li>
-      <li class="qsc panel"><div class="top"><h3>Search without a key</h3><button class="copy" type="button" data-copy="qs-2">Copy</button></div>
-        <p>Products and attributes; no prices or stock without a key.</p>
+      <li class="qsc card"><div class="top"><h3>Search without a key</h3><button class="copy" type="button" data-copy="qs-2">Copy</button></div>
         <pre class="code" id="qs-2">curl "{{ base }}/v1/products?category=10400&claims=FREE_FROM_LACTOSE&limit=5"</pre></li>
-      <li class="qsc panel"><div class="top"><h3>Verify an offer signature</h3><button class="copy" type="button" data-copy="qs-3">Copy</button></div>
+      <li class="qsc card"><div class="top"><h3>Verify an offer signature</h3><button class="copy" type="button" data-copy="qs-3">Copy</button></div>
         <p>Python with PyJWT. Save an offer's JWS, for example from the live demo, as offer.jws.</p>
         <pre class="code" id="qs-3">import json, jwt, urllib.request
 jwks = json.load(urllib.request.urlopen("{{ base }}/.well-known/jwks.json"))
@@ -132,7 +121,7 @@ jws = open("offer.jws").read().strip()
 kid = jwt.get_unverified_header(jws)["kid"]
 key = jwt.PyJWK(next(k for k in jwks["keys"] if k["kid"] == kid)).key
 print(json.loads(jwt.PyJWS().decode(jws, key, algorithms=["EdDSA"])))</pre></li>
-      <li class="qsc panel"><div class="top"><h3>Connect an MCP client</h3><button class="copy" type="button" data-copy="qs-4">Copy</button></div>
+      <li class="qsc card"><div class="top"><h3>Connect an MCP client</h3><button class="copy" type="button" data-copy="qs-4">Copy</button></div>
         <p>From a checkout of the repository, in Claude Code. Agent keys are issued by the gateway operator.</p>
         <pre class="code" id="qs-4">claude mcp add handshake \
   -e HANDSHAKE_BASE_URL={{ base }} \

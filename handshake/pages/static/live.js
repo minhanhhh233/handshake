@@ -44,7 +44,24 @@
     statusEl.textContent = text || "";
     if (bad) statusEl.setAttribute("data-state", "bad"); else statusEl.removeAttribute("data-state");
   }
-  function json(v) { return el("pre", "", JSON.stringify(v, null, 2)); }
+  // JSON with coloured keys, strings, numbers and literals; every token is set with textContent.
+  var TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b/g;
+  function json(v) {
+    var pre = el("pre"), text = JSON.stringify(v, null, 2) || "", last = 0, m;
+    if (text.length > 60000) { pre.textContent = text; return pre; }
+    TOKEN.lastIndex = 0;
+    while ((m = TOKEN.exec(text)) !== null) {
+      if (m.index > last) pre.appendChild(document.createTextNode(text.slice(last, m.index)));
+      if (m[1] !== undefined) {
+        pre.appendChild(el("span", m[2] ? "k" : "s", m[1]));
+        if (m[2]) pre.appendChild(document.createTextNode(m[2]));
+      } else if (m[3] !== undefined) pre.appendChild(el("span", "n", m[3]));
+      else pre.appendChild(el("span", "b", m[4]));
+      last = TOKEN.lastIndex;
+    }
+    if (last < text.length) pre.appendChild(document.createTextNode(text.slice(last)));
+    return pre;
+  }
   function money(v) { var n = parseFloat(v); return isNaN(n) ? String(v) : n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function hm(iso) { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) { return iso; } }
   function post(url, payload) {
@@ -61,8 +78,14 @@
       b.disabled = on || (!available && b.getAttribute("data-live") === "1");
     });
   }
-  function updateCount() { count.textContent = box.value.length + " / " + box.maxLength; }
+  function updateCount() { count.textContent = box.value.length + "/" + box.maxLength; }
   box.addEventListener("input", updateCount);
+  var menuBox = document.getElementById("scenarios"), menuBtn = document.getElementById("scen-toggle");
+  function toggleMenu(open) {
+    menuBox.hidden = !open;
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  menuBtn.addEventListener("click", function () { toggleMenu(menuBox.hidden); });
 
   // ---------------------------------------------------------------- timer
   function timerStart() {
@@ -240,9 +263,11 @@
     frame.classList.remove("current", "bad");
     if (!s) { frame.appendChild(el("p", "frame-empty", emptyText)); return; }
     var idx = steps.indexOf(s);
-    var w = el("div", "who"); w.appendChild(el("span", "", label)); w.appendChild(el("span", "", "Step " + (idx + 1)));
-    frame.appendChild(w);
-    frame.appendChild(el("p", "summary", summarize(s)));
+    if (label) frame.appendChild(el("p", "who", label));
+    var head = el("div", "head");
+    head.appendChild(el("p", "summary", summarize(s)));
+    head.appendChild(el("span", "stepb", "Step " + (idx + 1)));
+    frame.appendChild(head);
     frame.appendChild(body(s));
     if (idx === cursor) frame.classList.add("current");
     if (s.status === "bad" && s.kind !== "alter" && s.kind !== "inject") frame.classList.add("bad");
@@ -257,9 +282,9 @@
       var sd = sideOf(steps[i]);
       if (sd === "buyer") lastB = steps[i]; else if (sd === "gateway") lastG = steps[i];
     }
-    var bLabel = lastB && lastB.kind === "user" ? "You" : (lastB && /scripted/.test(lastB.title || "") ? "External buyer agent (scripted)" : "External buyer agent");
+    var bLabel = lastB && lastB.kind === "user" ? "You" : "";
     fill(frameBuyer, lastB, bLabel, "Your agent's latest message appears here.");
-    fill(frameGw, lastG, lastG && lastG.kind === "seller" ? "Valio Aimo selling agent (initiator)" : "Handshake", "Handshake's latest answer appears here.");
+    fill(frameGw, lastG, lastG && lastG.kind === "seller" ? "Valio Aimo selling agent (scripted), initiator" : "", "Handshake's latest answer appears here.");
     pb.count.textContent = n ? "Step " + (cursor + 1) + " of " + n : "No steps yet";
     pb.prev.disabled = cursor <= 0;
     pb.next.disabled = cursor >= n - 1;
@@ -339,22 +364,30 @@
     lastOrder = key;
     human.textContent = "";
     if (!o) return;
-    var c = el("section", "lv-card panel");
-    if (o.status === "pending_approval" && o.approval_url) {
-      c.appendChild(el("h3", "", "Your turn: approve this order"));
-      c.appendChild(el("p", "", "It is over the agent's limits, so a person must approve it. In this demo that person is you."));
-      var p = el("p"); var a = el("a", "btn", "Open the approval page");
-      a.href = o.approval_url; a.target = "_blank"; a.rel = "noreferrer noopener"; p.appendChild(a); c.appendChild(p);
-      if (o.qr) { var q = el("div", "qr"); var img = el("img"); img.src = o.qr; img.alt = "QR code for the approval page"; q.appendChild(img); c.appendChild(q); }
-      c.appendChild(el("p", "muted-s", "Waiting for your decision; this page checks every few seconds."));
-    } else {
-      var titles = { confirmed: "The order is confirmed.", declined: "Declined. Nothing was ordered.",
-        expired: "The approval request expired. Nothing was ordered.", rejected: "The gateway rejected this order." };
-      if (o.status !== "confirmed") c.className += " stopped";
-      c.appendChild(el("h3", "", titles[o.status] || ("Order status: " + o.status)));
-      if (o.receipt_url) { var p2 = el("p"); var r2 = el("a", "btn", "Open the signed receipt"); r2.href = o.receipt_url; r2.rel = "noreferrer"; p2.appendChild(r2); c.appendChild(p2); }
+    var total = null;
+    for (var i = steps.length - 1; i >= 0; i--) {
+      var st = steps[i];
+      if (st.kind === "result" && st.title === "place_order" && st.detail && st.detail.totals) { total = st.detail.totals.excl_tax; break; }
     }
-    if (runUrl) { var p3 = el("p", "muted-s"); var l = el("a", "", "Open this run as a page"); l.href = runUrl; p3.appendChild(l); c.appendChild(p3); }
+    var pending = o.status === "pending_approval" && o.approval_url;
+    var c = el("section", "lv-card card" + (pending ? " pending" : (o.status === "confirmed" ? "" : " stopped")));
+    c.appendChild(el("span", "dot"));
+    var txt = el("div", "txt"), h = el("h3");
+    var titles = { confirmed: "The order is confirmed", declined: "Declined. Nothing was ordered",
+      expired: "The approval request expired. Nothing was ordered", rejected: "The gateway rejected this order" };
+    h.appendChild(document.createTextNode(pending ? "Your turn: approve this order" : (titles[o.status] || ("Order status: " + o.status))));
+    if (total !== null && (pending || o.status === "confirmed")) h.appendChild(el("span", "amt", money(total) + " EUR excl. tax"));
+    txt.appendChild(h);
+    if (pending) txt.appendChild(el("p", "", "It is over the agent's limits, so a person must approve it; in this demo, you. This page checks every few seconds."));
+    c.appendChild(txt);
+    if (pending) {
+      if (o.qr) { var q = el("div", "qr"); var img = el("img"); img.src = o.qr; img.alt = "QR code for the approval page"; q.appendChild(img); c.appendChild(q); }
+      var a = el("a", "btn", "Open the approval page");
+      a.href = o.approval_url; a.target = "_blank"; a.rel = "noreferrer noopener"; c.appendChild(a);
+    } else if (o.receipt_url) {
+      var r2 = el("a", "btn", "Open the signed receipt"); r2.href = o.receipt_url; r2.rel = "noreferrer"; c.appendChild(r2);
+    }
+    if (runUrl) { var l = el("a", "runlink", "Open this run as a page"); l.href = runUrl; c.appendChild(l); }
     human.appendChild(c);
   }
   function poll() {
@@ -380,8 +413,7 @@
   }
   function startRun(url, payload, label) {
     clearTimeout(pollTimer); stopPlay();
-    var menu = document.getElementById("scenarios");
-    if (menu) menu.open = false;
+    toggleMenu(false);
     steps = []; cursor = -1; following = true; after = 0; lastOrder = ""; ended = false;
     human.textContent = "";
     render();
@@ -470,18 +502,20 @@
   // ---------------------------------------------------------------- personas, rules and edit controls
   function renderRules(c, sandbox) {
     card = c;
-    rulesWho.textContent = c.customer ? c.label + " for " + c.customer + ". Set by the customer's purchasing manager (you, in this demo)." : c.blurb;
+    rulesWho.textContent = c.customer ? c.customer + ", set by its purchasing manager (you, in this demo)" : c.label;
     rulesList.textContent = "";
     (c.rules || []).forEach(function (r) {
-      var v = String(r.value);
-      rulesList.appendChild(el("li", "", r.name + ": " + v + (/[.)]$/.test(v) ? "" : ".")));
+      var li = el("li");
+      li.appendChild(el("span", "key", r.name));
+      li.appendChild(el("span", "val", String(r.value).replace(/\.$/, "")));
+      rulesList.appendChild(li);
     });
-    if (!c.rules) rulesList.appendChild(el("li", "", c.blurb));
+    if (!c.rules) rulesList.appendChild(el("li", "plain", c.blurb));
     editBtn.hidden = !c.rules;
     editBox.textContent = "";
     if (c.rules) buildEdit(c);
     if (sandbox && sandbox.expires_at) document.getElementById("sandbox-note").textContent =
-      "Your private sandbox (its own copy of every customer, agent and limits) lasts until " + hm(sandbox.expires_at) + ". No sign-in.";
+      "sandbox expires " + hm(sandbox.expires_at);
   }
   editBtn.addEventListener("click", function () {
     editBox.hidden = !editBox.hidden;
@@ -550,8 +584,8 @@
         var role = slug === "approver" || slug === "operations";
         form.hidden = role;
         rolePanel.hidden = !role;
-        if (slug === "approver") { rulesWho.textContent = "Approver"; rulesList.textContent = ""; rulesList.appendChild(el("li", "", "You are the customers' purchasing manager. Orders over a mandate's limits wait for your decision.")); editBtn.hidden = true; editBox.textContent = ""; renderInbox(res.body.inbox || []); return; }
-        if (slug === "operations") { rulesWho.textContent = "Valio Aimo operations"; rulesList.textContent = ""; rulesList.appendChild(el("li", "", "What Valio Aimo sees about the agents in your sandbox, with a suspend switch, a log-tamper control and proactive offers.")); editBtn.hidden = true; editBox.textContent = ""; renderOps(res.body.ops || {}); return; }
+        if (slug === "approver") { rulesWho.textContent = "Approver"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "You are the customers' purchasing manager. Orders over a mandate's limits wait for your decision.")); editBtn.hidden = true; editBox.textContent = ""; renderInbox(res.body.inbox || []); return; }
+        if (slug === "operations") { rulesWho.textContent = "Valio Aimo operations"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "What Valio Aimo sees about the agents in your sandbox, with a suspend switch, a log-tamper control and proactive offers.")); editBtn.hidden = true; editBox.textContent = ""; renderOps(res.body.ops || {}); return; }
         renderRules(res.body.card, res.body.sandbox);
         renderScenarios(res.body.scenarios);
       })
