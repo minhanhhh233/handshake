@@ -589,6 +589,8 @@ def view(trace_id: str, after: int = 0, sandbox_id: str | None = None
         "persona": v.get("persona"),
     }
     order = v.get("order")
+    if v.get("script") == "conformance":
+        order = None  # the probes' own test orders are not the visitor's to approve here
     if order:
         o: dict[str, Any] = {"order_id": order["order_id"], "status": order["status"]}
         if order["status"] == "pending_approval" and order.get("approval_url"):

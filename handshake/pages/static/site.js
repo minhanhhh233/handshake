@@ -169,6 +169,7 @@
       save.type = "submit";
       var msg = el("span", "msg", "");
       f.appendChild(lab); f.appendChild(inp); f.appendChild(save); f.appendChild(msg);
+      if (c.ladder) { lab.hidden = true; inp.hidden = true; save.hidden = true; }
       if (c.preferences) {
         var pr = el("div", "prefs");
         pr.appendChild(el("span", "chips-h", "Rank offers by"));
@@ -493,6 +494,14 @@
       fillRes(r, s.status === "bad" ? "error" : "response", s.detail, s.status === "bad");
       var opts = s.title === "request_offer" && s.detail && s.detail.options;
       if (opts && opts.length > 1) compareRow(opts);
+    } else if (s.kind === "probe") {
+      r = row("probe");
+      var verdict = (s.detail || {}).verdict || "";
+      r.req.appendChild(who("Conformance probe", verdict));
+      r.req.appendChild(el("p", "tool", s.title));
+      r.req.appendChild(el("p", "say", s.summary));
+      r.req.classList.add("probe-" + verdict.toLowerCase());
+      if ((s.detail || {}).evidence) fillRes(r, "evidence", s.detail.evidence, verdict === "FAIL");
     } else if (s.kind === "alter") {
       r = row("alter");
       r.req.appendChild(who("Original request from the agent"));

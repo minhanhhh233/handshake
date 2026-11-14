@@ -186,6 +186,14 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 .btn-small { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; border-radius: 8px;
   border: 1px solid var(--frost); color: var(--ink); text-decoration: none; font-weight: 700; font-size: var(--step--1); }
 
+
+/* Conformance probes */
+.lv-cell.probe-pass { border-left: 3px solid var(--accent-text); }
+.lv-cell.probe-fail { border-left: 3px solid var(--lingon); }
+.lv-cell.probe-skipped { border-left: 3px dashed var(--slate); }
+.lv-cell.probe-pass .who span:last-child { color: var(--accent-text); font-weight: 800; }
+.lv-cell.probe-fail .who span:last-child { color: var(--lingon); font-weight: 800; }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }

@@ -60,6 +60,7 @@ One mandate per agent (A-10). Stored in `mandates.document`; `mandate_id` and `v
 | `stock.require_confirmed` | boolean | If true, lines with unconfirmed stock need approval. |
 | `preferences` | object | Used only for ranking options (`max_options` above 1). Never affects the outcome. The public demo offers four presets: cheapest (price 1.0), Finnish-origin or organic labels (labels 0.7, price 0.3, with the Blue Swan, Made in Finland flag, Finnish Heart and EU organic labels), lowest carbon (carbon 0.7, price 0.3) and most reliable delivery (reliability 0.7, price 0.3). |
 | `proactive_offers` | object | P2. Consent for the selling agent. |
+| `trust_ladder` | object or null | Added 2026-11-14 (stage 5). `{steps: [money...], promote_after: n}`. When set, R6 uses `steps[level]` instead of `limits.max_order_total_excl_tax`. The level is computed from the agent's finished orders in the order they finished (by `updated_at`): a confirmed order adds one to the streak, and at `promote_after` the level rises one step (if any) and the streak restarts; a rejected (gateway) or declined (approver) order returns to level 0 and resets the streak; pending and expired orders do not count. The same history always gives the same cap. A change of level is a `trust.level_changed` event in the trace of the order that caused it. |
 
 The demo cap of `1000.00` is a placeholder until live prices are known (Q-03).
 
@@ -229,6 +230,7 @@ Available quantity is computed as in document 04, section 4. When several option
 | `order.confirmed` | Order reached `confirmed` | gateway | both |
 | `order.closed` | Order reached `declined`, `expired` or `rejected` | gateway | both |
 | `holds.changed` | Holds committed or released | gateway | aimo_only |
+| `trust.level_changed` | A finished order moved the agent's trust ladder up or back (in that order's trace) | gateway | both |
 | `agent.status_changed` | Valio Aimo operations suspended or reinstated an agent (public demo; its own trace) | admin | aimo_only |
 | `mandate.changed` | The customer's purchasing manager changed the mandate (public demo cap edit; its own trace) | approver | both |
 

@@ -120,7 +120,8 @@ Each requirement has an ID, a priority, and the brief item it answers. "Core 1/2
 |---|---|---|
 | FR-80 | P2 | Offers inbox for a Valio Aimo selling agent, limited to categories the mandate opts into. |
 | FR-81 | P2 | Standing-order drift rule: flag a renewal more than 15% above the 8-week average. |
-| FR-82 | P2 | Sandbox conformance suite an agent must pass before receiving a live key. |
+| FR-82 | P2 | Sandbox conformance suite an agent must pass before receiving a live key. Minimal version built 2026-11-14: four probes in the public demo (document 09, section 6h). |
+| FR-83 | P2 | A mandate MAY carry a trust ladder: the autonomous per-order cap rises in fixed steps after a set number of confirmed orders in a row and drops back to the first step on a rejected or declined order; deterministic, computed by the gateway (added 2026-11-14). |
 
 ## 5. Non-functional requirements
 

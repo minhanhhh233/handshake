@@ -247,6 +247,13 @@ class Preferences(_Model):
     preferred_labels: list[str] = Field(default_factory=list)
 
 
+class TrustLadder(_Model):
+    """Stage 5: the autonomous per-order cap rises in fixed steps (handshake/trust.py)."""
+
+    steps: list[Money] = Field(min_length=1, max_length=6)
+    promote_after: int = Field(ge=1, le=20)
+
+
 class ProactiveOffers(_Model):
     enabled: bool = False
     categories: list[str] = Field(default_factory=list)
@@ -273,6 +280,8 @@ class MandateBody(_Model):
     stock: StockPolicy = Field(default_factory=StockPolicy)
     preferences: Preferences = Field(default_factory=Preferences)
     proactive_offers: ProactiveOffers = Field(default_factory=ProactiveOffers)
+    #: Stage 5: when set, the per-order cap is the ladder's current step (handshake/trust.py).
+    trust_ladder: TrustLadder | None = None
 
 
 class Mandate(MandateBody):

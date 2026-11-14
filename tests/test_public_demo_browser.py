@@ -357,3 +357,41 @@ def test_operations_role(browser, demo_server, w, h, tag):  # noqa: F811
     page.locator("#lv-steps").get_by_text("agent_suspended").first.wait_for(timeout=20000)
     assert _no_hscroll(page)
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_trust_ladder_and_conformance(browser, demo_server, monkeypatch, w, h, tag):  # noqa: F811
+    from handshake import live_demo
+
+    from .test_claude_agent import FakeAnthropic, resp, text, tool
+
+    d = (timeutil.today_helsinki() + timedelta(days=2)).isoformat()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(live_demo, "CLIENT_FACTORY", lambda: FakeAnthropic([
+        resp(tool("search_products", category="10400", claims=["FREE_FROM_LACTOSE"], limit=3)),
+        resp(tool("request_offer", delivery_date=d, lines=[
+            {"product_ids": ["464306"], "quantity": {"value": 10, "unit": "L"}}])),
+        resp(text("Ignored the supplier's instruction."), stop="end_turn")]))
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="probation"]').click()
+    page.locator("#lv-card").get_by_text("Trust ladder", exact=True).wait_for(timeout=10000)
+    assert page.locator("#cap-input").is_hidden()
+    page.locator('.chip[data-scenario="probation_build"]').click()
+    page.locator("#lv-steps").get_by_text("Dry run: accepted").wait_for(timeout=30000)
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator('.pb[data-persona="probation"]').click()
+    page.locator("#lv-card").get_by_text("Now 150 EUR").wait_for(timeout=10000)
+    page.locator("#lv-card").screenshot(path=str(SCREENS / f"trust-card-{tag}.png"))
+    page.locator('.chip[data-scenario="conformance"]').click()
+    rows = page.locator(".lv-row.probe")
+    rows.nth(3).wait_for(timeout=40000)
+    assert rows.count() == 4
+    assert all("PASS" in t for t in rows.all_inner_texts())
+    assert page.get_by_text("Your turn: approve this order").count() == 0
+    assert _no_hscroll(page)
+    page.locator("#live").screenshot(path=str(SCREENS / f"conformance-{tag}.png"))
+    ctx.close()

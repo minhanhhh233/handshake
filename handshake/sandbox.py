@@ -93,8 +93,11 @@ PERSONAS: dict[str, dict[str, Any]] = {
     "probation": {
         "label": "New agent on probation", "customer": "Pilot Café Oy",
         "agent": "Pilot Café agent (probation)",
-        "blurb": "A newly registered agent: anything over 50 EUR needs a person's approval.",
+        "blurb": "A newly registered agent: anything over its current cap needs a person's "
+                 "approval. It earns a higher cap with confirmed orders.",
         "mandate": {"limits": {"max_order_total_excl_tax": "50.00"},
+                    "trust_ladder": {"steps": ["50.00", "150.00", "300.00"],
+                                     "promote_after": 3},
                     "delivery": {"allowed_weekdays": [1, 2, 3, 4, 5]}},
     },
 }
@@ -233,8 +236,19 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
 
     rules = []
     lim = m.limits
-    rules.append(("Per order", f"{lim.max_order_total_excl_tax} EUR excl. tax, then a person "
-                               f"approves" if lim.max_order_total_excl_tax else "no cap"))
+    ladder_state = None
+    if m.trust_ladder is not None:
+        from . import trust
+
+        with db.connection() as conn:
+            ladder_state = trust.state(conn, pt["agent_id"], m.trust_ladder)
+        rules.append(("Per order", f"{ladder_state['cap']:.2f} EUR excl. tax (trust ladder), "
+                                   f"then a person approves"))
+        rules.append(("Trust ladder", trust.describe(m.trust_ladder, ladder_state)))
+    else:
+        rules.append(("Per order", f"{lim.max_order_total_excl_tax} EUR excl. tax, then a "
+                                   f"person approves" if lim.max_order_total_excl_tax
+                      else "no cap"))
     if lim.max_weekly_total_excl_tax:
         rules.append(("Per week", f"{lim.max_weekly_total_excl_tax} EUR excl. tax, then a "
                                   f"person approves"))
@@ -267,6 +281,7 @@ def card(sandbox_id: str, slug: str) -> dict[str, Any]:
     return {"persona": slug, "label": PERSONAS[slug]["label"], "customer": pt["customer"],
             "agent": PERSONAS[slug]["agent"], "blurb": PERSONAS[slug]["blurb"],
             "mandate_version": m.version, "preference": pref,
+            "ladder": ladder_state is not None,
             "preferences": [{"id": k, "label": v["label"]} for k, v in PREFERENCES.items()],
             "cap": str(lim.max_order_total_excl_tax) if lim.max_order_total_excl_tax else None,
             "rules": [{"name": n, "value": v} for n, v in rules]}

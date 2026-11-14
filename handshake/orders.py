@@ -288,6 +288,9 @@ def _evaluate(conn: Connection, offer_row: dict[str, Any], agent_status: str,
     if mandate is None:
         raise forbidden("This agent has no mandate. An admin must set one before orders "
                         "can be placed.")
+    from . import trust
+
+    mandate = trust.effective(conn, mandate)  # trust ladder: the current step is the cap
     offer = Offer.model_validate(offer_row["payload"])
     catalog = offers.load_catalog(conn, [ln.product_id for ln in offer.lines])
     facts = {pid: cp.facts() for pid, cp in catalog.items()}
@@ -567,6 +570,10 @@ def _insert_order(conn: Connection, req: OrderRequest, row: dict[str, Any], agen
                   "reason_codes": [r.code for r in ev.reasons]},
         )
         offers.release_holds(conn, offer_id, trace, "order rejected")
+    if ev.outcome in ("accepted", "rejected"):
+        from . import trust
+
+        trust.note_change(conn, mandates.get_current(conn, agent_id), order_id, trace)
     return http, body
 
 
@@ -667,6 +674,9 @@ def decide_approval(token: str, decision: str, comment: str | None) -> dict[str,
                 body={"order_id": order_id, "status": "declined"},
             )
             offers.release_holds(conn, offer_id, trace, "approval declined")
+        from . import trust
+
+        trust.note_change(conn, mandates.get_current(conn, order["agent_id"]), order_id, trace)
         return _result("approved" if approve else "declined",
                        load_order(conn, order_id), load_approval(conn, order_id))
 
