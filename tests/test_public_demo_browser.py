@@ -58,7 +58,9 @@ def demo_server(catalog, clean_db):
 
 
 def _no_hscroll(page) -> bool:
-    return page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    # Compare with the requested viewport: in mobile emulation innerWidth grows to fit
+    # overflowing content, which would hide the very overflow this checks for.
+    return page.evaluate("document.documentElement.scrollWidth") <= page.viewport_size["width"]
 
 
 @pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
@@ -77,10 +79,13 @@ def test_landing_and_example_order(browser, demo_server, w, h, tag):  # noqa: F8
     page.get_by_text("Prototype built for the Valio Aimo challenge at Junction 2026").is_visible()
     page.screenshot(path=str(SCREENS / f"landing-{tag}.png"), full_page=True)
 
-    page.get_by_role("button", name="Run the example order", exact=True).click()
+    page.locator(".tile.primary button").click()
     page.wait_for_url("**/demo/runs/**")
     assert _no_hscroll(page)
     assert page.get_by_text("Your turn: approve this order").is_visible()
+    page.get_by_text("Request / response").first.click()  # expandable block per step
+    assert page.locator("details.io[open] pre").first.is_visible()
+    assert _no_hscroll(page)
     page.screenshot(path=str(SCREENS / f"demo-run-{tag}.png"), full_page=True)
     approve = page.get_by_role("link", name="Open the approval page").get_attribute("href")
     run_url = page.url
@@ -99,4 +104,52 @@ def test_landing_and_example_order(browser, demo_server, w, h, tag):  # noqa: F8
     page.goto(demo_server + urlparse(receipt).path + "?" + urlparse(receipt).query)
     assert _no_hscroll(page) and "Record intact" in page.inner_text("body")
     page.screenshot(path=str(SCREENS / f"receipt-{tag}.png"), full_page=True)
+    ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_playground_try_it_live(browser, demo_server, w, h, tag):  # noqa: F811
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    errors: list[str] = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.goto(demo_server + "/")
+    cards = page.locator("[data-step]")
+    assert cards.count() == 6
+
+    def try_step(step: str) -> str:
+        card = page.locator(f'[data-step="{step}"]')
+        card.get_by_role("button", name="Try it live").click()
+        state = card.locator(".state")
+        state.filter(has_text="Done").wait_for(timeout=15000)
+        assert card.locator(".res").inner_text().lstrip().startswith("{")
+        return card.locator(".res").inner_text()
+
+    try_step("search")
+    assert '"jws"' in try_step("request_offer")
+    assert '"verified": true' in try_step("verify_signature")
+    assert "needs_approval" in try_step("dry_run")
+    assert "pending_approval" in try_step("place_order")
+    you = page.locator('[data-step="place_order"] .you a')
+    assert you.is_visible()
+    approve = you.get_attribute("href")
+    assert "/approve/" in approve
+    assert _no_hscroll(page)
+    page.locator("#playground").screenshot(path=str(SCREENS / f"playground-{tag}.png"))
+
+    # Copy button: clipboard may be unavailable headless; the label still confirms.
+    page.locator('[data-copy="qs-1"]').click()
+    page.locator('[data-copy="qs-1"][data-copied]').wait_for(timeout=3000)
+    page.locator("#discovery").screenshot(path=str(SCREENS / f"discovery-{tag}.png"))
+    page.locator("#quick-start").screenshot(path=str(SCREENS / f"quick-start-{tag}.png"))
+
+    ap = ctx.new_page()
+    ap.goto(demo_server + urlparse(approve).path)
+    ap.get_by_role("button", name="Approve order").click()
+    ap.wait_for_load_state()
+    ap.close()
+    assert "confirmed" in try_step("get_receipt")
+    assert not [e for e in errors if "Content Security Policy" in e or "Refused" in e], errors
     ctx.close()

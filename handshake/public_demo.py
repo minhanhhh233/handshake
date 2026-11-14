@@ -142,21 +142,25 @@ def check_rate(ip: str) -> None:
 
 
 class _Run:
-    def __init__(self, scenario: str, ip: str) -> None:
-        self.trace_id = new_id("trc")
+    def __init__(self, scenario: str, ip: str, trace_id: str | None = None) -> None:
         self.scenario = scenario
+        if trace_id:  # resume an existing session (playground)
+            self.trace_id = trace_id
+            return
+        self.trace_id = new_id("trc")
         with db.transaction() as conn:
             events.append(conn, trace_id=self.trace_id, type="demo.run", actor_type="gateway",
                           audience="aimo_only", body={"scenario": scenario, "ip": ip_hash(ip)},
                           text=f"Public demo run started: {scenario.replace('_', ' ')}.")
 
     def step(self, title: str, summary: str, status: str = "ok",
-             detail: Any = None) -> None:
+             detail: Any = None, request: Any = None) -> None:
+        """Record one step: what was sent (`request`) and what came back (`detail`)."""
         with db.transaction() as conn:
             events.append(conn, trace_id=self.trace_id, type="demo.step", actor_type="gateway",
                           audience="aimo_only", text=f"Demo step: {title}"[:500],
                           body={"title": title, "summary": summary, "status": status,
-                                "detail": detail})
+                                "detail": detail, "request": request})
 
 
 def earliest_delivery_date(product_ids: list[str], trace_id: str,
@@ -209,9 +213,13 @@ def run(scenario: str, ip: str) -> str:
     return r.trace_id
 
 
-def _search(conn: Any) -> list[dict[str, Any]]:
+SEARCH_REQUEST = {"category": "10400", "claims": ["FREE_FROM_LACTOSE"],
+                  "name_excludes": PLAIN_MILK_EXCLUDES, "limit": 20}
+
+
+def _search(conn: Any, limit: int = 20) -> list[dict[str, Any]]:
     res = catalog.search(conn, category="10400", claims=["FREE_FROM_LACTOSE"],
-                         name_excludes=PLAIN_MILK_EXCLUDES, limit=20)
+                         name_excludes=PLAIN_MILK_EXCLUDES, limit=limit)
     return [i.dump() for i in res.items]
 
 
@@ -224,7 +232,8 @@ def _anonymous_search(r: _Run) -> None:
     leaked = any(w in text for w in ("price", "availab", "stock_"))
     r.step("Search without an agent key",
            f"GET /v1/products?category=10400&claims=FREE_FROM_LACTOSE returned {len(items)} "
-           f"lactose-free milks with structured claims and allergens.", "ok", sample)
+           f"lactose-free milks with structured claims and allergens.", "ok", sample,
+           request=SEARCH_REQUEST | {"authorization": None})
     r.step("No prices, no stock for anonymous callers",
            "The answer has no price or availability field: those come only from a signed offer "
            "to an authenticated agent." if not leaked else
@@ -242,14 +251,16 @@ def _offer_flow(r: _Run, slug: str) -> None:
            f"Cap {m.get('limits', {}).get('max_order_total_excl_tax')} EUR per order, excl. tax."
            + (f" Forbidden allergens: {', '.join(fa)} (contains or may contain; unknown is "
               f"rejected)." if fa else " No forbidden allergens.")
-           + " The gateway, not the agent, enforces it.", "ok", m)
+           + " The gateway, not the agent, enforces it.", "ok", m,
+           request={"tool": "get_mandate", "http": "GET /v1/mandates/current"})
     found = {i["product_id"] for i in items}
     shortlist = [p for p in SHORTLIST if p in found] or [i["product_id"] for i in items[:8]]
     r.step("The agent searches the catalogue",
            f"Category 10400 (milk), claim FREE_FROM_LACTOSE, coffee and sour milks excluded: "
            f"{len(items)} products. Shortlist in order of preference: {', '.join(shortlist)}.",
            "ok", [{"product_id": i["product_id"], "name": i["name"].get("en"),
-                   "allergens": i["allergens"]} for i in items[:8]])
+                   "allergens": i["allergens"]} for i in items[:8]],
+           request={"tool": "search_products", "http": "GET /v1/products", **SEARCH_REQUEST})
     delivery = earliest_delivery_date(shortlist, r.trace_id, agent["agent_id"])
     if delivery is None:
         r.step("No delivery date available",
@@ -273,7 +284,8 @@ def _offer_flow(r: _Run, slug: str) -> None:
         excluded = e.extra.get("excluded") or []
         r.step("Refused by the gateway: no product can be offered under this mandate",
                " ".join(_excluded_summary(excluded)), "refused",
-               {"code": e.code, "excluded": excluded[:5]})
+               {"code": e.code, "excluded": excluded[:5]},
+               request={"tool": "request_offer", "http": "POST /v1/offers", **req.dump()})
         return
     option = body["options"][0]
     offer, jws = option["offer"], option["jws"]
@@ -284,12 +296,15 @@ def _offer_flow(r: _Run, slug: str) -> None:
            f"{lines}. Total {offer['totals']['excl_tax']} EUR excl. tax, valid until "
            f"{timeutil.iso(timeutil.parse_upstream(offer['expires_at']))[11:16]}. Signature "
            f"verified with the published key {get_settings().signing_kid} (EdDSA).", "ok",
-           {"offer": payload, "jws": jws})
+           {"offer": payload, "jws": jws},
+           request={"tool": "request_offer", "http": "POST /v1/offers", **req.dump()})
     dry, _ = orders.dry_run(offer["offer_id"], agent["agent_id"], agent["status"])
     reasons = " ".join(x["message"] for x in dry["reasons"]) or "No rule fired."
     r.step(f"Dry run against the mandate: {dry['outcome'].replace('_', ' ')}", reasons,
            "warn" if dry["outcome"] == "needs_approval" else
-           ("ok" if dry["outcome"] == "accepted" else "bad"), dry)
+           ("ok" if dry["outcome"] == "accepted" else "bad"), dry,
+           request={"tool": "dry_run_order", "http": "POST /v1/orders/dry-run",
+                    "offer_id": offer["offer_id"]})
     status, order = orders.place_order(
         OrderRequest(offer_id=offer["offer_id"], reference="PUBLIC-DEMO"),
         agent_id=agent["agent_id"], customer_id=agent["customer_id"],
@@ -300,7 +315,9 @@ def _offer_flow(r: _Run, slug: str) -> None:
            + ("It waits for a human: you are the approver in this demo. The agent never sees "
               "the approval link." if order["status"] == "pending_approval" else ""),
            "warn" if order["status"] == "pending_approval" else "ok",
-           {k: v for k, v in order.items() if k != "links"})
+           {k: v for k, v in order.items() if k != "links"},
+           request={"tool": "place_order", "http": "POST /v1/orders",
+                    "offer_id": offer["offer_id"], "reference": "PUBLIC-DEMO"})
 
 
 # ---------------------------------------------------------------- run view
@@ -337,3 +354,155 @@ def run_view(trace_id: str) -> dict[str, Any] | None:
                 info["approval_url"] = orders.approval_url(appr["approval_id"])
         view["order"] = info
     return view
+
+
+# ---------------------------------------------------------------- playground (one tool per card)
+
+PLAYGROUND_STEPS = ("search", "request_offer", "verify_signature", "dry_run", "place_order",
+                    "get_receipt")
+TOOL_NAMES = {"search": "search_products", "request_offer": "request_offer",
+              "verify_signature": "verify_offer (signature check)", "dry_run": "dry_run_order",
+              "place_order": "place_order", "get_receipt": "get_receipt"}
+MAX_SEARCHES_PER_SESSION = 5
+
+
+class PlaygroundError(Exception):
+    def __init__(self, status: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status, self.code, self.message = status, code, message
+
+
+def _session_offer(conn: Any, trace_id: str, agent_id: str) -> dict[str, Any] | None:
+    row = db.q(conn, "SELECT offer_id FROM offers WHERE trace_id = :t AND agent_id = :a "
+                     "ORDER BY issued_at LIMIT 1", t=trace_id, a=agent_id).first()
+    return offers.load_offer(conn, row[0]) if row else None
+
+
+def _session_order(conn: Any, trace_id: str, agent_id: str) -> dict[str, Any] | None:
+    row = db.q(conn, "SELECT order_id FROM orders WHERE trace_id = :t AND agent_id = :a",
+               t=trace_id, a=agent_id).first()
+    return orders.load_order(conn, row[0]) if row else None
+
+
+def playground(step: str, ip: str, trace_id: str | None = None,
+               token: str | None = None) -> dict[str, Any]:
+    """Perform one example-order step as the public-demo agent in the visitor's session.
+
+    A session is a trace. Starting one counts as one demo run against the visitor limit; the
+    steps inside it do not count again, but each write step runs at most once per session and
+    searches are capped, so a session's work is bounded. Returns the tool name, the request the
+    agent sends, the real response, and (place_order only) the visitor's own approval link.
+    """
+    if step not in PLAYGROUND_STEPS:
+        raise PlaygroundError(400, "unknown_step", "Unknown playground step.")
+    if trace_id:
+        if not check_run_token(trace_id, token):
+            raise PlaygroundError(404, "unknown_session", "This playground session is not valid.")
+        with db.connection() as conn:
+            first = db.q(conn, "SELECT type, body_json FROM events WHERE trace_id = :t AND "
+                               "seq = 1", t=trace_id).first()
+        if (not first or first[0] != "demo.run"
+                or db.jload(first[1]).get("scenario") != "playground"):
+            raise PlaygroundError(404, "unknown_session", "This playground session is not valid.")
+        r = _Run("playground", ip, trace_id=trace_id)
+    else:
+        if step not in ("search", "request_offer"):  # nothing to act on yet; spend no run
+            raise PlaygroundError(409, "needs_request_offer", "Run the request offer step first.")
+        check_rate(ip)  # a new session is one demo run
+        r = _Run("playground", ip)
+    with db.connection() as conn:
+        agent = _agent(conn, "order")
+        offer_row = _session_offer(conn, r.trace_id, agent["agent_id"])
+        order_row = _session_order(conn, r.trace_id, agent["agent_id"])
+        searches = int(db.q(conn, "SELECT COUNT(*) FROM events WHERE trace_id = :t AND type = "
+                                  "'demo.step' AND text = 'Demo step: playground search'",
+                            t=r.trace_id).scalar_one())
+    out: dict[str, Any] = {"session": {"trace_id": r.trace_id, "k": run_token(r.trace_id)},
+                           "step": step, "tool": TOOL_NAMES[step]}
+
+    def need(row: Any, what: str) -> None:
+        if row is None:
+            raise PlaygroundError(409, f"needs_{what}",
+                                  f"Run the {what.replace('_', ' ')} step first.")
+
+    try:
+        if step == "search":
+            if searches >= MAX_SEARCHES_PER_SESSION:
+                raise PlaygroundError(429, "too_many_searches",
+                                      "This session has used its searches. Reload the page "
+                                      "to start a new session.")
+            req = SEARCH_REQUEST | {"limit": 5}
+            with db.connection() as conn:
+                res = catalog.search(conn, category="10400", claims=["FREE_FROM_LACTOSE"],
+                                     name_excludes=PLAIN_MILK_EXCLUDES, limit=5)
+            out.update(request={"http": "GET /v1/products", **req}, response=res.dump())
+        elif step == "request_offer":
+            if offer_row is not None:  # one offer per session; show the one already issued
+                out.update(request={"http": "POST /v1/offers", **offer_row["request"]},
+                           response={"trace_id": r.trace_id, "options": [
+                               {"label": "best", "offer": offer_row["payload"],
+                                "jws": offer_row["jws"]}]},
+                           note="This session already has an offer; it is shown again.")
+            else:
+                delivery = earliest_delivery_date(SHORTLIST, r.trace_id, agent["agent_id"])
+                if delivery is None:
+                    raise PlaygroundError(503, "no_delivery_date", "Upstream reports no "
+                                          "deliverable date with an open cut-off right now.")
+                req = OfferRequest.model_validate({
+                    "delivery_date": delivery.isoformat(), "max_options": 1,
+                    "lines": [{"product_ids": SHORTLIST,
+                               "quantity": {"value": 1000, "unit": "L"},
+                               "requirements": {"required_claims": ["FREE_FROM_LACTOSE"]},
+                               "fulfilment": "allow_split", "substitution": "none"}]})
+                body = offers.build_offer(req, agent_id=agent["agent_id"],
+                                          customer_id=agent["customer_id"], trace_id=r.trace_id)
+                out.update(request={"http": "POST /v1/offers", **req.dump()}, response=body)
+        elif step == "verify_signature":
+            need(offer_row, "request_offer")
+            import jwt as _jwt
+
+            jws = offer_row["jws"]
+            header = _jwt.get_unverified_header(jws)
+            try:
+                payload = signing.verify(jws, signing.jwks(), signing.TYP_OFFER)
+                verified = True
+            except signing.SignatureError:
+                payload, verified = None, False
+            out.update(request={"jws": jws, "jwks_uri": f"{get_settings().public_base_url}"
+                                                        f"/.well-known/jwks.json"},
+                       response={"verified": verified, "header": header,
+                                 "offer_id": (payload or {}).get("offer_id"),
+                                 "totals": (payload or {}).get("totals"),
+                                 "expires_at": (payload or {}).get("expires_at")})
+        elif step == "dry_run":
+            need(offer_row, "request_offer")
+            dry, _ = orders.dry_run(offer_row["offer_id"], agent["agent_id"], agent["status"])
+            out.update(request={"http": "POST /v1/orders/dry-run",
+                                "offer_id": offer_row["offer_id"]}, response=dry)
+        elif step == "place_order":
+            need(offer_row, "request_offer")
+            req_o = OrderRequest(offer_id=offer_row["offer_id"], reference="PUBLIC-PLAYGROUND")
+            _, order = orders.place_order(
+                req_o, agent_id=agent["agent_id"], customer_id=agent["customer_id"],
+                agent_status=agent["status"], idem_key=f"pg-{r.trace_id}",
+                approval_ttl_seconds=APPROVAL_TTL_SECONDS)
+            out.update(request={"http": "POST /v1/orders",
+                                "headers": {"Idempotency-Key": f"pg-{r.trace_id}"},
+                                **req_o.dump(exclude_none=True)},
+                       response=order)
+            with db.connection() as conn:
+                appr = orders.load_approval(conn, order["order_id"])
+            if appr is not None and appr["status"] == "pending":
+                # The visitor is the approver in this demo: their own order's link only.
+                out["you"] = {"approval_url": orders.approval_url(appr["approval_id"]),
+                              "approval_expires_at": timeutil.iso(appr["expires_at"])}
+        elif step == "get_receipt":
+            need(order_row, "place_order")
+            out.update(request={"http": f"GET /v1/orders/{order_row['order_id']}/receipt"},
+                       response=receipts.get_receipt(order_row["order_id"], agent["agent_id"]))
+    except HandshakeError as e:
+        out.update(response={"error": e.problem(r.trace_id)})
+    r.step(f"playground {step.replace('_', ' ')}", f"Playground: {TOOL_NAMES[step]}",
+           "bad" if "error" in (out.get("response") or {}) else "ok",
+           request=out.get("request"))
+    return out

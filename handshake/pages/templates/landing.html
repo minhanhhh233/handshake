@@ -1,141 +1,192 @@
 {% extends "_base.html" %}
+{% block head %}<script src="/static/site.js" defer></script>{% endblock %}
 {% block style %}
 .shell { max-width: 72rem; margin: 0 auto; padding: 18px var(--gutter) 0; }
-section { padding: 64px 0; }
+section { padding: 64px 0 0; }
+h2.sec { font-size: var(--step-3); line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; }
+.intro { margin-top: 10px; color: var(--slate); max-width: 42em; }
+.panel { border: 1px solid var(--frost); background: var(--surface); border-radius: 14px; }
+pre.code, code.inline { background: var(--raised); border: 1px solid var(--frost); border-radius: 8px; }
+pre.code { margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.5; overflow: auto;
+  white-space: pre; max-height: 20rem; }
+code.inline { padding: 1px 6px; font-size: 0.9em; }
+.copy { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: transparent;
+  border: 1px solid var(--frost); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  min-height: 32px; }
+.copy:hover { border-color: var(--slate); }
+.copy[data-copied] { color: var(--accent-text); border-color: var(--accent); }
+.pill { display: inline-block; border: 1px solid var(--frost); border-radius: 999px; padding: 2px 10px;
+  font-size: 12px; font-weight: 600; color: var(--slate); white-space: nowrap; }
 
-/* 1. Hero */
-.hero { padding-top: 56px; padding-bottom: 56px; display: grid; gap: 22px; max-width: 52rem; }
-.eyebrow { color: var(--accent); font-weight: 700; font-size: var(--step--1); }
+/* Hero */
+.hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
+.eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }
 .hero h1 { font-size: clamp(2.4rem, 7vw, 4.25rem); line-height: 1.02; letter-spacing: -0.035em;
   font-weight: 800; max-width: 15ch; }
 .sub { font-size: var(--step-1); line-height: 1.5; color: var(--slate); max-width: 38em; }
-.term { display: flex; align-items: stretch; max-width: 46rem; border-radius: 10px;
-  background: var(--ink); color: #E9F1F5; font-family: var(--mono); font-size: 14px;
-  overflow: hidden; }
-.term .prompt { padding: 14px 0 14px 16px; color: #9FD3B4; user-select: none; }
-.term code { padding: 14px 16px 14px 10px; white-space: nowrap; overflow-x: auto;
-  user-select: all; cursor: text; }
-.hint { font-size: var(--step--1); color: var(--slate); margin-top: -12px; }
+.term { display: flex; align-items: center; gap: 10px; max-width: 46rem; padding: 6px 8px 6px 16px;
+  font-family: var(--mono); font-size: 14px; }
+.term .prompt { color: var(--slate); user-select: none; }
+.term code { flex: 1; min-width: 0; white-space: nowrap; overflow-x: auto; padding: 8px 0; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
-.badges li { border: 1px solid var(--frost); background: var(--white); border-radius: 999px;
-  padding: 5px 12px; font-size: var(--step--1); font-weight: 600; }
 
-/* 2. Capabilities */
-.caps h2, .how h2, .demo h2 { font-size: var(--step-3); line-height: 1.1; letter-spacing: -0.02em;
-  font-weight: 800; }
-.caps .intro, .how .intro { margin-top: 10px; color: var(--slate); max-width: 40em; }
-.grid { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: 1fr; list-style: none;
-  padding: 0; }
-.card { border: 1px solid var(--frost); background: var(--white); border-radius: 12px;
-  padding: 20px 20px 22px; }
-.card .tag { color: var(--accent); font-weight: 700; font-size: var(--step--1); }
-.card h3 { margin-top: 8px; font-size: var(--step-1); line-height: 1.3; }
-.card p { margin-top: 6px; color: var(--slate); }
+/* Capabilities */
+.grid { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: 1fr; list-style: none; padding: 0; }
+.cap { padding: 20px 20px 22px; }
+.cap .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.icon { width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--frost);
+  background: var(--raised); display: grid; place-items: center; color: var(--accent-text); }
+.icon svg { width: 20px; height: 20px; }
+.cap h3 { margin-top: 16px; font-size: var(--step-1); line-height: 1.3; }
+.cap p { margin-top: 6px; color: var(--slate); }
 
-/* 3. Stats */
-.stats { padding: 0; }
-.stats dl { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--ink);
-  border-bottom: 1px solid var(--frost); }
-.stats div { padding: 22px 16px 22px 0; }
-.stats div + div { padding-left: 16px; }
-.stats div:nth-child(3) { padding-left: 0; border-top: 1px solid var(--frost); }
-.stats div:nth-child(4) { border-top: 1px solid var(--frost); }
-.stats div:nth-child(2n) { border-left: 1px solid var(--frost); }
+/* Stats */
+.stats dl { margin-top: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--frost); border: 1px solid var(--frost); border-radius: 14px; overflow: hidden; }
+.stats div { background: var(--surface); padding: 20px; display: flex; flex-direction: column; gap: 4px; }
 .stats dt { font-size: var(--step--1); color: var(--slate); }
 .stats dd { order: -1; font-size: clamp(2rem, 6vw, 2.75rem); font-weight: 800; letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums; line-height: 1.1; }
-.stats div { display: flex; flex-direction: column; gap: 4px; }
 
-/* 4. Live demo: the visual centre */
-.demo-band { background: var(--ink); color: var(--paper); margin-top: 64px; }
-.demo { max-width: 72rem; margin: 0 auto; padding: 64px var(--gutter); }
-.demo h2 { color: var(--white); }
-.demo .intro { margin-top: 10px; color: #C3D3DC; max-width: 40em; }
-.tiles { margin-top: 30px; display: grid; gap: 14px; }
+/* Guided demo */
+.tiles { margin-top: 28px; display: grid; gap: 14px; }
 .tile { margin: 0; }
-.tile button { width: 100%; text-align: left; display: grid; gap: 6px; padding: 22px;
-  border-radius: 14px; border: 1px solid #355A73; background: #1B3F59; color: var(--white);
-  font: inherit; cursor: pointer; }
-.tile button:hover { border-color: #9FD3B4; }
+.tile button { width: 100%; height: 100%; text-align: left; display: grid; gap: 6px; align-content: start;
+  padding: 22px; border-radius: 14px; border: 1px solid var(--frost); background: var(--surface);
+  color: var(--ink); font: inherit; cursor: pointer; }
+.tile button:hover { border-color: var(--slate); }
 .tile .t { font-size: var(--step-2); font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
-.tile .d { color: #C3D3DC; }
-.tile .go { margin-top: 8px; font-weight: 700; color: #9FD3B4; }
+.tile .d { color: var(--slate); }
+.tile .go { margin-top: 8px; font-weight: 700; color: var(--accent-text); }
 .tile.primary button { background: var(--accent); border-color: var(--accent); }
 .tile.primary button:hover { background: var(--accent-dark); }
-.tile.primary .d { color: #E3F0E8; }
+.tile.primary .d { color: #DCEBE2; }
 .tile.primary .go { color: var(--white); }
-.demo .note { margin-top: 18px; font-size: var(--step--1); color: #A9BDC9; }
+.note { margin-top: 16px; font-size: var(--step--1); color: var(--slate); }
 
-/* 5. How it works */
+/* Playground */
+.pg-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.pg { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: 1fr; list-style: none;
+  padding: 0; counter-reset: pg; }
+.pgc { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0; counter-increment: pg; }
+.pgc .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.pgc h3 { font-size: var(--step-1); line-height: 1.25; }
+.pgc h3::before { content: counter(pg) ". "; color: var(--slate); font-weight: 600; }
+.pgc .what { color: var(--slate); font-size: var(--step--1); }
+.pgc .tool { font-family: var(--mono); font-size: 13px; color: var(--accent-text); overflow-wrap: anywhere; }
+.pgc .lbl { font-size: 12px; font-weight: 600; color: var(--slate); margin-bottom: 6px; }
+.pgc pre.code { max-height: 14rem; font-size: 12px; }
+.pgc .res { max-height: 18rem; color: var(--ink); }
+.pgc .run { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.try { font: inherit; font-weight: 700; min-height: 40px; padding: 0 16px; border-radius: 9px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--white); cursor: pointer; }
+.try:hover { background: var(--accent-dark); }
+.try:disabled { opacity: 0.6; cursor: progress; }
+.state { font-size: var(--step--1); color: var(--slate); }
+.state[data-state="ok"] { color: var(--accent-text); }
+.state[data-state="bad"] { color: var(--lingon); }
+.you { border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; background: rgba(46, 107, 79, 0.14); }
+.you a { font-weight: 700; color: var(--accent-text); }
+.reset { font: inherit; font-weight: 600; color: var(--ink); background: transparent;
+  border: 1px solid var(--frost); border-radius: 9px; min-height: 40px; padding: 0 14px; cursor: pointer; }
+
+/* Discovery */
+.disc { margin-top: 28px; list-style: none; padding: 0; }
+.disc li { display: grid; gap: 6px 16px; padding: 16px 18px; border-top: 1px solid var(--frost);
+  grid-template-columns: 1fr auto; align-items: center; }
+.disc li:first-child { border-top: 0; }
+.disc .path { font-family: var(--mono); font-size: 14px; color: var(--accent-text); overflow-wrap: anywhere; }
+.disc .path .m { color: var(--slate); margin-right: 6px; }
+.disc .desc { grid-column: 1 / -1; color: var(--slate); font-size: var(--step--1); }
+.disc .ct { font-family: var(--mono); font-size: 12px; color: var(--slate); }
+.disc .open { font-size: var(--step--1); font-weight: 600; }
+.disc .meta { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+
+/* Quick start */
+.qs { margin-top: 28px; display: grid; gap: 14px; grid-template-columns: 1fr; list-style: none; padding: 0; }
+.qsc { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; min-width: 0; }
+.qsc .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.qsc h3 { font-size: var(--step-1); }
+.qsc p { color: var(--slate); font-size: var(--step--1); }
+
+/* How it works */
 .steps5 { margin-top: 28px; display: grid; gap: 0; list-style: none; padding: 0; counter-reset: s; }
 .steps5 li { counter-increment: s; position: relative; padding: 0 0 22px 52px; }
 .steps5 li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 34px; height: 34px;
-  border-radius: 50%; border: 2px solid var(--accent); color: var(--accent); font-weight: 800;
+  border-radius: 50%; border: 1px solid var(--accent-text); color: var(--accent-text); font-weight: 800;
   display: grid; place-items: center; background: var(--paper); }
-.steps5 li::after { content: ""; position: absolute; left: 17px; top: 36px; bottom: 2px; width: 2px;
+.steps5 li::after { content: ""; position: absolute; left: 17px; top: 36px; bottom: 2px; width: 1px;
   background: var(--frost); }
 .steps5 li:last-child::after { display: none; }
 .steps5 h3 { font-size: var(--step-1); padding-top: 4px; }
 .steps5 p { color: var(--slate); margin-top: 2px; }
-
-.dev { padding-top: 0; font-size: var(--step--1); color: var(--slate); }
-.dev a { font-weight: 600; }
+.how { padding-bottom: 64px; }
 
 @media (min-width: 760px) {
   .grid { grid-template-columns: repeat(3, 1fr); }
   .stats dl { grid-template-columns: repeat(4, 1fr); }
-  .stats div:nth-child(n) { border-top: 0; padding-left: 20px; border-left: 1px solid var(--frost); }
-  .stats div:first-child { padding-left: 0; border-left: 0; }
   .tiles { grid-template-columns: 1.3fr 1fr 1fr; }
+  .pg { grid-template-columns: repeat(2, 1fr); }
+  .qs { grid-template-columns: repeat(2, 1fr); }
+  .disc li { grid-template-columns: minmax(16rem, 1.2fr) 2fr auto; }
+  .disc .desc { grid-column: auto; }
+  .disc .meta { grid-column: auto; justify-content: end; }
   .steps5 { grid-template-columns: repeat(5, 1fr); gap: 16px; }
   .steps5 li { padding: 52px 0 0 0; }
-  .steps5 li::after { left: 40px; right: -12px; top: 17px; bottom: auto; width: auto; height: 2px; }
+  .steps5 li::after { left: 40px; right: -12px; top: 17px; bottom: auto; width: auto; height: 1px; }
 }
+@media (min-width: 1100px) { .pg { grid-template-columns: repeat(3, 1fr); } }
 {% endblock %}
 {% block body %}
+{% set svg = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' %}
 <div class="shell">
   <p class="brand"><strong>Handshake</strong> agent gateway</p>
 
   <section class="hero" aria-labelledby="hero-title">
-    <p class="eyebrow">Agent gateway prototype · Junction 2026</p>
+    <p class="eyebrow">Agent gateway prototype for Junction 2026</p>
     <h1 id="hero-title">Let purchasing agents order within limits people set.</h1>
     <p class="sub">Handshake sits between a buyer's AI agent and a food wholesaler: the agent searches, receives a signed fixed price, and any order over its mandate waits for a person to approve it.</p>
-    <div class="term" aria-label="Fetch the discovery document">
+    <div class="term panel">
       <span class="prompt" aria-hidden="true">$</span>
-      <code>curl {{ base }}/.well-known/handshake.json</code>
+      <code id="cmd-hero">curl {{ base }}/.well-known/handshake.json</code>
+      <button class="copy" type="button" data-copy="cmd-hero">Copy</button>
     </div>
-    <p class="hint">Click the command once to select it, then copy.</p>
     <div class="actions">
-      <form method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
-        <button class="btn" type="submit">Run the example order</button></form>
+      <a class="btn" href="#playground">Open the playground</a>
       <a class="btn secondary" href="/docs">View API docs</a>
     </div>
     <ul class="badges" aria-label="Standards used">
-      <li>MCP</li><li>OpenAPI</li><li>JWS EdDSA</li><li>JWKS</li><li>GS1 GTIN</li>
+      <li class="pill">MCP</li><li class="pill">OpenAPI</li><li class="pill">JWS EdDSA</li><li class="pill">JWKS</li><li class="pill">GS1 GTIN</li><li class="pill">llms.txt</li>
     </ul>
   </section>
 
-  <section class="caps" aria-labelledby="caps-title">
-    <h2 id="caps-title">What the gateway does</h2>
+  <section aria-labelledby="caps-title">
+    <h2 class="sec" id="caps-title">What the gateway does</h2>
     <p class="intro">Every rule lives on the gateway. The agent decides what to ask for; Handshake decides what is allowed.</p>
     <ul class="grid">
-      <li class="card"><p class="tag">Lookup</p><h3>Structured product search</h3>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg></span><span class="pill">Lookup</span></div>
+        <h3>Structured product search</h3>
         <p>Filter by category, claims, allergens and labels. Supplier text is marked untrusted.</p></li>
-      <li class="card"><p class="tag">Offers</p><h3>Signed, fixed prices</h3>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><path d="M6 3h9l4 4v14H6z"/><path d="M9 14l2 2 4-4"/></svg></span><span class="pill">JWS</span></div>
+        <h3>Signed, fixed prices</h3>
         <p>Every offer is an Ed25519-signed JWS with expiry. Any agent can verify it with the public key.</p></li>
-      <li class="card"><p class="tag">Mandates</p><h3>Limits a person sets</h3>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><path d="M4 7h16M4 12h10M4 17h6"/><path d="M17 14v6M14 17h6"/></svg></span><span class="pill">Mandate</span></div>
+        <h3>Limits a person sets</h3>
         <p>Spend caps, allergens, categories and delivery days, checked on every order. Never on the agent.</p></li>
-      <li class="card"><p class="tag">Approval</p><h3>Human sign-off</h3>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 13l1.6 1.6L14.5 11.5"/></svg></span><span class="pill">Approval</span></div>
+        <h3>Human sign-off</h3>
         <p>Orders over the mandate wait for a named approver on a phone. The agent never sees the link.</p></li>
-      <li class="card"><p class="tag">Receipts</p><h3>Tamper-evident record</h3>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><rect x="3" y="4" width="6" height="6" rx="1.5"/><rect x="15" y="4" width="6" height="6" rx="1.5"/><rect x="9" y="14" width="6" height="6" rx="1.5"/><path d="M9 7h6M6 10l4.5 4M18 10l-4.5 4"/></svg></span><span class="pill">Hash chain</span></div>
+        <h3>Tamper-evident record</h3>
         <p>Each step is hash-chained. The signed receipt carries the chain head, so changes show.</p></li>
-      <li class="card"><p class="tag">Open</p><h3>Works with any agent</h3>
-        <p>Plain HTTPS with an OpenAPI description, a discovery document, and an MCP server.</p></li>
+      <li class="cap panel"><div class="top"><span class="icon"><svg {{ svg|safe }}><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></span><span class="pill">MCP</span></div>
+        <h3>Works with any agent</h3>
+        <p>Plain HTTPS with an OpenAPI description, a discovery document, llms.txt and an MCP server.</p></li>
     </ul>
   </section>
 
-  <section class="stats" aria-label="The system in figures">
+  <section class="stats" aria-label="The system in figures" style="padding-top:0">
     <dl>
       <div><dt>products in the catalogue</dt><dd>{{ "{:,}".format(stats.products) }}</dd></div>
       <div><dt>tools an agent can call</dt><dd>{{ stats.tools }}</dd></div>
@@ -143,12 +194,10 @@ section { padding: 64px 0; }
       <div><dt>minutes an offer stays valid</dt><dd>{{ stats.offer_minutes }}</dd></div>
     </dl>
   </section>
-</div>
 
-<div class="demo-band">
-  <section class="demo" id="demo" aria-labelledby="demo-title">
-    <h2 id="demo-title">Try it live</h2>
-    <p class="intro">These run on the real gateway with Valio Aimo's challenge data, as a separate demo customer. No sign-in.</p>
+  <section id="demo" aria-labelledby="demo-title">
+    <h2 class="sec" id="demo-title">Guided demo</h2>
+    <p class="intro">Each button runs a whole scenario on the real gateway with Valio Aimo's challenge data, as a separate demo customer, and shows the timeline. No sign-in.</p>
     <div class="tiles">
       <form class="tile primary" method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
         <button type="submit"><span class="t">Run the example order</span>
@@ -163,13 +212,116 @@ section { padding: 64px 0; }
           <span class="d">Without a key you see products and attributes, never prices or stock.</span>
           <span class="go">Search without a key</span></button></form>
     </div>
-    <p class="note">Up to {{ limit }} runs every {{ window_min }} minutes per visitor. Demo orders expire after 30 minutes.</p>
+    <p class="note">Up to {{ limit }} runs every {{ window_min }} minutes per visitor, guided demo and playground together. Demo orders expire after 30 minutes.</p>
   </section>
-</div>
 
-<div class="shell">
+  <section id="playground" aria-labelledby="pg-title">
+    <div class="pg-head">
+      <div>
+        <h2 class="sec" id="pg-title">Playground</h2>
+        <p class="intro">The example order one tool call at a time. Each button sends that step to the live gateway as the public demo agent and shows the real response. Run the cards in order; a session starts with your first call.</p>
+      </div>
+      <button class="reset" id="pg-reset" type="button">Start a new session</button>
+    </div>
+    <noscript><p class="note">The playground needs JavaScript. The guided demo above works without it.</p></noscript>
+    <ol class="pg">
+      <li class="pgc panel" data-step="search">
+        <div class="top"><h3>Search</h3><span class="pill">GET</span></div>
+        <p class="tool">search_products</p>
+        <p class="what">Lactose-free milks by structured attributes. No prices in the answer.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"http": "GET /v1/products", "category": "10400", "claims": ["FREE_FROM_LACTOSE"], "name_excludes": plain_excludes, "limit": 5}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+      <li class="pgc panel" data-step="request_offer">
+        <div class="top"><h3>Request offer</h3><span class="pill">POST</span></div>
+        <p class="tool">request_offer</p>
+        <p class="what">1,000 litres for the earliest deliverable date. The gateway prices and signs it.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"http": "POST /v1/offers", "delivery_date": "earliest deliverable date", "max_options": 1, "lines": [{"product_ids": shortlist, "quantity": {"value": 1000, "unit": "L"}, "requirements": {"required_claims": ["FREE_FROM_LACTOSE"]}, "fulfilment": "allow_split", "substitution": "none"}]}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+      <li class="pgc panel" data-step="verify_signature">
+        <div class="top"><h3>Verify signature</h3><span class="pill">JWKS</span></div>
+        <p class="tool">verify_offer (signature check)</p>
+        <p class="what">Check the offer's JWS against the published key, as any agent would.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"jws": "compact JWS of the offer from step 2", "jwks_uri": base ~ "/.well-known/jwks.json"}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+      <li class="pgc panel" data-step="dry_run">
+        <div class="top"><h3>Dry run</h3><span class="pill">POST</span></div>
+        <p class="tool">dry_run_order</p>
+        <p class="what">Test the offer against the mandate without ordering anything.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"http": "POST /v1/orders/dry-run", "offer_id": "the offer_id from step 2"}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+      <li class="pgc panel" data-step="place_order">
+        <div class="top"><h3>Place order</h3><span class="pill">POST</span></div>
+        <p class="tool">place_order</p>
+        <p class="what">Over the agent's limit, so it waits for approval. In this demo you are the approver.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"http": "POST /v1/orders", "headers": {"Idempotency-Key": "one key per order, reused on retry"}, "offer_id": "the offer_id from step 2", "reference": "PUBLIC-PLAYGROUND"}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <p class="you" hidden>Your order is waiting for you. <a href="#" rel="noreferrer noopener" target="_blank">Open your approval page</a>, decide, then run the receipt step.</p>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+      <li class="pgc panel" data-step="get_receipt">
+        <div class="top"><h3>Receipt</h3><span class="pill">JWS</span></div>
+        <p class="tool">get_receipt</p>
+        <p class="what">The signed receipt with the hash-chained timeline of every step.</p>
+        <div><p class="lbl">Input</p><pre class="code req">{{ {"http": "GET /v1/orders/{order_id}/receipt"}|pjson }}</pre></div>
+        <div class="run"><button class="try" type="button">Try it live</button><span class="state" role="status"></span></div>
+        <div><p class="lbl">Response</p><pre class="code res" tabindex="0">Not run yet.</pre></div>
+      </li>
+    </ol>
+    <p class="note">A playground session counts as one demo run. It can request one offer and place one order; searches are capped at {{ max_searches }}.</p>
+  </section>
+
+  <section id="discovery" aria-labelledby="disc-title">
+    <h2 class="sec" id="disc-title">Discovery</h2>
+    <p class="intro">The public endpoints an agent can read before it has a key.</p>
+    <ul class="disc panel">
+      {% for d in discovery %}
+      <li>
+        <span class="path"><span class="m">{{ d.method }}</span>{{ d.path }}</span>
+        <span class="desc">{{ d.desc }}</span>
+        <span class="meta"><span class="pill">{{ d.std }}</span><span class="ct">{{ d.ct }}</span>
+          {% if d.method == "GET" %}<a class="open" href="{{ d.href }}">Open</a>{% else %}<a class="open" href="/docs">In docs</a>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section id="quick-start" aria-labelledby="qs-title">
+    <h2 class="sec" id="qs-title">Quick start</h2>
+    <p class="intro">Four things to try from a terminal.</p>
+    <ul class="qs">
+      <li class="qsc panel"><div class="top"><h3>Read the discovery file</h3><button class="copy" type="button" data-copy="qs-1">Copy</button></div>
+        <p>API base, signing scheme, capabilities and authentication.</p>
+        <pre class="code" id="qs-1">curl {{ base }}/.well-known/handshake.json</pre></li>
+      <li class="qsc panel"><div class="top"><h3>Search without a key</h3><button class="copy" type="button" data-copy="qs-2">Copy</button></div>
+        <p>Products and attributes; no prices or stock without a key.</p>
+        <pre class="code" id="qs-2">curl "{{ base }}/v1/products?category=10400&claims=FREE_FROM_LACTOSE&limit=5"</pre></li>
+      <li class="qsc panel"><div class="top"><h3>Verify an offer signature</h3><button class="copy" type="button" data-copy="qs-3">Copy</button></div>
+        <p>Python with PyJWT. Save an offer's JWS, for example from the playground, as offer.jws.</p>
+        <pre class="code" id="qs-3">import json, jwt, urllib.request
+jwks = json.load(urllib.request.urlopen("{{ base }}/.well-known/jwks.json"))
+jws = open("offer.jws").read().strip()
+kid = jwt.get_unverified_header(jws)["kid"]
+key = jwt.PyJWK(next(k for k in jwks["keys"] if k["kid"] == kid)).key
+print(json.loads(jwt.PyJWS().decode(jws, key, algorithms=["EdDSA"])))</pre></li>
+      <li class="qsc panel"><div class="top"><h3>Connect an MCP client</h3><button class="copy" type="button" data-copy="qs-4">Copy</button></div>
+        <p>From a checkout of the repository, in Claude Code. Agent keys are issued by the gateway operator.</p>
+        <pre class="code" id="qs-4">claude mcp add handshake \
+  -e HANDSHAKE_BASE_URL={{ base }} \
+  -e HANDSHAKE_AGENT_KEY=&lt;agent key&gt; \
+  -- python -m mcp_server.server</pre></li>
+    </ul>
+  </section>
+
   <section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">How it works</h2>
+    <h2 class="sec" id="how-title">How it works</h2>
     <p class="intro">The path of one order, as the agent and the gateway see it.</p>
     <ol class="steps5">
       <li><h3>Search</h3><p>The agent filters the catalogue by structured attributes.</p></li>
@@ -178,9 +330,6 @@ section { padding: 64px 0; }
       <li><h3>Approve</h3><p>Over the limit, a named person signs off.</p></li>
       <li><h3>Receipt</h3><p>A signed, hash-chained record of every step.</p></li>
     </ol>
-  </section>
-  <section class="dev" aria-label="For developers">
-    <p>For developers: <a href="/docs">API documentation</a>, <a href="/.well-known/handshake.json">discovery document</a>, <a href="/.well-known/jwks.json">public signing keys</a> (key {{ kid }}).</p>
   </section>
 </div>
 {% endblock %}

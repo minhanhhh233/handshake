@@ -97,7 +97,15 @@ env = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-env.filters.update(long_date=long_date, hm=hm, hms=hms, when=when, qty=qty, money=money)
+def pjson(value: object) -> str:
+    """Readable JSON for <pre> blocks; autoescaping still applies to the result."""
+    import json
+
+    return json.dumps(value, indent=2, ensure_ascii=False, default=str)
+
+
+env.filters.update(long_date=long_date, hm=hm, hms=hms, when=when, qty=qty, money=money,
+                   pjson=pjson)
 
 
 # The approval token is in the URL: never let it reach a third party through Referer, a

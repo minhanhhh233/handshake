@@ -481,6 +481,9 @@ Server-rendered HTML, outside `/v1`.
 | `GET /` | None | Public landing page: what Handshake is, links to `/docs`, `/.well-known/handshake.json` and `/.well-known/jwks.json`, three demo buttons (added 2026-11-14) |
 | `POST /demo/run` | None, rate-limited | Form field `scenario` = `example_order`, `allergy_guard` or `anonymous_search`; runs it server-side and redirects (303) to the run page. `429` with `Retry-After` after 5 runs in 10 minutes from one visitor |
 | `GET /demo/runs/{trace_id}?k={run_token}` | Run token | The run's steps; for the example order, the approval link and QR code of that one order while it is pending, then the receipt link |
+| `POST /demo/playground/{step}` | None, rate-limited; session token after the first call | JSON body `{}` (new session) or `{"trace_id", "k"}`; `step` = `search`, `request_offer`, `verify_signature`, `dry_run`, `place_order` or `get_receipt`. Runs that one step as the public-demo agent and returns `{session, step, tool, request, response}`; `place_order` adds `you.approval_url` for the visitor's own order. `415` for non-JSON, `409` when an earlier step is missing, `404` for an invalid session, `429` as for `/demo/run` (added 2026-11-14, dark-theme release) |
+| `GET /llms.txt` | None | Plain-text description of the gateway for language models: rules for agents, endpoints, links to discovery, JWKS and OpenAPI |
+| `GET /static/site.js` | None | The one self-hosted script used by the landing and run pages (copy buttons, playground) |
 
 Approving after `approval.expires_at`, or a second use of the token, shows an explanatory page and changes nothing.
 
@@ -492,7 +495,8 @@ Public demo (2026-11-14; document 09, section 6a):
 - The visitor limit counts `demo.run` events per visitor in the last 10 minutes. A visitor is identified by a keyed hash of the right-most `X-Forwarded-For` entry (the one Modal's proxy adds); the raw IP is not stored.
 - Public-demo approvals expire after 30 minutes (`approval_ttl_seconds` override in `orders.place_order`), after which the order is expired and its stock released.
 - The delivery date is the earliest `availableDate` upstream reports for the shortlist among products whose cut-off is still more than 5 minutes ahead; if there is none, the run says so instead of ordering.
-- Landing and run pages load no scripts (meta refresh every 5 seconds while the approval is pending) and no external resources. The run page uses the approval page's headers (`no-store`, `no-referrer`, `DENY`).
+- Landing and run pages load exactly one script, the self-hosted `/static/site.js` (copy buttons and the playground's "Try it live"), under `script-src 'self'; connect-src 'self'` with no inline script and no external resources. The run page otherwise uses the approval page's headers (`no-store`, `no-referrer`, `DENY`) and still refreshes by meta refresh every 5 seconds while the approval is pending. Approval and receipt pages remain script-free (CSP without `script-src`). Changed 2026-11-14 from "no scripts" at the user's request for the playground.
+- Playground sessions are traces whose first event is a `demo.run` with scenario `playground`; the session token is the same HMAC as `run_token`. Starting a session counts as one run against the visitor limit; steps within it do not, but each session issues at most one offer and one order (idempotency key `pg-{trace_id}`) and at most 5 searches. Steps that need an earlier step are refused with `409` before any session is started. The agent-facing response never carries the approval link; only the separate `you` block does, for that session's own order. Responses carry `Cache-Control: no-store`.
 
 Implementation notes (phase 3):
 

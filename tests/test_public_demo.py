@@ -66,7 +66,14 @@ def test_landing_page(client):
     for scenario in public_demo.SCENARIOS:
         assert f'value="{scenario}"' in html
     csp = r.headers["content-security-policy"]
-    assert "script-src" not in csp and "default-src 'none'" in csp
+    # One self-hosted script only (document 03, section 8): no inline script, no other origin.
+    assert "script-src 'self'" in csp and "default-src 'none'" in csp
+    assert "unsafe-inline" not in csp.split("script-src", 1)[1].split(";", 1)[0]
+    assert "connect-src 'self'" in csp
+    assert '<script src="/static/site.js" defer></script>' in html
+    assert len(re.findall(r"<script", html)) == 1
+    for section in ('id="playground"', 'id="discovery"', 'id="quick-start"', 'href="/llms.txt"'):
+        assert section in html
     assert get_settings().admin_key not in html and "/console" not in html
 
 

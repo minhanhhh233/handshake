@@ -9,16 +9,22 @@
 {% block head %}{% endblock %}
 <style>
 :root {
-  --paper: #F6F9FA;
-  --ink: #14324A;
-  --frost: #D8E5EB;
-  --slate: #5B7180;
-  --spruce: #2E6B4F;
-  --spruce-dark: #23543D;
-  --lingon: #B3263E;
-  --white: #FFFFFF;
-  --accent: #2E6B4F;   /* the one accent: actions, tags, active steps, focus */
-  --accent-dark: #23543D;
+  color-scheme: dark;
+  /* Dark theme (2026-11-14). Names kept from the light theme so every page follows:
+     paper = page background, ink = main text and strong lines, frost = 1px borders. */
+  --paper: #0E1417;
+  --surface: #151D21;        /* cards, panels, inputs */
+  --raised: #1B252A;         /* code blocks, hovered surfaces */
+  --ink: #E6EDEF;
+  --frost: #26333A;
+  --slate: #93A4AB;
+  --spruce: #2E6B4F;         /* the one accent: filled actions, active steps */
+  --spruce-dark: #285E46;
+  --accent: #2E6B4F;
+  --accent-dark: #285E46;
+  --accent-text: #6CC49A;    /* spruce, lightened for text: paths, commands, JSON, tags */
+  --lingon: #E0566C;         /* status only: over the limit, declined, refused */
+  --white: #FFFFFF;          /* text on filled accent buttons */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --step--1: 0.875rem;
@@ -40,13 +46,14 @@ body {
 }
 h1, h2, h3, p, ul, ol, dl, dd, figure, blockquote { margin: 0; }
 a { color: var(--ink); text-underline-offset: 3px; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+code, pre { color: var(--accent-text); font-family: var(--mono); }
+:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 3px; }
 /* Shared site chrome: top bar (every page's .brand line) and footer disclaimer. */
 .brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   font-size: var(--step--1); color: var(--slate); padding: 4px 0 16px;
   border-bottom: 1px solid var(--frost); }
 .brand::before { content: ""; width: 14px; height: 14px; border-radius: 4px;
-  background: var(--accent); box-shadow: 5px 5px 0 0 var(--ink); margin-right: 6px; }
+  background: var(--accent-text); box-shadow: 5px 5px 0 0 var(--accent); margin-right: 6px; }
 .brand strong { color: var(--ink); font-size: var(--step-0); letter-spacing: -0.01em; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 50px; padding: 0 22px; border-radius: 10px; font: inherit; font-weight: 700;
@@ -54,7 +61,7 @@ a { color: var(--ink); text-underline-offset: 3px; }
   background: var(--accent); color: var(--white); }
 .btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 .btn.secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
-.btn.secondary:hover { background: var(--frost); }
+.btn.secondary:hover { background: var(--raised); }
 .site-foot { max-width: 72rem; margin: 0 auto; padding: 22px var(--gutter) 34px;
   border-top: 1px solid var(--frost); color: var(--slate); font-size: var(--step--1); }
 .site-foot p { max-width: 60em; }
