@@ -541,8 +541,8 @@ def _run_agent(r: Any, prompt: str, delivery: str, anthropic_client: Any, key: s
             "tool_limit": f"Stopped: the limit of {MAX_TOOL_CALLS} tool calls was reached.",
             "stopped": "Stopped: today's budget for the live agent is used up.",
             "refusal": "The model declined this request.",
-            "api_error": "The Claude API could not be reached. Try a scripted demo below.",
-        }.get(stop, "The run ended with an error. Try a scripted demo below.")
+            "api_error": "The Claude API could not be reached. Try a one-click scripted scenario.",
+        }.get(stop, "The run ended with an error. Try a one-click scripted scenario.")
         r.step("Run ended", text, "ok" if stop in ("end_turn", "pending_approval") else "bad",
                kind="end", detail={"reason": stop, "tool_calls": len(summary.get("tool_calls")
                                                                      or [])})

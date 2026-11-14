@@ -672,7 +672,7 @@
           return;
         }
         if (b.state === "stopped" && !ended) {
-          setStatus("The run stopped unexpectedly. Try again, or use a scripted demo below.", true);
+          setStatus("The run stopped unexpectedly. Try again, or use a one-click scripted scenario.", true);
         }
         lock(false);
         if (pending && Date.now() - startedAt < 35 * 60 * 1000) timer = setTimeout(poll, 4000);

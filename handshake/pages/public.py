@@ -218,10 +218,10 @@ async def playground(step: str, request: Request) -> Response:
 
 
 _LIVE_MESSAGES = {
-    "no_api_key": "The live agent is not available on this server. Use a scripted demo below.",
-    "budget": "Today's budget for the live agent is used up. The scripted demos below still work.",
+    "no_api_key": "The live agent is not available on this server. Use a one-click scripted scenario.",
+    "budget": "Today's budget for the live agent is used up. The one-click scripted scenarios still work.",
     "busy": "The live agent is busy with other visitors. Try again in a minute, or use a "
-            "scripted demo below.",
+            "one-click scripted scenario.",
 }
 
 
@@ -267,7 +267,7 @@ async def live_start(request: Request) -> Response:
         return JSONResponse({"code": "rate_limited", "message": (
             f"Each visitor can start {live_demo.RUNS_PER_WINDOW} live runs every "
             f"{live_demo.WINDOW_SECONDS // 60} minutes. Try again in about "
-            f"{max(1, round(e.retry_after / 60))} minute(s), or use a scripted demo below.")},
+            f"{max(1, round(e.retry_after / 60))} minute(s), or use a one-click scripted scenario.")},
             status_code=429, headers={**headers, "Retry-After": str(e.retry_after)})
     except live_demo.LiveUnavailable as e:
         return JSONResponse({"code": e.code, "message": _LIVE_MESSAGES.get(e.code, e.message)},
