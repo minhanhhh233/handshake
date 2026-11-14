@@ -461,9 +461,13 @@
     line("Products", opts.map(function (o) {
       return (o.offer.lines || []).map(function (ln) { return ln.quantity.value + " x " + ln.product_id; }).join(", ");
     }));
+    function partial(o, key) {
+      return (o.offer.lines || []).some(function (ln) { var c = ln.comparison || {}; return c[key] === null || c[key] === undefined; });
+    }
     line("Delivery reliability", opts.map(function (o) {
       var v = weighted(o, function (ln) { return (ln.comparison || {}).delivery_reliability; });
-      return v === null ? null : Math.round(v * 100) + "% of ordered quantity delivered";
+      return v === null ? null : Math.round(v * 100) + "% of ordered quantity delivered" +
+        (partial(o, "delivery_reliability") ? " (known for some products only)" : "");
     }));
     line("Labels", opts.map(function (o) {
       var set = {};
