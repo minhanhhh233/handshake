@@ -570,7 +570,22 @@
     }
     editBox.appendChild(msg);
   }
+  // A different persona starts with a clean stage: no frames, log, outcome or timer from before.
+  function resetStage() {
+    clearTimeout(pollTimer); stopPlay();
+    run = null; steps = []; cursor = -1; following = true; after = 0; lastOrder = ""; ended = false;
+    verifyWhenReady = false;
+    clearInterval(tick); tick = null; timerBox.hidden = true; timerVal.textContent = "0.0 s";
+    human.textContent = "";
+    setStatus("");
+    logEl.hidden = true; logEl.textContent = "";
+    pb.all.setAttribute("aria-expanded", "false"); pb.all.textContent = "Show all steps";
+    box.value = ""; updateCount();
+    toggleMenu(false);
+    render();
+  }
   function choose(slug) {
+    if (slug !== persona) resetStage();
     persona = slug;
     try { sessionStorage.setItem("handshake.persona", slug); } catch (e) { /* private mode */ }
     document.querySelectorAll(".pb[data-persona]").forEach(function (b) {
