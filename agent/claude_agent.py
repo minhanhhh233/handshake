@@ -142,11 +142,17 @@ def format_today(d: date | None = None) -> str:
     return f"{_DAYS[d.weekday()]} {d.day} {_MONTHS[d.month - 1]} {d.year}"
 
 
-def system_blocks(customer_name: str, today: str) -> list[dict[str, Any]]:
-    """The system prompt as two blocks: the stable, cached part and the dated last line."""
+def system_blocks(customer_name: str, today: str,
+                  extra: str | None = None) -> list[dict[str, Any]]:
+    """The system prompt as two blocks: the stable, cached part and the dated last line.
+
+    `extra` (the public live demo's additions, document 07, section 8) is appended to the
+    stable block, so it is cached with it."""
+    stable = SYSTEM_PROMPT_STABLE.format(customer_name=customer_name)
+    if extra:
+        stable = f"{stable}\n\n{extra}"
     return [
-        {"type": "text", "text": SYSTEM_PROMPT_STABLE.format(customer_name=customer_name),
-         "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": SYSTEM_PROMPT_TODAY.format(today=today)},
     ]
 
@@ -453,6 +459,10 @@ class ToolExecutor:
         res = self.hs.get_order(order_id)
         return res
 
+    def prepare(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        """Adjust a call's arguments before it is shown and run (hook; no change here)."""
+        return args
+
     def run(self, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Returns (result object, is_error). Never raises for expected failures."""
         hs = self.hs
@@ -549,8 +559,22 @@ def run_task(
     verbose: bool = False,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    trace_id: str | None = None,
+    extra_system: str | None = None,
+    on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    time_limit: float | None = None,
+    stop_on_pending: bool = False,
+    executor_cls: type[ToolExecutor] | None = None,
+    should_stop: Callable[[], str | None] | None = None,
 ) -> dict[str, Any]:
-    """Run one purchasing task. Returns a summary dict; expected failures never raise."""
+    """Run one purchasing task. Returns a summary dict; expected failures never raise.
+
+    Hooks used by the public live demo (document 07, section 8): `trace_id` (use this trace
+    instead of a new one), `extra_system`, `on_event(kind, data)` for text, tool calls, results
+    and usage, `time_limit` (seconds per run), `stop_on_pending` (end the loop once an order is
+    pending approval: the server, not the model, watches it), `executor_cls`, and
+    `should_stop()` (returns a reason to stop, e.g. the daily budget is spent)."""
+    emit = on_event or (lambda kind, data: None)
     model = model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL
     effort = effort or os.environ.get("ANTHROPIC_EFFORT") or DEFAULT_EFFORT
     if isinstance(today, date) or today is None:
@@ -558,9 +582,13 @@ def run_task(
     client = anthropic_client if anthropic_client is not None else (
         client_factory() if client_factory else anthropic.Anthropic())
     hs = handshake_client
-    trace_id = hs.new_task()
-    ex = ToolExecutor(hs, poll_interval=poll_interval, poll_budget=poll_budget, sleep=sleep,
-                      clock=clock)
+    if trace_id:
+        hs.trace_id = trace_id
+    else:
+        trace_id = hs.new_task()
+    ex = (executor_cls or ToolExecutor)(hs, poll_interval=poll_interval, poll_budget=poll_budget,
+                                        sleep=sleep, clock=clock)
+    started = clock()
     summary: dict[str, Any] = {"final_text": "", "tool_calls": [], "trace_id": trace_id,
                                "offer_id": None, "order_id": None, "final_status": None,
                                "stop_reason": None, "turns": 0, "error": None, "model": model}
@@ -568,7 +596,7 @@ def run_task(
     request: dict[str, Any] = {
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": system_blocks(customer_name, today),
+        "system": system_blocks(customer_name, today, extra_system),
         "tools": tool_definitions(category_hint),
         "output_config": {"effort": effort},
         # Automatic caching of the growing conversation (the 10k-token search result is resent
@@ -604,8 +632,20 @@ def run_task(
         return summary
 
     while True:
+        if should_stop is not None and (reason := should_stop()):
+            out(f"STOP: {reason}")
+            summary["error"] = {"type": "stopped", "message": reason}
+            return finish("stopped")
+        call_client = client
+        if time_limit is not None:
+            remaining = time_limit - (clock() - started)
+            if remaining <= 1:
+                out(f"STOP: time limit of {_num(time_limit)} seconds per run reached.")
+                return finish("time_limit")
+            if hasattr(client, "with_options"):
+                call_client = client.with_options(timeout=remaining, max_retries=0)
         try:
-            response = client.beta.messages.create(messages=messages, **request)
+            response = call_client.beta.messages.create(messages=messages, **request)
         except anthropic.APIError as e:
             text = _api_error_text(e)
             out(f"ERROR: {text}")
@@ -615,8 +655,14 @@ def run_task(
         stop = response.stop_reason
         content = list(response.content or [])
 
+        u = response.usage
+        emit("usage", {"model": getattr(response, "model", model),
+                       "input_tokens": getattr(u, "input_tokens", 0) or 0,
+                       "output_tokens": getattr(u, "output_tokens", 0) or 0,
+                       "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
+                       "cache_creation_input_tokens":
+                           getattr(u, "cache_creation_input_tokens", 0) or 0})
         if verbose:
-            u = response.usage
             out(f"  [usage] turn {summary['turns']}: input {getattr(u, 'input_tokens', 0)}, "
                 f"output {getattr(u, 'output_tokens', 0)}, cache read "
                 f"{getattr(u, 'cache_read_input_tokens', 0) or 0}, cache write "
@@ -628,6 +674,7 @@ def run_task(
             if t == "text" and _attr(b, "text"):
                 texts.append(_attr(b, "text"))
                 out(f"claude: {_attr(b, 'text')}")
+                emit("text", {"text": _attr(b, "text")})
             elif t == "fallback":
                 frm, to = _attr(b, "from_"), _attr(b, "to")
                 out(f"  (model {_attr(frm, 'model')} declined; {_attr(to, 'model')} continued)")
@@ -660,9 +707,12 @@ def run_task(
                 limit_hit = True
                 break
             name, args = _attr(b, "name"), dict(_attr(b, "input") or {})
+            args = ex.prepare(name, args)
             n = len(summary["tool_calls"]) + 1
             out(f"[{n}] {name}({_args_text(args)})")
+            emit("call", {"n": n, "name": name, "input": args})
             res, is_error = ex.run(name, args)
+            emit("result", {"n": n, "name": name, "result": res, "is_error": is_error})
             summary["tool_calls"].append({"name": name, "input": args, "is_error": is_error})
             if is_error:
                 nxt = f" next: {res['next']}" if res.get("next") else ""
@@ -681,6 +731,9 @@ def run_task(
             return finish("tool_limit")
         # All results for this assistant turn go back in one user message.
         messages.append({"role": "user", "content": results})
+        if stop_on_pending and ex.order_status == "pending_approval":
+            out("STOP: the order is pending approval; the server watches its status.")
+            return finish("pending_approval")
 
 
 # ---------------------------------------------------------------- CLI

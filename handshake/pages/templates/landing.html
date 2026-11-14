@@ -18,6 +18,60 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 .pill { display: inline-block; border: 1px solid var(--frost); border-radius: 999px; padding: 2px 10px;
   font-size: 12px; font-weight: 600; color: var(--slate); white-space: nowrap; }
 
+
+/* Live agent demo (centrepiece) */
+.live { padding-top: 56px; }
+.lv-grid { margin-top: 24px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.lv-panel { padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.lv-panel h3 { font-size: var(--step-1); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.badge-live { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--accent);
+  color: var(--accent-text); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+.badge-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-text); }
+.lv-panel p { color: var(--slate); font-size: var(--step--1); }
+#lv-form { display: grid; gap: 10px; }
+#lv-prompt { width: 100%; min-height: 84px; resize: vertical; font: inherit; color: var(--ink);
+  background: var(--raised); border: 1px solid var(--frost); border-radius: 10px; padding: 10px 12px; }
+#lv-prompt:disabled { opacity: 0.55; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 13px; color: var(--ink); background: transparent; text-align: left;
+  border: 1px solid var(--frost); border-radius: 999px; padding: 6px 12px; cursor: pointer; min-height: 34px; }
+.chip:hover { border-color: var(--slate); }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.lv-row-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.lv-count { font-size: 12px; color: var(--slate); }
+.lv-off { border: 1px solid var(--frost); border-radius: 10px; padding: 10px 12px; color: var(--ink); }
+.lv-steps { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 10px; }
+.lv-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.lv-cell { border: 1px solid var(--frost); background: var(--surface); border-radius: 12px; padding: 12px 14px; min-width: 0; display: grid; gap: 8px; align-content: start; }
+.lv-cell.res { border-left: 3px solid var(--accent); }
+.lv-cell.res.bad { border-left-color: var(--lingon); }
+.lv-cell.empty { visibility: hidden; }
+.lv-cell .who { font-size: 12px; font-weight: 600; color: var(--slate); display: flex; justify-content: space-between; gap: 8px; }
+.lv-cell .tool { font-family: var(--mono); font-size: 13px; color: var(--accent-text); }
+.lv-cell .say { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lv-cell pre { margin: 0; padding: 10px 12px; background: var(--raised); border: 1px solid var(--frost);
+  border-radius: 8px; font-size: 12px; line-height: 1.45; overflow: auto; white-space: pre; }
+.lv-cell pre.clamp { max-height: 11rem; overflow: hidden; }
+.lv-cell .more { justify-self: start; font: inherit; font-size: 12px; font-weight: 600; color: var(--ink);
+  background: transparent; border: 1px solid var(--frost); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.lv-cell .wait { color: var(--slate); font-size: var(--step--1); }
+.lv-row.verify .lv-cell.res { border-left-color: var(--accent-text); }
+.lv-human { margin-top: 14px; }
+.lv-card { padding: 22px; display: grid; gap: 14px; border-top: 3px solid var(--accent); }
+.lv-card.stopped { border-top-color: var(--lingon); }
+.lv-card h3 { font-size: var(--step-2); line-height: 1.2; }
+.lv-card .qr { width: 200px; max-width: 100%; background: #fff; border-radius: 8px; padding: 8px; }
+.lv-card .qr img { width: 100%; height: auto; display: block; }
+#lv-status { margin-top: 12px; font-size: var(--step--1); color: var(--slate); }
+#lv-status[data-state="bad"] { color: var(--lingon); }
+@media (min-width: 900px) {
+  .lv-grid, .lv-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .lv-row.text .lv-cell.req, .lv-row.user .lv-cell.req { grid-column: 1; }
+  .lv-card.has-qr { grid-template-columns: 1fr 200px; align-items: start; }
+  .lv-card.has-qr .qr { grid-column: 2; grid-row: 1 / span 4; }
+}
+@media (max-width: 899px) { .lv-cell.empty { display: none; } }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }
@@ -153,12 +207,47 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
       <button class="copy" type="button" data-copy="cmd-hero">Copy</button>
     </div>
     <div class="actions">
-      <a class="btn" href="#playground">Open the playground</a>
+      <a class="btn" href="#live">Try the live agent</a>
       <a class="btn secondary" href="/docs">View API docs</a>
     </div>
     <ul class="badges" aria-label="Standards used">
       <li class="pill">MCP</li><li class="pill">OpenAPI</li><li class="pill">JWS EdDSA</li><li class="pill">JWKS</li><li class="pill">GS1 GTIN</li><li class="pill">llms.txt</li>
     </ul>
+  </section>
+
+
+  <section class="live" id="live" aria-labelledby="live-title">
+    <h2 class="sec" id="live-title">Watch an agent buy</h2>
+    <p class="intro">Type what a kitchen needs. A Claude buyer agent plans the ingredients, then calls the gateway: every tool call on the left, the gateway's raw JSON answer on the right. Orders over the agent's limit wait for you to approve them.</p>
+    <div class="lv-grid">
+      <div class="lv-panel panel">
+        <h3>Buyer agent</h3>
+        <form id="lv-form" data-available="{{ 'yes' if live.available else 'no' }}">
+          <label class="visually-hidden" for="lv-prompt">Purchasing request</label>
+          <textarea id="lv-prompt" name="prompt" maxlength="{{ live_max }}" required placeholder="What should the agent buy?"{% if not live.available %} disabled{% endif %}></textarea>
+          <div class="chips" aria-label="Examples">
+            {% for ex in live_examples %}<button class="chip" type="button" data-example="{{ ex }}"{% if not live.available %} disabled{% endif %}>{{ ex }}</button>{% endfor %}
+          </div>
+          <div class="lv-row-actions">
+            <button class="btn" id="lv-go" type="submit"{% if not live.available %} disabled{% endif %}>Run the agent</button>
+            <span class="lv-count" id="lv-count">0 / {{ live_max }}</span>
+          </div>
+        </form>
+        {% if not live.available %}
+        <p class="lv-off" role="status">{% if live.code == "budget" %}Today's budget for the live agent is used up.{% else %}The live agent is not available right now.{% endif %} The <a href="#demo">scripted demos below</a> show the same flow without it.</p>
+        {% else %}
+        <p>Runs as a separate demo customer. Up to 3 runs every 10 minutes per visitor; each run stops after 25 tool calls or 2 minutes.</p>
+        {% endif %}
+        <noscript><p>The live agent needs JavaScript. The <a href="#demo">scripted demos</a> work without it.</p></noscript>
+      </div>
+      <div class="lv-panel panel">
+        <h3>Valio Aimo interface <span class="badge-live">Live API</span></h3>
+        <p>Each response is the gateway's real JSON, next to the call that produced it. Offers are signed; the signature check appears as its own step.</p>
+      </div>
+    </div>
+    <ol class="lv-steps" id="lv-steps" aria-live="polite"></ol>
+    <div class="lv-human" id="lv-human"></div>
+    <p id="lv-status" role="status"></p>
   </section>
 
   <section aria-labelledby="caps-title">
@@ -196,7 +285,7 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
   </section>
 
   <section id="demo" aria-labelledby="demo-title">
-    <h2 class="sec" id="demo-title">Guided demo</h2>
+    <h2 class="sec" id="demo-title">Scripted demos</h2>
     <p class="intro">Each button runs a whole scenario on the real gateway with Valio Aimo's challenge data, as a separate demo customer, and shows the timeline. No sign-in.</p>
     <div class="tiles">
       <form class="tile primary" method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">

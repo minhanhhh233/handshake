@@ -188,6 +188,18 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6b. Live agent demo (added 2026-11-14, time-boxed to 18:00 the same day)
+
+The centrepiece of the landing page, above the scripted demos (which stay as the fallback). Two panels:
+
+- Buyer agent: a text box (500 characters) with three example chips (Bolognese spaghetti for 400 portions, the lactose-free milk request, a creamy salmon soup for 200). After "Run the agent" it shows the visitor's request, the agent's short plan (ingredients with quantities) and each tool call's raw JSON input, in order.
+- Valio Aimo interface (badge "Live API"): the gateway's raw JSON response next to each call; responses over 14 lines are collapsed with an Expand control. The offer's signature check is its own step (verified against the published JWKS).
+- Human step: when the order is pending approval, an approval card with the link and QR code for that order only; after the decision, the outcome and a link to the signed receipt. Orders within the 1000 EUR cap (the Bolognese order) are confirmed without approval; the milk request goes over the cap.
+- Delivery: the page polls `GET /demo/live/{trace}` every 1.5 s while the agent runs and every 4 s while the order waits (no stream held open). At 390 px the panels, and each call and response pair, stack.
+- Limits and safety: document 07, section 8. When the daily budget is used up the box is disabled with a message pointing to the scripted demos; when upstream has no deliverable date the page says the order window has closed.
+
+Tests: `tests/test_live_demo.py` (scripted fake model through the real gateway: steps, signature step, candidate and search caps, stop at pending approval, the model never sees approval links or keys, approval then confirmed with the receipt link, visitor text cannot close its tag, input checks, per-visitor limit, wrong token and non-live traces, budget disables the box, tool-call cap, order window closed, cost) and `tests/test_public_demo_browser.py::test_live_agent_panels` (390 and 1280 px: chip, run, approval card with QR, approve, confirmed, no horizontal scroll, no CSP errors). Verified on the hosted gateway with the real model at both widths.
+
 ## 7. Pitch outline
 
 1. **Problem (30 s).** Agents are about to do the ordering. Whoever defines how they read a wholesaler owns the customer.

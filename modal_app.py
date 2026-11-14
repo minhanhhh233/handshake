@@ -14,10 +14,12 @@ import modal
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install_from_pyproject("pyproject.toml")
+    # The `agent` extra (Anthropic SDK) runs the Claude buyer agent for the live demo.
+    .pip_install_from_pyproject("pyproject.toml", optional_dependencies=["agent"])
     # CA for the hosted MariaDB's TLS certificate; DATABASE_URL carries ?ssl_ca=<this path>.
     .add_local_file("certs/globalsignrootca.pem", "/root/certs/globalsignrootca.pem")
     .add_local_python_source("handshake", ignore=["**/__pycache__/**", "**/*.pyc"])
+    .add_local_python_source("agent", ignore=["**/__pycache__/**", "**/*.pyc"])
 )
 
 app = modal.App("handshake")
@@ -29,7 +31,10 @@ REGION = os.environ.get("HANDSHAKE_MODAL_REGION", "uk") or None
 ROUTING_REGION = os.environ.get("HANDSHAKE_MODAL_ROUTING_REGION", "eu-west") or None
 
 
-@app.function(image=image, secrets=[modal.Secret.from_name("handshake")], min_containers=1,
+# "handshake-anthropic" holds ANTHROPIC_API_KEY and LIVE_DEMO_DAILY_BUDGET_USD (live demo only).
+@app.function(image=image, min_containers=1,
+              secrets=[modal.Secret.from_name("handshake"),
+                       modal.Secret.from_name("handshake-anthropic")],
               region=REGION, routing_region=ROUTING_REGION)
 @modal.concurrent(max_inputs=20)
 @modal.asgi_app()

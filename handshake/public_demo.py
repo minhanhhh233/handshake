@@ -154,13 +154,18 @@ class _Run:
                           text=f"Public demo run started: {scenario.replace('_', ' ')}.")
 
     def step(self, title: str, summary: str, status: str = "ok",
-             detail: Any = None, request: Any = None) -> None:
-        """Record one step: what was sent (`request`) and what came back (`detail`)."""
+             detail: Any = None, request: Any = None, kind: str | None = None,
+             extra: dict[str, Any] | None = None) -> None:
+        """Record one step: what was sent (`request`) and what came back (`detail`).
+        `kind` and `extra` are used by the live demo (live_demo.py)."""
+        body = {"title": title, "summary": summary, "status": status, "detail": detail,
+                "request": request}
+        if kind:
+            body["kind"] = kind
+        body.update(extra or {})
         with db.transaction() as conn:
             events.append(conn, trace_id=self.trace_id, type="demo.step", actor_type="gateway",
-                          audience="aimo_only", text=f"Demo step: {title}"[:500],
-                          body={"title": title, "summary": summary, "status": status,
-                                "detail": detail, "request": request})
+                          audience="aimo_only", text=f"Demo step: {title}"[:500], body=body)
 
 
 def earliest_delivery_date(product_ids: list[str], trace_id: str,

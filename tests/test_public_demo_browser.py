@@ -153,3 +153,45 @@ def test_playground_try_it_live(browser, demo_server, w, h, tag):  # noqa: F811
     assert "confirmed" in try_step("get_receipt")
     assert not [e for e in errors if "Content Security Policy" in e or "Refused" in e], errors
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noqa: F811
+    from handshake import live_demo
+
+    from .test_claude_agent import FakeAnthropic
+    from .test_live_demo import milk_script
+
+    d = (timeutil.today_helsinki() + timedelta(days=2)).isoformat()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(live_demo, "CLIENT_FACTORY", lambda: FakeAnthropic(milk_script(d)))
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    errors: list[str] = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.goto(demo_server + "/")
+    assert page.get_by_text("Valio Aimo interface").first.is_visible()
+    assert page.get_by_text("Live API").first.is_visible()
+    page.locator(".chip").nth(1).click()
+    assert "lactose-free" in page.locator("#lv-prompt").input_value()
+    page.get_by_role("button", name="Run the agent").click()
+    page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
+    assert page.locator(".lv-row.verify").count() == 1
+    assert page.locator(".lv-row.call").count() == 5
+    assert page.locator(".lv-card img").get_attribute("src").startswith("data:image/svg+xml")
+    assert _no_hscroll(page)
+    page.locator("#live").screenshot(path=str(SCREENS / f"live-pending-{tag}.png"))
+    approve = page.locator(".lv-card a.btn").get_attribute("href")
+    ap = ctx.new_page()
+    ap.goto(demo_server + urlparse(approve).path)
+    ap.get_by_role("button", name="Approve order").click()
+    ap.wait_for_load_state()
+    ap.close()
+    page.get_by_text("The order is confirmed.").wait_for(timeout=15000)
+    assert page.get_by_role("link", name="Open the signed receipt").is_visible()
+    assert _no_hscroll(page)
+    page.locator("#live").screenshot(path=str(SCREENS / f"live-confirmed-{tag}.png"))
+    assert not [e for e in errors if "Content Security Policy" in e or "Refused" in e], errors
+    ctx.close()

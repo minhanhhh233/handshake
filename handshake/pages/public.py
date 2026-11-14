@@ -82,7 +82,31 @@ def landing() -> Response:
                   discovery=[d | {"href": d["path"]} for d in DISCOVERY],
                   plain_excludes=public_demo.PLAIN_MILK_EXCLUDES,
                   shortlist=public_demo.SHORTLIST,
-                  max_searches=public_demo.MAX_SEARCHES_PER_SESSION)
+                  max_searches=public_demo.MAX_SEARCHES_PER_SESSION,
+                  live=_live_status(), live_examples=_live_examples(),
+                  live_max=_live_max())
+
+
+def _live_status() -> dict:
+    from .. import live_demo
+
+    try:
+        return live_demo.status()
+    except Exception:  # noqa: BLE001 - the landing page must render even if this fails
+        log.exception("live demo status failed")
+        return {"available": False, "code": "error"}
+
+
+def _live_examples() -> list[str]:
+    from .. import live_demo
+
+    return live_demo.EXAMPLES
+
+
+def _live_max() -> int:
+    from .. import live_demo
+
+    return live_demo.MAX_PROMPT_CHARS
 
 
 @router.post("/demo/run")
@@ -182,3 +206,71 @@ async def playground(step: str, request: Request) -> Response:
         return JSONResponse({"code": "demo_unavailable", "message": "The demo is not set up."},
                             status_code=503, headers=headers)
     return JSONResponse(out, headers=headers)
+
+
+# ---------------------------------------------------------------- live agent demo
+
+
+_LIVE_MESSAGES = {
+    "no_api_key": "The live agent is not available on this server. Use a scripted demo below.",
+    "budget": "Today's budget for the live agent is used up. The scripted demos below still work.",
+    "busy": "The live agent is busy with other visitors. Try again in a minute, or use a "
+            "scripted demo below.",
+}
+
+
+@router.post("/demo/live")
+async def live_start(request: Request) -> Response:
+    """Start a live agent run (document 03, section 8). JSON {"prompt": "..."}."""
+    from .. import live_demo
+
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse({"code": "invalid_request", "message": "Send JSON."}, status_code=415,
+                            headers=headers)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    prompt = live_demo.clean_prompt(body.get("prompt") if isinstance(body, dict) else None)
+    if prompt is None:
+        return JSONResponse({"code": "invalid_prompt", "message": (
+            f"Write a purchasing request of 1 to {live_demo.MAX_PROMPT_CHARS} characters.")},
+            status_code=400, headers=headers)
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        trace_id = await run_in_threadpool(live_demo.start, prompt,
+                                           public_demo.client_ip(request))
+    except public_demo.RateLimited as e:
+        return JSONResponse({"code": "rate_limited", "message": (
+            f"Each visitor can start {live_demo.RUNS_PER_WINDOW} live runs every "
+            f"{live_demo.WINDOW_SECONDS // 60} minutes. Try again in about "
+            f"{max(1, round(e.retry_after / 60))} minute(s), or use a scripted demo below.")},
+            status_code=429, headers={**headers, "Retry-After": str(e.retry_after)})
+    except live_demo.LiveUnavailable as e:
+        return JSONResponse({"code": e.code, "message": _LIVE_MESSAGES.get(e.code, e.message)},
+                            status_code=503, headers=headers)
+    except public_demo.DemoUnavailable:
+        return JSONResponse({"code": "demo_unavailable", "message": "The demo is not set up."},
+                            status_code=503, headers=headers)
+    return JSONResponse({"trace_id": trace_id, "k": public_demo.run_token(trace_id)},
+                        status_code=202, headers=headers)
+
+
+@router.get("/demo/live/{trace_id}")
+def live_poll(trace_id: str, k: str | None = None, after: int = 0) -> Response:
+    """Steps of a live run after index `after`, its state and the visitor's own order."""
+    from .. import live_demo
+
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+               "Referrer-Policy": "no-referrer"}
+    if not is_id(trace_id, "trc") or not public_demo.check_run_token(trace_id, k):
+        return JSONResponse({"code": "not_found", "message": "Unknown run."}, status_code=404,
+                            headers=headers)
+    v = live_demo.view(trace_id, max(0, after))
+    if v is None:
+        return JSONResponse({"code": "not_found", "message": "Unknown run."}, status_code=404,
+                            headers=headers)
+    v["run_url"] = f"/demo/runs/{trace_id}?k={k}"
+    return JSONResponse(v, headers=headers)
