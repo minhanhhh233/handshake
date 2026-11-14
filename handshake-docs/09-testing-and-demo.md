@@ -188,6 +188,32 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6d. One-click scenarios (stage 2, added 2026-11-14)
+
+Per persona, chips under "One click, scripted: no AI, no cost" run fixed sequences as the sandbox's persona agent (`handshake/scenarios.py`, `POST /demo/scenario`); chips under "Or ask the Claude agent in your own words" fill the text box. The three original scripted buttons are replaced.
+
+| Persona | Scenario | What the gateway shows (real upstream, 2026-11-14) |
+|---|---|---|
+| Hotel chain | Example milk order | 1,000 L from the shortlist with `prefer: lowest_price`: 1010.00 EUR (464306), R6, approval card |
+| Hotel chain | Limited stock: order splits | 469363 listed first has 384 units: 384 x 469363 (`requested`) plus 616 x 464306 (`alternate`), 1574.48 EUR, approval |
+| Hotel chain | You decline; agent proposes less | 1,000 L goes to approval; the server watches the order (up to 10 minutes); after a decline the agent quotes 990 L (999.90 EUR), the dry run is accepted and the order is confirmed |
+| Hotel chain | Offer expires, then re-quote | An offer issued with a 20 s lifetime (internal override, demo only) is refused `409 offer_expired` after 25 s; a fresh quote is ordered |
+| Hotel chain | Same order sent twice | Same `Idempotency-Key`: the same order twice; a new key on the used offer: `409 offer_consumed` |
+| Restaurant | Recipe basket under the cap | Spaghetti, passata, tomato paste, parmesan: 118.18 EUR, accepted, confirmed with no human |
+| Restaurant | Delivery on Saturday | The mandate allows Monday to Friday: dry run `needs_approval` with R9 |
+| Restaurant | Official vs same-category substitute | 469288 (not deliverable) is filled by its official substitute 470341; 465039 (cut-off passed) by a same-category lactose-free milk: R8 fires for line 2 only |
+| Restaurant | Breaks the weekly cap | Orders of 278.88 EUR: the third makes the week 836.64 EUR, R7, approval (listed last so the other Restaurant scenarios are not affected) |
+| School kitchen | Milk allergy / No allergen data / Energy drinks | Offers refused before upstream: R3 ("Lactose-free is not milk-free."), R4 for olive oil 462909 (no allergen data), R2 for Red Bull 461051 (category 22701) |
+| Any buyer | Needed tomorrow | `not_deliverable_by_date` with the earliest date (16 Nov on 14 Nov) |
+| Visitor | Search, then ask for a price | Search works; the offer is `401` with how to register |
+
+- Misbehaving agent toggle (every buyer persona; runs as the Restaurant agent): splits an order to dodge the cap (caught by R7), overspends (R6, held for a person), edits a signed offer's price (signature check fails; a price field in the order is `400`), reuses a consumed offer (`409`), tries to approve its own order (`404` on a guessed approval link) and raise its own cap (`403` on the admin route), and asks for a discount (no counter-offer route, `404`; a `discount_percent` field is `400`). Each attempt and the gateway's answer are side by side.
+- Offer verification the visitor can do: on every signature step, "Verify in this browser" checks the JWS with WebCrypto Ed25519 against `/.well-known/jwks.json`; "Edit the price, verify again" lowers the first line's price by 0.10 and shows the signature fail.
+- Approver role (persona bar): an inbox of the sandbox's pending approvals with Approve and Decline.
+- Sandbox requests are sent one at a time by the page, so a quick persona switch cannot create a second sandbox under a running run. New sandboxes per IP raised from 10 to 60 per hour (a venue NAT may put many judges behind one IP).
+
+Tests: `tests/test_scenarios.py` (every scenario against the gateway with a fake upstream, including the decline-then-smaller flow, expiry with a shifted clock, the misbehaving agent's refusals and no agent key in the steps, the inbox and its isolation, routes) and the browser tests (scenario chip to approval card, in-browser verify valid then invalid after the price edit, Approver inbox approve, confirmed order, run page and receipt; School refusal and the misbehaving toggle; 390 and 1280 px). Verified on the hosted gateway at both widths: Hotel split to approval, verify valid and invalid, inbox decline, misbehaving run, no console errors.
+
 ### 6c. Personas and sandboxes (stage 1, added 2026-11-14)
 
 - Persona bar, sticky at the top of the page, no login: Visitor, Hotel chain, Restaurant, School kitchen, Hospital kitchen, New agent on probation; Approver and Valio Aimo operations are shown but disabled until stages 2 and 4.
@@ -197,7 +223,7 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 - Footer on every page: "... Product data is challenge data and not fully accurate. All customers and people shown are fictional."
 - Visitor persona: the agent has no key; search works, and the mandate, prices, availability and offers are refused with `401` and the registration guidance.
 - Panels labelled "External buyer agent (not part of Handshake)" and "Handshake: the Valio Aimo interface"; a time-to-order timer per run (to the gateway's answer to place_order; "Run time, no order" otherwise).
-- The three original scripted buttons stay until stage 2.
+- The three original scripted buttons stayed until stage 2, which replaced them with the scenario chips.
 
 Tests: `tests/test_sandbox.py` (cookie flags and reuse, every persona's card, cap edit and its checks, forged cookie, isolation of parties, expiry stops the key and renews the sandbox, holds counted per sandbox while real customers still share theirs, live run as the persona and invisible to another sandbox, Visitor refused with the registration guidance, R2 on `forbidden_categories`) and the browser test (persona bar, Restaurant card, cap saved as version 2, timer label, at 390 and 1280 px). Verified on the hosted gateway with the real model: Restaurant Bolognese went to approval (over 300 EUR) with time to order 18.2 s; Visitor got search results and the refusal with how to register; School was refused Red Bull for category 22701.
 

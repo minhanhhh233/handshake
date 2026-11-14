@@ -63,8 +63,7 @@ def test_landing_page(client):
     for href in ('href="/docs"', 'href="/.well-known/handshake.json"',
                  'href="/.well-known/jwks.json"'):
         assert href in html
-    for scenario in public_demo.SCENARIOS:
-        assert f'value="{scenario}"' in html
+    assert 'id="lv-scripted"' in html and 'id="demo"' not in html  # stage 2 chips
     csp = r.headers["content-security-policy"]
     # One self-hosted script only (document 03, section 8): no inline script, no other origin.
     assert "script-src 'self'" in csp and "default-src 'none'" in csp

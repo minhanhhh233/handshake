@@ -654,8 +654,8 @@ def _qty_text(q: Quantity) -> str:
 # ================================================================ main flow
 
 
-def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id: str
-                ) -> dict[str, Any]:
+def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id: str,
+                ttl_seconds: int | None = None) -> dict[str, Any]:
     """POST /v1/offers (document 03, section 5; document 06, section 6). Returns the 201 body.
 
     Raises HandshakeError: invalid_request, forbidden (no mandate), no_candidates,
@@ -775,7 +775,8 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
         for line in req.lines:
             rid = line.product_ids[0]
             refs.append(LineRef(catalog[rid], facts.get(rid)))
-        offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings, refs)
+        offer = _assemble(req, filled, mandate, agent_id, customer_id, now, settings, refs,
+                          ttl_seconds=ttl_seconds)
         payload = offer.dump()
         jws = signing.sign(payload, signing.TYP_OFFER)
         _persist(conn, offer, payload, jws, req, filled, trace_id)
@@ -790,6 +791,7 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
 def _assemble(
     req: OfferRequest, filled: list[list[FilledLine]], mandate: Mandate, agent_id: str,
     customer_id: str, now: datetime, settings: Any, refs: list[LineRef] | None = None,
+    ttl_seconds: int | None = None,
 ) -> Offer:
     lines: list[OfferLine] = []
     fulfilment: list[FulfilmentSummary] = []
@@ -807,7 +809,8 @@ def _assemble(
         ))
     excl = sum((Decimal(ln.line_total_excl_tax) for ln in lines), Decimal(0))
     incl = sum((Decimal(ln.line_total_incl_tax) for ln in lines), Decimal(0))
-    expires = now + timedelta(seconds=settings.offer_ttl_seconds)
+    # ttl_seconds: internal override (the public demo's expiry scenario); not in the API.
+    expires = now + timedelta(seconds=ttl_seconds or settings.offer_ttl_seconds)
     for ln in lines:
         if ln.availability.order_by is not None and ln.availability.order_by < expires:
             expires = ln.availability.order_by

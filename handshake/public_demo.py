@@ -130,7 +130,8 @@ def check_rate(ip: str) -> None:
     since = timeutil.to_db(timeutil.now() - timedelta(seconds=WINDOW_SECONDS))
     with db.connection() as conn:
         rows = db.q(conn, "SELECT at FROM events WHERE type = 'demo.run' AND at >= :s AND "
-                          "JSON_UNQUOTE(JSON_EXTRACT(body_json, '$.ip')) = :h ORDER BY at",
+                          "JSON_UNQUOTE(JSON_EXTRACT(body_json, '$.ip')) = :h AND "
+                          "JSON_EXTRACT(body_json, '$.script') IS NULL ORDER BY at",
                     s=since, h=ip_hash(ip)).all()
     if len(rows) >= RUNS_PER_WINDOW:
         oldest = timeutil.from_db(rows[0][0])
@@ -345,9 +346,12 @@ def run_view(trace_id: str) -> dict[str, Any] | None:
     }
     with db.transaction() as conn:
         public = public_agent_ids(conn)
+        # A scenario may place several orders in one trace: show the pending one, else the
+        # latest.
         row = db.q(conn, "SELECT o.order_id, o.agent_id, c.sandbox_id FROM orders o "
                          "JOIN agents a ON a.agent_id = o.agent_id JOIN customers c ON "
-                         "c.customer_id = a.customer_id WHERE o.trace_id = :t",
+                         "c.customer_id = a.customer_id WHERE o.trace_id = :t ORDER BY "
+                         "o.status = 'pending_approval' DESC, o.created_at DESC, o.order_id",
                    t=trace_id).first()
         # Only the public demo agents' orders, or an order of this run's own sandbox; never
         # any other order.

@@ -85,6 +85,7 @@ def landing() -> Response:
                   max_searches=public_demo.MAX_SEARCHES_PER_SESSION,
                   live=_live_status(), live_examples=_live_examples(),
                   personas=sandbox.PERSONAS, roles=sandbox.ROLES,
+                  roles_ready=sandbox.ROLES_READY,
                   live_max=_live_max())
 
 
@@ -311,17 +312,30 @@ def _with_cookie(resp: Response, sb: dict, is_new: bool) -> Response:
 
 
 def _sandbox_json(sb: dict, card: dict) -> dict:
+    from .. import scenarios
+
     return {"sandbox": {"expires_at": timeutil.iso(sb["expires_at"])},
             "personas": [{"slug": k, "label": v["label"]} for k, v in sandbox.PERSONAS.items()],
-            "card": card}
+            "card": card, "scenarios": scenarios.for_persona(card["persona"])}
 
 
 @router.get("/demo/sandbox")
 def sandbox_state(request: Request, persona: str = "hotel") -> Response:
     """The visitor's sandbox (created or renewed here) and the mandate card of a persona."""
-    if persona not in sandbox.PERSONAS:
+    if persona not in sandbox.PERSONAS and persona != "approver":
         return JSONResponse({"code": "unknown_persona", "message": "Unknown persona."},
                             status_code=400, headers=_JSON_HEADERS)
+    if persona == "approver":
+        try:
+            sb, is_new = sandbox.ensure(request.cookies.get(sandbox.COOKIE),
+                                        public_demo.client_ip(request))
+        except sandbox.SandboxError as e:
+            return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                                headers=_JSON_HEADERS)
+        body = {"sandbox": {"expires_at": timeutil.iso(sb["expires_at"])},
+                "card": {"persona": "approver", "label": "Approver"},
+                "inbox": sandbox.inbox(sb["sandbox_id"])}
+        return _with_cookie(JSONResponse(body, headers=_JSON_HEADERS), sb, is_new)
     try:
         sb, is_new = sandbox.ensure(request.cookies.get(sandbox.COOKIE),
                                     public_demo.client_ip(request))
@@ -365,3 +379,61 @@ async def sandbox_cap(request: Request) -> Response:
         return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
                             headers=_JSON_HEADERS)
     return JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS)
+
+
+# ---------------------------------------------------------------- scenarios and inbox (stage 2)
+
+
+@router.post("/demo/scenario")
+async def scenario_start(request: Request) -> Response:
+    """Start a one-click scripted scenario for a persona. JSON {"id", "persona"}."""
+    from .. import live_demo, scenarios
+
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse({"code": "invalid_request", "message": "Send JSON."}, status_code=415,
+                            headers=_JSON_HEADERS)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    body = body if isinstance(body, dict) else {}
+    sid, persona = body.get("id"), body.get("persona")
+    if not isinstance(sid, str) or not isinstance(persona, str):
+        return JSONResponse({"code": "invalid_request", "message": "Choose a scenario."},
+                            status_code=400, headers=_JSON_HEADERS)
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=_JSON_HEADERS)
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        trace_id = await run_in_threadpool(lambda: scenarios.start(
+            sid, persona, sb["sandbox_id"], public_demo.client_ip(request)))
+    except public_demo.RateLimited as e:
+        return JSONResponse({"code": "rate_limited", "message": (
+            f"Each visitor can run {scenarios.RUNS_PER_WINDOW} scenarios every "
+            f"{scenarios.WINDOW_SECONDS // 60} minutes. Try again in about "
+            f"{max(1, round(e.retry_after / 60))} minute(s).")}, status_code=429,
+            headers={**_JSON_HEADERS, "Retry-After": str(e.retry_after)})
+    except live_demo.LiveUnavailable as e:
+        return JSONResponse({"code": e.code, "message": e.message},
+                            status_code=400 if e.code == "invalid_scenario" else 503,
+                            headers=_JSON_HEADERS)
+    except public_demo.DemoUnavailable:
+        return JSONResponse({"code": "demo_unavailable", "message": "The demo is not set up."},
+                            status_code=503, headers=_JSON_HEADERS)
+    return JSONResponse({"trace_id": trace_id, "k": public_demo.run_token(trace_id)},
+                        status_code=202, headers=_JSON_HEADERS)
+
+
+@router.get("/demo/approvals")
+def approvals_inbox(request: Request) -> Response:
+    """The Approver role's inbox: pending approvals of the caller's sandbox only."""
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=_JSON_HEADERS)
+    return JSONResponse({"items": sandbox.inbox(sb["sandbox_id"])}, headers=_JSON_HEADERS)

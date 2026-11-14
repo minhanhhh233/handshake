@@ -170,7 +170,8 @@ def check_rate(ip: str) -> None:
     with db.connection() as conn:
         rows = db.q(conn, "SELECT at FROM events WHERE type = 'demo.run' AND at >= :s AND "
                           "JSON_UNQUOTE(JSON_EXTRACT(body_json, '$.ip')) = :h AND "
-                          "JSON_UNQUOTE(JSON_EXTRACT(body_json, '$.scenario')) = 'live' "
+                          "JSON_UNQUOTE(JSON_EXTRACT(body_json, '$.scenario')) = 'live' AND "
+                          "JSON_EXTRACT(body_json, '$.script') IS NULL "
                           "ORDER BY at", s=since, h=public_demo.ip_hash(ip)).all()
     if len(rows) >= RUNS_PER_WINDOW:
         oldest = timeutil.from_db(rows[0][0])

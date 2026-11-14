@@ -268,7 +268,7 @@ The receipt (document 03, section 6) contains the events with audience `both`, t
 | Unsafe substitution | Requirements and forbidden allergens applied to every fill; unknown allergen status rejected by default |
 | Tampering with the audit trail | Per-trace hash chain; head included in the signed receipt |
 | Upstream key leak | Key only in the gateway's secret store; never logged |
-| Order splitting to dodge the cap | Weekly cap R7 (P1); otherwise a stated limitation |
+| Order splitting to dodge the cap | Weekly cap R7 (P1); otherwise a stated limitation. Shown live by the demo's misbehaving agent (document 09, section 6d), which runs as the Restaurant persona because only that mandate has a weekly cap |
 
 ## 9. Fit with existing standards
 

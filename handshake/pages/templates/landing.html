@@ -110,6 +110,32 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 .lv-timer .t-label { color: var(--slate); }
 .lv-timer .t-val { font-family: var(--mono); color: var(--accent-text); font-variant-numeric: tabular-nums; }
 
+
+/* Stage 2: scenario chips, misbehaving toggle, approver inbox, verify tool */
+.chips-h { font-size: 12px; font-weight: 600; color: var(--slate); }
+.chip.scripted { border-color: var(--accent); }
+.bad-toggle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; font-size: var(--step--1);
+  border: 1px dashed var(--lingon); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.bad-toggle span { font-weight: 400; color: var(--slate); }
+.bad-toggle input { width: 18px; height: 18px; accent-color: var(--lingon); }
+.pb.role-on { border-style: dashed; }
+.pb.role-on[aria-pressed="true"] { border-style: solid; }
+.inbox { display: grid; gap: 10px; }
+.inbox .item { border: 1px solid var(--frost); border-left: 3px solid var(--lingon); background: var(--raised);
+  border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+.inbox .item h4 { margin: 0; font-size: var(--step-0); }
+.inbox .item p { font-size: var(--step--1); color: var(--slate); margin: 0; }
+.inbox .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.inbox .acts button { font: inherit; font-weight: 700; min-height: 38px; padding: 0 14px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--white); }
+.inbox .acts button.no { background: transparent; border-color: var(--lingon); color: var(--lingon); }
+.vtool { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vtool button { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink); background: transparent;
+  border: 1px solid var(--frost); border-radius: 999px; padding: 4px 11px; cursor: pointer; min-height: 30px; }
+.vtool .vres { font-size: 12px; font-weight: 700; }
+.vtool .vres.ok { color: var(--accent-text); }
+.vtool .vres.bad { color: var(--lingon); }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }
@@ -239,7 +265,7 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
     <div class="pb-row">
       {% for slug, p in personas.items() %}<button type="button" class="pb" data-persona="{{ slug }}" aria-pressed="false">{{ p.label }}</button>{% endfor %}
       <span class="pb-sep" aria-hidden="true"></span>
-      {% for slug, label in roles.items() %}<button type="button" class="pb role" disabled title="This view arrives in a later stage">{{ label }}</button>{% endfor %}
+      {% for slug, label in roles.items() %}{% if slug in roles_ready %}<button type="button" class="pb role-on" data-persona="{{ slug }}" aria-pressed="false">{{ label }}</button>{% else %}<button type="button" class="pb role" disabled title="This view arrives in a later stage">{{ label }}</button>{% endif %}{% endfor %}
     </div>
   </nav>
   <p class="pb-note">Each visitor gets a private sandbox: its own copy of every persona's customer, agent and limits, for 2 hours. No sign-in.</p>
@@ -270,23 +296,26 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
       <div class="lv-panel panel">
         <h3>External buyer agent <span class="sub-h">not part of Handshake</span></h3>
         <div class="mcard" id="lv-card" aria-live="polite"></div>
+        <div class="inbox" id="lv-inbox" hidden aria-live="polite"></div>
         <form id="lv-form" data-available="{{ 'yes' if live.available else 'no' }}">
           <label class="visually-hidden" for="lv-prompt">Purchasing request</label>
           <textarea id="lv-prompt" name="prompt" maxlength="{{ live_max }}" required placeholder="What should the agent buy?"{% if not live.available %} disabled{% endif %}></textarea>
-          <div class="chips" aria-label="Examples">
-            {% for ex in live_examples %}<button class="chip" type="button" data-example="{{ ex }}"{% if not live.available %} disabled{% endif %}>{{ ex }}</button>{% endfor %}
-          </div>
+          <p class="chips-h">One click, scripted: no AI, no cost</p>
+          <div class="chips" id="lv-scripted" aria-label="Scripted scenarios"></div>
+          <p class="chips-h">Or ask the Claude agent in your own words</p>
+          <div class="chips" id="lv-prompts" aria-label="Example requests"></div>
+          <label class="bad-toggle" id="lv-bad-wrap" hidden><input type="checkbox" id="lv-bad"> Misbehaving agent <span>scripted, as the Restaurant agent: tries to break every rule</span></label>
           <div class="lv-row-actions">
             <button class="btn" id="lv-go" type="submit"{% if not live.available %} disabled{% endif %}>Run the agent</button>
             <span class="lv-count" id="lv-count">0 / {{ live_max }}</span>
           </div>
         </form>
         {% if not live.available %}
-        <p class="lv-off" role="status">{% if live.code == "budget" %}Today's budget for the live agent is used up.{% else %}The live agent is not available right now.{% endif %} The <a href="#demo">scripted demos below</a> show the same flow without it.</p>
+        <p class="lv-off" role="status">{% if live.code == "budget" %}Today's budget for the live agent is used up.{% else %}The live agent is not available right now.{% endif %} The one-click scripted scenarios above still work.</p>
         {% else %}
         <p>A Claude agent acting for the persona above, in your sandbox. Up to 3 runs every 10 minutes per visitor; each run stops after 25 tool calls or 2 minutes.</p>
         {% endif %}
-        <noscript><p>The live agent needs JavaScript. The <a href="#demo">scripted demos</a> work without it.</p></noscript>
+        <noscript><p>The live demo needs JavaScript.</p></noscript>
       </div>
       <div class="lv-panel panel">
         <h3>Handshake: the Valio Aimo interface <span class="badge-live">Live API</span></h3>
@@ -333,25 +362,6 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
     </dl>
   </section>
 
-  <section id="demo" aria-labelledby="demo-title">
-    <h2 class="sec" id="demo-title">Scripted demos</h2>
-    <p class="intro">Each button runs a whole scenario on the real gateway with Valio Aimo's challenge data, as a separate demo customer, and shows the timeline. No sign-in.</p>
-    <div class="tiles">
-      <form class="tile primary" method="post" action="/demo/run"><input type="hidden" name="scenario" value="example_order">
-        <button type="submit"><span class="t">Run the example order</span>
-          <span class="d">1,000 litres of lactose-free milk. The total is over the agent's limit, so you approve it yourself.</span>
-          <span class="go">Start the order</span></button></form>
-      <form class="tile" method="post" action="/demo/run"><input type="hidden" name="scenario" value="allergy_guard">
-        <button type="submit"><span class="t">Milk-allergy guard</span>
-          <span class="d">A school kitchen's mandate forbids milk. Lactose-free milk still contains it.</span>
-          <span class="go">Run the allergy guard</span></button></form>
-      <form class="tile" method="post" action="/demo/run"><input type="hidden" name="scenario" value="anonymous_search">
-        <button type="submit"><span class="t">Anonymous search</span>
-          <span class="d">Without a key you see products and attributes, never prices or stock.</span>
-          <span class="go">Search without a key</span></button></form>
-    </div>
-    <p class="note">Up to {{ limit }} runs every {{ window_min }} minutes per visitor, guided demo and playground together. Demo orders expire after 30 minutes.</p>
-  </section>
 
   <section id="playground" aria-labelledby="pg-title">
     <div class="pg-head">
@@ -361,7 +371,7 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
       </div>
       <button class="reset" id="pg-reset" type="button">Start a new session</button>
     </div>
-    <noscript><p class="note">The playground needs JavaScript. The guided demo above works without it.</p></noscript>
+    <noscript><p class="note">The playground needs JavaScript.</p></noscript>
     <ol class="pg">
       <li class="pgc panel" data-step="search">
         <div class="top"><h3>Search</h3><span class="pill">GET</span></div>

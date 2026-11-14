@@ -129,7 +129,7 @@
   var cardBox = document.getElementById("lv-card");
   var timerBox = document.getElementById("lv-timer");
   var timerVal = document.getElementById("lv-timer-val");
-  var tick = null, persona = "hotel";
+  var tick = null, persona = "hotel", sandboxQueue = Promise.resolve();
   try { persona = sessionStorage.getItem("handshake.persona") || "hotel"; } catch (e) { persona = "hotel"; }
 
   // ---- timer: from "Run the agent" to the gateway's answer to place_order
@@ -197,11 +197,28 @@
     document.querySelectorAll(".pb[data-persona]").forEach(function (b) {
       b.setAttribute("aria-pressed", b.getAttribute("data-persona") === slug ? "true" : "false");
     });
-    fetch("/demo/sandbox?persona=" + encodeURIComponent(slug), { credentials: "same-origin" })
+    // One sandbox request at a time, so the first response's cookie is set before the next
+    // request: otherwise two sandboxes could be created and a running run lost.
+    var req = sandboxQueue.then(function () {
+      return fetch("/demo/sandbox?persona=" + encodeURIComponent(slug), { credentials: "same-origin" });
+    });
+    sandboxQueue = req.catch(function () { /* keep the queue going */ });
+    req
       .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
       .then(function (res) {
         if (res.status !== 200) { cardBox.textContent = ""; cardBox.appendChild(el("p", "", res.body.message || "The sandbox could not be loaded.")); return; }
+        var approver = slug === "approver";
+        form.hidden = approver;
+        inboxBox.hidden = !approver;
+        if (approver) {
+          cardBox.textContent = "";
+          cardBox.appendChild(el("p", "who-is", "Approver"));
+          cardBox.appendChild(el("p", "", "You are the customers' purchasing manager. Orders over a mandate's limits wait here for your decision."));
+          renderInbox(res.body.inbox || []);
+          return;
+        }
         renderCard(res.body.card, res.body.sandbox);
+        renderScenarios(res.body.scenarios);
       })
       .catch(function () { cardBox.textContent = ""; cardBox.appendChild(el("p", "", "The sandbox could not be loaded.")); });
   }
@@ -222,19 +239,90 @@
     if (bad) status.setAttribute("data-state", "bad"); else status.removeAttribute("data-state");
   }
   function lock(on) {
-    box.disabled = on || !available;
-    go.disabled = on || !available;
-    form.querySelectorAll(".chip").forEach(function (c) { c.disabled = on || !available; });
+    var bad = badBox && badBox.checked;
+    box.disabled = on || !available || bad;
+    go.disabled = on || (!available && !bad);
+    form.querySelectorAll(".chip").forEach(function (c) {
+      c.disabled = on || (!available && !c.hasAttribute("data-scenario"));
+    });
+    if (badBox) badBox.disabled = on;
   }
   function updateCount() { count.textContent = box.value.length + " / " + box.maxLength; }
   box.addEventListener("input", updateCount);
   form.addEventListener("click", function (ev) {
     var chip = ev.target.closest(".chip");
     if (!chip || chip.disabled) return;
+    if (chip.hasAttribute("data-scenario")) {
+      startRun("/demo/scenario", { id: chip.getAttribute("data-scenario"), persona: persona },
+               "Running the scripted scenario...");
+      return;
+    }
     box.value = chip.getAttribute("data-example");
     updateCount();
     box.focus();
   });
+  var badBox = document.getElementById("lv-bad");
+  var badWrap = document.getElementById("lv-bad-wrap");
+  var inboxBox = document.getElementById("lv-inbox");
+  if (badBox) badBox.addEventListener("change", function () {
+    go.textContent = badBox.checked ? "Run the misbehaving agent" : "Run the agent";
+    lock(false);
+  });
+  function renderScenarios(sc) {
+    var scripted = document.getElementById("lv-scripted");
+    var prompts = document.getElementById("lv-prompts");
+    scripted.textContent = "";
+    prompts.textContent = "";
+    ((sc && sc.scripted) || []).forEach(function (x) {
+      var b = el("button", "chip scripted", x.label);
+      b.type = "button";
+      b.setAttribute("data-scenario", x.id);
+      scripted.appendChild(b);
+    });
+    ((sc && sc.prompts) || []).forEach(function (t) {
+      var b = el("button", "chip", t);
+      b.type = "button";
+      b.setAttribute("data-example", t);
+      prompts.appendChild(b);
+    });
+    if (badWrap) badWrap.hidden = !(sc && sc.misbehaving);
+    if (badBox && badWrap && badWrap.hidden && badBox.checked) {
+      badBox.checked = false;
+      go.textContent = "Run the agent";
+    }
+    lock(false);
+  }
+  function renderInbox(items) {
+    inboxBox.textContent = "";
+    inboxBox.appendChild(el("p", "chips-h", "Approval requests in your sandbox"));
+    if (!items.length) {
+      inboxBox.appendChild(el("p", "", "Nothing is waiting. Run a scenario that goes over a limit, such as the Hotel chain's example milk order, then come back."));
+      return;
+    }
+    items.forEach(function (it) {
+      var d = el("div", "item");
+      d.appendChild(el("h4", "", it.customer + ": " + it.total_excl_tax + " EUR excl. tax"));
+      if (it.persona) d.appendChild(el("p", "", it.persona + (it.reference ? ", reference " + it.reference : "") + ", delivery " + it.delivery_date));
+      (it.reasons || []).forEach(function (r) { d.appendChild(el("p", "", r)); });
+      d.appendChild(el("p", "", "Expires " + new Date(it.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) + "."));
+      var acts = el("div", "acts");
+      [["approve", "Approve", ""], ["decline", "Decline", "no"]].forEach(function (a) {
+        var b = el("button", a[2], a[1]);
+        b.type = "button";
+        b.addEventListener("click", function () {
+          acts.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+          fetch(it.approve_path, { method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ decision: a[0] }).toString() })
+            .then(function () { choose("approver"); })
+            .catch(function () { choose("approver"); });
+        });
+        acts.appendChild(b);
+      });
+      d.appendChild(acts);
+      inboxBox.appendChild(d);
+    });
+  }
 
   function jsonBlock(value) {
     var wrap = document.createDocumentFragment();
@@ -280,11 +368,11 @@
     var r;
     if (s.kind === "user") {
       r = row("user");
-      r.req.appendChild(who("Visitor request"));
+      r.req.appendChild(who(s.title === "Scenario" ? "Scenario" : "Visitor request"));
       r.req.appendChild(el("p", "say", s.summary));
     } else if (s.kind === "text") {
       r = row("text");
-      r.req.appendChild(who("External buyer agent"));
+      r.req.appendChild(who(s.title === "Scripted agent" ? "External buyer agent (scripted, no AI)" : "External buyer agent"));
       r.req.appendChild(el("p", "say", s.summary));
     } else if (s.kind === "call") {
       r = row("call");
@@ -304,6 +392,7 @@
       r.req.appendChild(who("Signature check"));
       r.req.appendChild(el("p", "tool", "verify_offer (EdDSA, published key)"));
       r.req.appendChild(jsonBlock(s.request || {}));
+      if (s.request && s.request.jws) r.req.appendChild(verifyTool(s.request.jws));
       fillRes(r, s.status === "bad" ? "not verified" : "verified", s.detail, s.status === "bad");
     } else if (s.kind === "end") {
       timerStop("Run time, no order");
@@ -385,7 +474,7 @@
         showOrder(b.order, b.run_url);
         var pending = b.order && b.order.status === "pending_approval";
         if (b.state === "running") {
-          setStatus("The agent is working... " + Math.round((Date.now() - startedAt) / 1000) + " s");
+          setStatus("Working... " + Math.round((Date.now() - startedAt) / 1000) + " s");
           timer = setTimeout(poll, 1500);
           return;
         }
@@ -398,8 +487,40 @@
       .catch(function () { timer = setTimeout(poll, 4000); });
   }
 
+  function startRun(url, payload, label) {
+    clearTimeout(timer);
+    list.textContent = "";
+    human.textContent = "";
+    rows = {};
+    after = 0;
+    lastOrder = "";
+    ended = false;
+    lock(true);
+    setStatus("Starting...");
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload), credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+      .then(function (res) {
+        if (res.status !== 202) {
+          setStatus((res.body && res.body.message) || ("HTTP " + res.status), true);
+          lock(false);
+          return;
+        }
+        run = res.body;
+        startedAt = Date.now();
+        timerStart();
+        setStatus(label);
+        poll();
+      })
+      .catch(function () { setStatus("The request did not reach the gateway.", true); lock(false); });
+  }
+
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();
+    if (badBox && badBox.checked) {
+      startRun("/demo/scenario", { id: "misbehaving", persona: persona }, "The misbehaving agent is trying...");
+      return;
+    }
     var text = box.value.trim();
     if (!text) { box.focus(); return; }
     clearTimeout(timer);
@@ -431,5 +552,67 @@
       })
       .catch(function () { setStatus("The request did not reach the gateway.", true); lock(false); });
   });
+  // ---- offer verification the visitor can do: Ed25519 in this browser, against the JWKS
+  var jwksCache = null;
+  function b64u(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function toB64u(bytes) {
+    var bin = "";
+    bytes.forEach(function (b) { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function verifyJws(jws) {
+    var parts = jws.split(".");
+    if (parts.length !== 3 || !window.crypto || !crypto.subtle) return Promise.reject(new Error("unsupported"));
+    var header = JSON.parse(new TextDecoder().decode(b64u(parts[0])));
+    var keys = jwksCache ? Promise.resolve(jwksCache) :
+      fetch("/.well-known/jwks.json").then(function (r) { return r.json(); }).then(function (j) { jwksCache = j; return j; });
+    return keys.then(function (set) {
+      var jwk = (set.keys || []).filter(function (k) { return k.kid === header.kid; })[0];
+      if (!jwk || header.alg !== "EdDSA") return false;
+      return crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: jwk.x }, { name: "Ed25519" }, false, ["verify"])
+        .then(function (key) {
+          return crypto.subtle.verify({ name: "Ed25519" }, key, b64u(parts[2]), new TextEncoder().encode(parts[0] + "." + parts[1]));
+        });
+    });
+  }
+  function editPrice(jws) {
+    var parts = jws.split(".");
+    var payload = JSON.parse(new TextDecoder().decode(b64u(parts[1])));
+    var line = (payload.lines || [])[0];
+    if (line) line.unit_price_excl_tax = (Math.max(0.01, parseFloat(line.unit_price_excl_tax) - 0.1)).toFixed(2);
+    return { jws: parts[0] + "." + toB64u(new TextEncoder().encode(JSON.stringify(payload))) + "." + parts[2],
+             price: line ? line.unit_price_excl_tax : "?" };
+  }
+  function verifyTool(jws) {
+    var wrap = el("div", "vtool");
+    var a = el("button", "", "Verify in this browser");
+    var b = el("button", "", "Edit the price, verify again");
+    a.type = b.type = "button";
+    var out = el("span", "vres", "");
+    function show(p, label) {
+      out.className = "vres";
+      out.textContent = "Checking...";
+      p.then(function (ok) {
+        out.className = "vres " + (ok ? "ok" : "bad");
+        out.textContent = label + (ok ? ": signature valid" : ": signature INVALID");
+      }).catch(function () {
+        out.className = "vres bad";
+        out.textContent = "This browser cannot check Ed25519 signatures.";
+      });
+    }
+    a.addEventListener("click", function () { show(verifyJws(jws), "Signed offer"); });
+    b.addEventListener("click", function () {
+      var t = editPrice(jws);
+      show(verifyJws(t.jws), "Price changed to " + t.price);
+    });
+    wrap.appendChild(a); wrap.appendChild(b); wrap.appendChild(out);
+    return wrap;
+  }
   updateCount();
 })();

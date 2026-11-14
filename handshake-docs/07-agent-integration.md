@@ -157,6 +157,8 @@ Purpose: show an off-the-shelf assistant placing an order with no custom agent c
 
 ## 8. Public live demo agent (added 2026-11-14)
 
+Stage 2 adds a second, scripted client: `handshake/scenarios.py` runs fixed call sequences (document 09, section 6d) through the same `HandshakeClient` and in-process HTTP path, as the sandbox's persona agent, with no model. The Claude agent is used only where free text matters (the persona's example requests and the visitor's own text).
+
 The landing page runs the section 4 agent server-side for anonymous visitors (`handshake/live_demo.py`; routes in document 03, section 8; demo in document 09, section 6b).
 
 - Model `claude-sonnet-5-5` (`LIVE_DEMO_MODEL`), effort `medium`, adaptive thinking, server-side refusal fallback `"default"`. Measured 2026-11-14 on the hosted gateway: Bolognese for 400 portions in 17 to 26 s with 10 tool calls, about 0.08 USD per run; the lactose-free milk request in 11 s. Sonnet was reliable in these runs, so Opus is not used here.

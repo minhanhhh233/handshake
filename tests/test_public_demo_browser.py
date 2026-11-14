@@ -64,46 +64,80 @@ def _no_hscroll(page) -> bool:
 
 
 @pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
-def test_landing_and_example_order(browser, demo_server, w, h, tag):  # noqa: F811
+def test_scenario_chip_verify_and_approver_inbox(browser, demo_server, w, h, tag):  # noqa: F811
+    """Stage 2: a scripted scenario chip, the visitor's own signature check, the Approver
+    inbox, then the confirmed order, the run page and the receipt."""
+    SCREENS.mkdir(parents=True, exist_ok=True)
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
+                              has_touch=(w < 500), reduced_motion="reduce")
+    page = ctx.new_page()
+    errors: list[str] = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.goto(demo_server + "/")
+    assert _no_hscroll(page)
+    assert page.get_by_role("link", name="View API docs").is_visible()
+    assert page.locator("#demo").count() == 0  # the three scripted buttons are replaced
+    page.get_by_text("All customers and people shown are fictional.").is_visible()
+    page.screenshot(path=str(SCREENS / f"landing-{tag}.png"), full_page=True)
+    page.locator('.pb[data-persona="hotel"]').click()
+    chip = page.locator('.chip[data-scenario="hotel_milk"]')
+    chip.wait_for(timeout=10000)
+    assert chip.bounding_box()["height"] >= 32
+    chip.click()
+    page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
+    assert _no_hscroll(page)
+    # The visitor checks the signature, then edits the price.
+    page.get_by_role("button", name="Verify in this browser").click()
+    page.locator(".vres.ok").wait_for(timeout=10000)
+    assert "signature valid" in page.locator(".vres").inner_text()
+    page.get_by_role("button", name="Edit the price, verify again").click()
+    page.locator(".vres.bad").wait_for(timeout=10000)
+    assert "INVALID" in page.locator(".vres").inner_text()
+    page.locator("#live").screenshot(path=str(SCREENS / f"scenario-pending-{tag}.png"))
+    # Approver role: the sandbox's inbox.
+    page.locator('.pb[data-persona="approver"]').click()
+    item = page.locator("#lv-inbox .item")
+    item.wait_for(timeout=10000)
+    assert "1010.00 EUR" in item.inner_text()
+    page.locator("#lv-inbox").screenshot(path=str(SCREENS / f"approver-inbox-{tag}.png"))
+    item.get_by_role("button", name="Approve").click()
+    page.get_by_text("Nothing is waiting.").wait_for(timeout=10000)
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.get_by_text("The order is confirmed.").wait_for(timeout=15000)
+    receipt = page.get_by_role("link", name="Open the signed receipt").get_attribute("href")
+    run_page = page.get_by_role("link", name="Open this run as a page").get_attribute("href")
+    page.goto(demo_server + run_page)
+    assert page.get_by_text("Approved. The order is confirmed.").is_visible()
+    page.screenshot(path=str(SCREENS / f"demo-confirmed-{tag}.png"), full_page=True)
+    page.goto(demo_server + urlparse(receipt).path + "?" + urlparse(receipt).query)
+    assert _no_hscroll(page) and "Record intact" in page.inner_text("body")
+    page.screenshot(path=str(SCREENS / f"receipt-{tag}.png"), full_page=True)
+    assert not [e for e in errors if "Content Security Policy" in e or "Refused" in e], errors
+    ctx.close()
+
+
+@pytest.mark.parametrize("w,h,tag", [(390, 844, "390"), (1280, 800, "1280")])
+def test_school_refusal_and_misbehaving_toggle(browser, demo_server, w, h, tag):  # noqa: F811
     SCREENS.mkdir(parents=True, exist_ok=True)
     ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=(w < 500),
                               has_touch=(w < 500), reduced_motion="reduce")
     page = ctx.new_page()
     page.goto(demo_server + "/")
+    page.locator('.pb[data-persona="school"]').click()
+    page.locator('.chip[data-scenario="school_milk"]').click()
+    page.get_by_text("The scenario finished.").wait_for(timeout=20000)
+    assert "Lactose-free is not milk-free." in page.locator("#lv-steps").inner_text()
+    page.locator("#live").screenshot(path=str(SCREENS / f"school-refused-{tag}.png"))
+    page.check("#lv-bad")
+    assert page.get_by_role("button", name="Run the misbehaving agent").is_visible()
+    assert page.locator("#lv-prompt").is_disabled()
+    page.get_by_role("button", name="Run the misbehaving agent").click()
+    page.get_by_text("The scenario finished.").wait_for(timeout=30000)
+    text = page.locator("#lv-steps").inner_text()
+    for attempt in ("Attempt 1", "Attempt 3", "Attempt 5", "Attempt 6"):
+        assert attempt in text
     assert _no_hscroll(page)
-    assert page.get_by_role("link", name="View API docs").is_visible()
-    for name in ("Run the example order", "Run the allergy guard", "Search without a key"):
-        for b in page.get_by_role("button", name=name).all():
-            b.scroll_into_view_if_needed()
-            assert b.is_visible() and b.bounding_box()["height"] >= 44
-    page.get_by_text("Prototype built for the Valio Aimo challenge at Junction 2026").is_visible()
-    page.screenshot(path=str(SCREENS / f"landing-{tag}.png"), full_page=True)
-
-    page.locator(".tile.primary button").click()
-    page.wait_for_url("**/demo/runs/**")
-    assert _no_hscroll(page)
-    assert page.get_by_text("Your turn: approve this order").is_visible()
-    page.get_by_text("Request / response").first.click()  # expandable block per step
-    assert page.locator("details.io[open] pre").first.is_visible()
-    assert _no_hscroll(page)
-    page.screenshot(path=str(SCREENS / f"demo-run-{tag}.png"), full_page=True)
-    approve = page.get_by_role("link", name="Open the approval page").get_attribute("href")
-    run_url = page.url
-
-    # The visitor approves on the approval page (same server; the link's host is PUBLIC_BASE_URL).
-    page.goto(demo_server + urlparse(approve).path)
-    assert _no_hscroll(page)
-    page.screenshot(path=str(SCREENS / f"approval-{tag}.png"), full_page=True)
-    page.get_by_role("button", name="Approve order").click()
-    page.wait_for_load_state()
-    page.goto(run_url)
-    assert page.get_by_text("Approved. The order is confirmed.").is_visible()
-    assert page.get_by_role("link", name="Open the signed receipt").is_visible()
-    page.screenshot(path=str(SCREENS / f"demo-confirmed-{tag}.png"), full_page=True)
-    receipt = page.get_by_role("link", name="Open the signed receipt").get_attribute("href")
-    page.goto(demo_server + urlparse(receipt).path + "?" + urlparse(receipt).query)
-    assert _no_hscroll(page) and "Record intact" in page.inner_text("body")
-    page.screenshot(path=str(SCREENS / f"receipt-{tag}.png"), full_page=True)
+    page.locator("#live").screenshot(path=str(SCREENS / f"misbehaving-{tag}.png"))
     ctx.close()
 
 
@@ -187,8 +221,8 @@ def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noq
     page.screenshot(path=str(SCREENS / f"persona-card-{tag}.png"), full_page=False)
     page.locator('.pb[data-persona="hotel"]').click()
     page.locator("#lv-card").get_by_text("Revontuli Hotels").wait_for(timeout=10000)
-    page.locator(".chip").nth(1).click()
-    assert "lactose-free" in page.locator("#lv-prompt").input_value()
+    page.fill("#lv-prompt", "I need 1,000 litres of lactose-free milk for Monday. Choose on "
+                            "price and availability.")
     page.get_by_role("button", name="Run the agent").click()
     page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
     assert page.locator(".lv-row.verify").count() == 1

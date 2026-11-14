@@ -29,7 +29,7 @@ from .models import MandateBody
 TTL = timedelta(hours=2)
 COOKIE = "hs_sbx"
 #: New sandboxes per visitor IP per hour (bounds rows created by anonymous visitors).
-MAX_NEW_PER_HOUR = 10
+MAX_NEW_PER_HOUR = 60  # a venue NAT may put many visitors behind one IP
 MAX_CAP = Decimal("100000")
 DEMO_APPROVER = [{"name": "You (demo approver)", "contact": None}]
 #: Who sets the mandate in the demo (the card's label, and the actor of mandate.changed).
@@ -92,8 +92,10 @@ PERSONAS: dict[str, dict[str, Any]] = {
                     "delivery": {"allowed_weekdays": [1, 2, 3, 4, 5]}},
     },
 }
-#: Non-buyer roles shown in the bar; their views arrive in later stages.
+#: Non-buyer roles in the bar. Approver: the sandbox's approval inbox (stage 2); Valio Aimo
+#: operations arrives in stage 4.
 ROLES = {"approver": "Approver", "operations": "Valio Aimo operations"}
+ROLES_READY = {"approver"}
 BUYERS = [k for k in PERSONAS if k != "visitor"]
 
 
@@ -295,3 +297,40 @@ def agent_sandbox_id(agent_id: str) -> str | None:
         return db.q(conn, "SELECT c.sandbox_id FROM agents a JOIN customers c ON "
                           "c.customer_id = a.customer_id WHERE a.agent_id = :a",
                     a=agent_id).scalar()
+
+
+def inbox(sandbox_id: str) -> list[dict[str, Any]]:
+    """The approver's inbox: this sandbox's pending approvals, newest first (stage 2)."""
+    from . import orders
+
+    with db.transaction() as conn:
+        ids = [r[0] for r in db.q(
+            conn, "SELECT o.order_id FROM approvals ap JOIN orders o ON o.order_id = ap.order_id "
+                  "JOIN customers c ON c.customer_id = o.customer_id WHERE c.sandbox_id = :s "
+                  "AND ap.status = 'pending'", s=sandbox_id).all()]
+        for oid in ids:
+            orders.expire_approval_if_due(conn, oid)
+        rows = db.q(
+            conn, "SELECT ap.approval_id, ap.expires_at, o.order_id, o.reasons_json, "
+                  "o.reference, c.name AS customer, c.sandbox_persona AS persona, "
+                  "JSON_UNQUOTE(JSON_EXTRACT(f.payload_json, '$.totals.excl_tax')) AS total, "
+                  "JSON_UNQUOTE(JSON_EXTRACT(f.payload_json, '$.delivery_date')) AS delivery "
+                  "FROM approvals ap JOIN orders o ON o.order_id = ap.order_id "
+                  "JOIN offers f ON f.offer_id = o.offer_id "
+                  "JOIN customers c ON c.customer_id = o.customer_id WHERE c.sandbox_id = :s "
+                  "AND ap.status = 'pending' ORDER BY ap.requested_at DESC",
+            s=sandbox_id).mappings().all()
+    out = []
+    for r in rows:
+        reasons = db.jload(r["reasons_json"]) or []
+        url = orders.approval_url(r["approval_id"])
+        out.append({
+            "order_id": r["order_id"], "customer": r["customer"],
+            "persona": PERSONAS.get(r["persona"] or "", {}).get("label"),
+            "total_excl_tax": r["total"], "delivery_date": r["delivery"],
+            "reference": r["reference"],
+            "reasons": [x.get("message") for x in reasons if isinstance(x, dict)],
+            "expires_at": timeutil.iso(timeutil.from_db(r["expires_at"])),
+            "approve_path": "/" + url.split("/", 3)[3],
+        })
+    return out
