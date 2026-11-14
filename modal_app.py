@@ -9,6 +9,8 @@ import modal
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install_from_pyproject("pyproject.toml")
+    # CA for the hosted MariaDB's TLS certificate; DATABASE_URL carries ?ssl_ca=<this path>.
+    .add_local_file("certs/globalsignrootca.pem", "/root/certs/globalsignrootca.pem")
     .add_local_python_source("handshake", ignore=["**/__pycache__/**", "**/*.pyc"])
 )
 

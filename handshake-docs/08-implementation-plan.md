@@ -33,7 +33,7 @@ Any phase running more than an hour behind its target is reported at once. Phase
 
 **Phase 3 must-do (from the end-of-phase-2 code review).** The approval page puts the approval token in the URL path, and the console takes the admin key as `?key=`. Before these ship: (1) the request log must redact `/approve/<token>` and never log query strings; (2) uvicorn's access log must be off (or redacted) locally and on Modal; (3) prefer a cookie or POST form over `?key=` where the page allows it.
 
-**Deployment checklist.** The Modal secret must contain non-empty `ADMIN_KEY` and `SIGNING_KEY_PEM`; without `ADMIN_KEY` every order that needs approval fails (document 10, section 3.1).
+**Deployment checklist.** Done 2026-11-14 (document 02, section 8; Q-01). The Modal secret must contain non-empty `ADMIN_KEY` and `SIGNING_KEY_PEM`; without `ADMIN_KEY` every order that needs approval fails (document 10, section 3.1).
 
 **Revised again 2026-11-14 (after phase 3).** Phase 4 runs T-402 (receipt), T-403 (receipt page) and T-405 (`allergy_guard`); T-401 (hash chain) is already built. After that, in this order: **T-503 restricted to rule R7** (weekly cap, test P-24; R10 stays cut), then **T-404** (split with gateway substitutes, test F-10), then **T-406** (comparison fields). These three are restored to scope and no longer depend on the Saturday 20:00 condition above. T-501, T-502, T-504 and R10 stay cut.
 

@@ -243,7 +243,13 @@ The agent process additionally needs `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `HA
 5. `modal deploy modal_app.py`; set `PUBLIC_BASE_URL` to the URL Modal prints and redeploy.
 6. Check `GET {PUBLIC_BASE_URL}/.well-known/handshake.json` and `GET /v1/health`.
 
-Where MariaDB runs is unresolved (Q-01). The gateway only needs a reachable `DATABASE_URL`.
+MariaDB runs on SkySQL serverless (Q-01, answered 2026-11-14). Notes from the first deployment:
+
+- TLS: `DATABASE_URL` carries `?ssl_ca=<path to the CA file>`; SQLAlchemy's PyMySQL dialect turns it into a verified TLS connection (certificate chain and hostname). Locally the path is `certs/globalsignrootca.pem` (git-ignored); `modal_app.py` copies that file into the image at `/root/certs/globalsignrootca.pem`, and the Modal secret's `DATABASE_URL` points there.
+- The deployed URL is `https://minhanhhh233--handshake-web.us-east.modal.run`; `PUBLIC_BASE_URL` in the secret must equal it exactly (the offer `issuer` and the approval links are built from it). After changing the secret, stop the app (`modal app stop handshake --yes`) and deploy again so no container keeps the old value.
+- Latency: Modal runs in us-east and the database in eu-west-2, so each request pays cross-Atlantic round trips (warm health about 0.7 to 1.0 s). Pinning the Modal function to an EU region, if the plan allows it, would cut this.
+- Development machine only: TLS to api.modal.com and the deployed URL is intercepted by a locally trusted CA, and the Modal client trusts only certifi. The CLI is run through a wrapper that points certifi at a bundle of certifi plus the Windows trust store (verification stays on); `SSL_CERT_FILE` does the same for httpx clients.
+- The hosted database and the local one have different demo agent keys: `keys/demo_agents.json` (local) and `keys/demo_agents.hosted.json` (hosted), both git-ignored.
 
 ## 9. Error handling principles
 
