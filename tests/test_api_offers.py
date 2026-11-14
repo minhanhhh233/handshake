@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from handshake import db, events, signing, timeutil, upstream
+from handshake.config import get_settings
 from handshake.errors import upstream_unavailable
 
 from .factories import make_party
@@ -153,7 +154,7 @@ def test_realistic_1000_litres_of_464306(client, catalog, clean_db):
                                     "complete": True, "split": False}]
     issued = timeutil.parse_upstream(offer["issued_at"])
     expires = timeutil.parse_upstream(offer["expires_at"])
-    assert expires - issued == timedelta(seconds=900)
+    assert expires - issued == timedelta(seconds=get_settings().offer_ttl_seconds)
 
 
 def test_api20_upstream_failure(client, catalog, clean_db):

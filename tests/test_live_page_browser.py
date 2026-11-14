@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import pytest
 
 from .test_pages_browser import SCREENS, browser, sync_api  # noqa: F401 (fixtures)
@@ -96,28 +98,31 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     page.locator("#log").screenshot(path=str(SCREENS / f"live-log-{tag}.png"))
     page.locator("#pb-all").click()
 
-    # Switching persona clears the stage: frames, log, outcome bar and steps.
-    page.locator('.pb[data-persona="approver"]').click()
-    item = page.locator("#role-panel .item")
-    item.wait_for(timeout=10000)
-    assert page.locator("#lv-form").is_hidden()
-    assert page.locator("#pb-count").inner_text() == "No steps yet"
-    assert page.locator("#lv-human").inner_text() == ""
-    assert page.locator("#log li").count() == 0
-    # The Approver approves; the inbox refreshes in place.
-    item.get_by_role("button", name="Approve").click()
-    page.get_by_text("Nothing is waiting.").wait_for(timeout=10000)
-    page.locator('.pb[data-persona="hotel"]').click()
-    page.locator("#rules-list li").first.wait_for(timeout=10000)
-    assert "latest message appears here" in page.locator("#frame-buyer").inner_text()
-    assert "latest answer appears here" in page.locator("#frame-gw").inner_text()
-    page.screenshot(path=str(SCREENS / f"live-cleared-{tag}.png"), full_page=True)
+    # No Approver tab: the person approves on the approval page; this page follows the outcome.
+    assert page.locator('.pb[data-persona="approver"]').count() == 0
+    href = page.get_by_role("link", name="Open the approval page").get_attribute("href")
+    approval = ctx.new_page()
+    approval.goto(demo_server + urlparse(href).path)
+    approval.get_by_role("button", name="Approve order").click()
+    approval.wait_for_load_state()
+    approval.close()
+    page.get_by_text("The order is confirmed").wait_for(timeout=15000)
+    assert page.get_by_role("link", name="Open the signed receipt").is_visible()
+    page.screenshot(path=str(SCREENS / f"live-confirmed-{tag}.png"), full_page=True)
 
-    # Operations: the agents and the now confirmed order.
+    # Operations: its own view only; the agent panels, playback and step log are hidden.
     page.locator('.pb[data-persona="operations"]').click()
     page.get_by_role("button", name="Tamper with the log").first.wait_for(timeout=10000)
     assert "confirmed" in page.locator("#role-panel").inner_text()
-    page.locator("#role-panel").screenshot(path=str(SCREENS / f"live-ops-{tag}.png"))
+    for ident in ("live", "lv-human", "playback", "log"):
+        assert page.locator(f"#{ident}").is_hidden(), ident
+    page.screenshot(path=str(SCREENS / f"live-ops-{tag}.png"), full_page=True)
+    # Back as a buyer: the panels return, cleared.
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator("#live").wait_for(timeout=10000)
+    assert page.locator("#live").is_visible() and page.locator("#playback").is_visible()
+    assert page.locator("#pb-count").inner_text() == "No steps yet"
+    assert "latest answer appears here" in page.locator("#frame-gw").inner_text()
     assert _no_hscroll(page)
     assert not errors, errors
     ctx.close()

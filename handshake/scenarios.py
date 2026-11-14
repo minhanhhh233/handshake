@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 from . import db, live_demo, public_demo, timeutil
 from . import sandbox as sbx
+from .config import get_settings
 
 log = logging.getLogger("handshake.scenarios")
 
@@ -28,7 +29,7 @@ RUNS_PER_WINDOW = 10  # scripted scenarios cost nothing upstream of Claude; own 
 WINDOW_SECONDS = 600
 MAX_CONCURRENT = 10
 DECISION_WAIT_SECONDS = 600  # how long the decline scenario waits for the visitor's decision
-EXPIRY_TTL_SECONDS = 20      # the expiry scenario's offer lifetime (normally 15 minutes)
+EXPIRY_TTL_SECONDS = 20      # the expiry scenario's offer lifetime (normally OFFER_TTL_SECONDS)
 MILK_EXCLUDES = public_demo.PLAIN_MILK_EXCLUDES
 _running = threading.BoundedSemaphore(MAX_CONCURRENT)
 
@@ -220,7 +221,8 @@ def hotel_expire(s: Script) -> None:
     from .models import OfferRequest
     from .offers import build_offer
 
-    s.say(f"For the demo this offer lives {EXPIRY_TTL_SECONDS} seconds instead of 15 minutes.")
+    s.say(f"For the demo this offer lives {EXPIRY_TTL_SECONDS} seconds instead of "
+          f"{get_settings().offer_ttl_seconds // 60} minutes.")
     lines = [L(["464306"], 100)]
     req = OfferRequest.model_validate({"delivery_date": s.delivery.isoformat(),
                                        "lines": lines})

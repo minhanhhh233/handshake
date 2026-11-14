@@ -217,9 +217,9 @@ def test_live_page(client):
                   "pb-prev", "pb-play", "pb-next", "pb-speed", "pb-jump", "pb-all", "log",
                   "scen-groups", "rules-edit", "edit-box", "role-panel", "lv-timer"):
         assert f'id="{ident}"' in html, ident
-    for p in ("visitor", "hotel", "restaurant", "school", "hospital", "probation", "approver",
-              "operations"):
+    for p in ("visitor", "hotel", "restaurant", "school", "hospital", "probation", "operations"):
         assert f'data-persona="{p}"' in html, p
+    assert 'data-persona="approver"' not in html  # approval happens on the approval page
     assert "External buyer agent <span class=\"sub-h\">(not part of Handshake)</span>" in html
     assert "Handshake: the Valio Aimo interface" in html
     js = client.get("/static/live.js")

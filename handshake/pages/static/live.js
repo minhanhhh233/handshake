@@ -599,6 +599,10 @@
         var role = slug === "approver" || slug === "operations";
         form.hidden = role;
         rolePanel.hidden = !role;
+        // Operations sees its own view only: no agent panels, outcome bar, playback or step log.
+        var ops = slug === "operations";
+        ["live", "lv-human", "playback", "lv-status"].forEach(function (id) { document.getElementById(id).hidden = ops; });
+        if (ops) { logEl.hidden = true; pb.all.setAttribute("aria-expanded", "false"); pb.all.textContent = "Show all steps"; }
         if (slug === "approver") { rulesWho.textContent = "Approver"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "You are the customers' purchasing manager. Orders over a mandate's limits wait for your decision.")); editBtn.hidden = true; editBox.textContent = ""; renderInbox(res.body.inbox || []); return; }
         if (slug === "operations") { rulesWho.textContent = "Valio Aimo operations"; rulesList.textContent = ""; rulesList.appendChild(el("li", "plain", "What Valio Aimo sees about the agents in your sandbox, with a suspend switch, a log-tamper control and proactive offers.")); editBtn.hidden = true; editBox.textContent = ""; renderOps(res.body.ops || {}); return; }
         renderRules(res.body.card, res.body.sandbox);

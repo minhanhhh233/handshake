@@ -202,7 +202,7 @@
     <span class="lbl">You are</span>
     <div class="pb-row">
       {% for slug, p in personas.items() %}<button type="button" class="pb" data-persona="{{ slug }}" aria-pressed="false">{{ p.label }}</button>{% endfor %}
-      {% for slug, label in roles.items() %}{% if slug in roles_ready %}<button type="button" class="pb role" data-persona="{{ slug }}" aria-pressed="false">{{ label }}</button>{% endif %}{% endfor %}
+      {% for slug, label in roles.items() %}{% if slug in roles_ready and slug != "approver" %}<button type="button" class="pb role" data-persona="{{ slug }}" aria-pressed="false">{{ label }}</button>{% endif %}{% endfor %}
     </div>
     <span class="sandbox-note" id="sandbox-note" title="Each visitor gets a private sandbox: its own copy of every customer, agent and limits, for 2 hours. No sign-in.">private sandbox, 2 hours</span>
   </nav>

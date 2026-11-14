@@ -34,7 +34,9 @@ ROUTING_REGION = os.environ.get("HANDSHAKE_MODAL_ROUTING_REGION", "eu-west") or 
 # "handshake-anthropic" holds ANTHROPIC_API_KEY and LIVE_DEMO_DAILY_BUDGET_USD (live demo only).
 @app.function(image=image, min_containers=1,
               secrets=[modal.Secret.from_name("handshake"),
-                       modal.Secret.from_name("handshake-anthropic")],
+                       modal.Secret.from_name("handshake-anthropic"),
+                       # Offer lifetime 2 minutes (2026-11-14); last, so it overrides the secret.
+                       modal.Secret.from_dict({"OFFER_TTL_SECONDS": "120"})],
               region=REGION, routing_region=ROUTING_REGION)
 @modal.concurrent(max_inputs=20)
 @modal.asgi_app()

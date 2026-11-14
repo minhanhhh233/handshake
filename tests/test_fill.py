@@ -369,7 +369,7 @@ def test_passed_cutoff_excluded_with_null_date(catalog, clean_db, fake):
 
 
 def test_expires_at_capped_by_order_by(catalog, clean_db, fake):
-    closing = timeutil.now() + timedelta(minutes=5)
+    closing = timeutil.now() + timedelta(minutes=1)  # inside the 2-minute offer lifetime
     fake(facts("464306", amount=None, closing=closing))
     offer = build(make_party(), request(["464306"]))["options"][0]["offer"]
     assert offer["expires_at"] == timeutil.iso(closing)

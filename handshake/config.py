@@ -60,7 +60,7 @@ def load_settings() -> Settings:
         signing_kid=e("SIGNING_KID", "hs-2026-11"),
         public_base_url=e("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/"),
         admin_key=e("ADMIN_KEY", ""),
-        offer_ttl_seconds=int(e("OFFER_TTL_SECONDS", "900")),
+        offer_ttl_seconds=int(e("OFFER_TTL_SECONDS", "120")),
         approval_ttl_seconds=int(e("APPROVAL_TTL_SECONDS", "3600")),
         upstream_cache_ttl_seconds=int(e("UPSTREAM_CACHE_TTL_SECONDS", "60")),
         upstream_timeout_seconds=float(e("UPSTREAM_TIMEOUT_SECONDS", "5")),

@@ -227,7 +227,7 @@ All settings are environment variables, provided on Modal as one secret named `h
 | `SIGNING_KID` | yes | | Key ID published in the key set, for example `hs-2026-11` |
 | `PUBLIC_BASE_URL` | yes | | External URL of the gateway, used in discovery and links |
 | `ADMIN_KEY` | yes | | Shared secret for admin and operations |
-| `OFFER_TTL_SECONDS` | no | `900` | Offer lifetime (A-11) |
+| `OFFER_TTL_SECONDS` | no | `120` | Offer lifetime (A-11); 2 minutes since 2026-11-14 (was 900) |
 | `APPROVAL_TTL_SECONDS` | no | `3600` | How long a pending order waits for a decision (A-11) |
 | `UPSTREAM_CACHE_TTL_SECONDS` | no | `60` | Cache lifetime for upstream answers |
 | `UPSTREAM_TIMEOUT_SECONDS` | no | `5` | Per-call timeout |

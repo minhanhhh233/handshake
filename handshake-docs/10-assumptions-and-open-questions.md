@@ -44,7 +44,7 @@ When an item is resolved: record the answer here with the date, then update the 
 |---|---|---|---|
 | A-09 | Delivering the approval link to the approver is out of band. In the demo it is a QR code on the console page, which only an admin can open. | A real deployment needs email, SMS or an app notification. | 02 §5.3, 03 §8 |
 | A-10 | One mandate per agent and one approver per order are enough. | Multi-approver or per-category mandates need schema changes. | 05 §2 |
-| A-11 | Offer lifetime 15 minutes and approval window 60 minutes suit the demo. Both are configuration. | Adjust `OFFER_TTL_SECONDS` and `APPROVAL_TTL_SECONDS`. | 02 §7 |
+| A-11 | Offer lifetime 2 minutes (changed from 15 minutes on 2026-11-14, at the product owner's request) and approval window 60 minutes (30 minutes for public demo orders) suit the demo. An offer only has to last until the order is placed; a pending order's stock holds move to the approval deadline, so approval is not limited by the offer lifetime. Both are configuration. | Adjust `OFFER_TTL_SECONDS` and `APPROVAL_TTL_SECONDS`. | 02 §7 |
 | A-12 | Expiry of offers, holds and approvals is applied lazily when a record is read. There is no background scheduler. | Stale `held` or `pending` rows remain until touched; arithmetic ignores expired holds, so results stay correct. | 02 §5.5, 05 §6 |
 | A-13 | One signing key for the whole event; no rotation or revocation. | Out of scope for the prototype. | 05 §5 |
 | A-20 | Event hash chains are per trace. There is no global chain across traces. | Deleting a whole trace would not be detectable. Acceptable for the prototype. | 05 §7.3 |
