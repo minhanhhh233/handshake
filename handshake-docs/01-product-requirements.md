@@ -62,6 +62,8 @@ Each requirement has an ID, a priority, and the brief item it answers. "Core 1/2
 | FR-18 | P0 | Each offer line MUST state the stock assurance: `confirmed` for Stock products, `unconfirmed` for Terminal products. |
 | FR-19 | P1 | When one product cannot meet the quantity, the gateway SHOULD fill the remainder from the agent's alternates, then from substitutes, and mark each line's role. |
 | FR-20 | P1 | The gateway SHOULD return up to three ranked options (best, better, good) with stated differences. |
+| FR-21 | P1 | An agent SHOULD be able to ask, per offer line, that the gateway fill from the cheapest of its listed candidates (`prefer: "lowest_price"`), because only the gateway knows the prices when the offer is built (added 2026-11-14). |
+| FR-22 | P1 | An agent SHOULD be able to withdraw its own unused offer when it requests a corrected one (`replaces_offer_id`), so the new request does not compete with the old offer's stock holds (added 2026-11-14). |
 
 ### 4.3 Permission and approval (Core 3)
 

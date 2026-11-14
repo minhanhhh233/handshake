@@ -670,6 +670,8 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
         raise forbidden("This agent has no mandate. An admin must set one before offers "
                         "can be issued.")
     validate_request(req, set(catalog))
+    if req.replaces_offer_id:
+        withdraw_offer(req.replaces_offer_id, agent_id)
 
     # offer.requested in its own transaction, before upstream, so failures stay traceable.
     total_candidates = len({p for line in req.lines for p in line.product_ids})
@@ -685,9 +687,11 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
             body={"delivery_date": req.delivery_date.isoformat(), "lines": [
                 {"product_ids": line.product_ids,
                  "quantity": line.quantity.dump(), "fulfilment": line.fulfilment,
-                 "substitution": line.substitution,
+                 "substitution": line.substitution, "prefer": line.prefer,
                  "requirements": line.requirements.dump()} for line in req.lines],
-                "max_options": req.max_options, "candidates": total_candidates},
+                "max_options": req.max_options, "candidates": total_candidates,
+                **({"replaces_offer_id": req.replaces_offer_id}
+                   if req.replaces_offer_id else {})},
         )
 
     # Step 2, static filter.
@@ -736,6 +740,8 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
                 excluded.append(r)
             else:
                 ok.append(r)
+        if line.prefer == "lowest_price":
+            ok.sort(key=lowest_price_key)
         prepared.append(ok)
 
     with db.transaction() as conn:
@@ -883,6 +889,36 @@ def load_offer(conn: Connection, offer_id: str, *, for_update: bool = False
     d["payload"] = db.jload(d.pop("payload_json"))
     d["request"] = db.jload(d.pop("request_json"))
     return d
+
+
+def lowest_price_key(p: Prepared) -> tuple[int, Decimal, int]:
+    """`prefer: lowest_price`: listed candidates (requested, alternates) before substitutes,
+    each group by price excl. tax per requested unit (per L or KG after conversion, else per
+    sales unit), ties in the agent's order."""
+    return (1 if p.cand.role == "substitute" else 0, p.unit_excl / p.per_unit, p.cand.pos)
+
+
+def withdraw_offer(offer_id: str, agent_id: str) -> None:
+    """`replaces_offer_id`: withdraw the agent's own active offer and release its holds.
+
+    An offer of another agent is reported as not found; an offer that is no longer active
+    (consumed or expired) is left as it is."""
+    with db.transaction() as conn:
+        row = load_offer(conn, offer_id, for_update=True)
+        if row is None or row["agent_id"] != agent_id:
+            raise HandshakeError("not_found", f"Offer {offer_id} does not exist.")
+        row = expire_if_due(conn, row)
+        if row["status"] != "active":
+            return
+        db.q(conn, "UPDATE offers SET status = 'expired' WHERE offer_id = :o "
+                   "AND status = 'active'", o=offer_id)
+        events.append(
+            conn, trace_id=row["trace_id"], type="offer.expired", actor_type="gateway",
+            audience="both", text=f"Offer {offer_id} was withdrawn: the agent replaced it with "
+                                  f"a new request.",
+            body={"offer_id": offer_id, "reason": "replaced"},
+        )
+        release_holds(conn, offer_id, row["trace_id"], "offer replaced")
 
 
 def release_holds(conn: Connection, offer_id: str, trace_id: str, why: str) -> list[dict]:

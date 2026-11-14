@@ -210,6 +210,8 @@ Request:
 | `lines[].requirements` | Optional. Applied to every product used to fill the line, including substitutes. |
 | `lines[].fulfilment` | `exact` (one product or fail) or `allow_split` (default). |
 | `lines[].substitution` | `none` (default) or `allowed`. When allowed, the gateway may add products not in `product_ids`. |
+| `lines[].prefer` | `listed_order` (default): fill in the agent's order. `lowest_price`: after the filters, the gateway sorts the line's listed candidates by price excl. tax per requested unit (per L or KG after conversion, per sales unit otherwise), cheapest first, ties in the agent's order; substitutes stay after the listed candidates. Roles (`requested`, `alternate`) still follow the agent's list. Added 2026-11-14 (FR-21). |
+| `replaces_offer_id` | Optional. An offer of the same agent that this request corrects. If it is still `active`, the gateway sets it `expired`, writes `offer.expired` with `reason: "replaced"` and releases its holds before filling this request; if it is no longer active nothing changes. Another agent's offer gives `404 not_found`. Added 2026-11-14 (FR-22). |
 | `max_options` | 1 to 3, default 1. Values above 1 are a P1 feature. **Cut for the deadline (document 08, section 0).** Ranked options (T-501) are not built: the gateway accepts 1 to 3 and always returns one option, `best`, filled in the agent's preference order, with no `score`. |
 
 Response `201`:

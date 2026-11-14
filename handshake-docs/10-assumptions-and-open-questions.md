@@ -50,6 +50,8 @@ When an item is resolved: record the answer here with the date, then update the 
 | A-20 | Event hash chains are per trace. There is no global chain across traces. | Deleting a whole trace would not be detectable. Acceptable for the prototype. | 05 §7.3 |
 | A-22 | When several options are returned, each holds stock separately until expiry. Brief over-reservation is acceptable. | If it starves the demo, return one option only. | 05 §6 |
 | A-23 | The buyer's receipt view omits `aimo_only` events but the chain covers all events, so the buyer can check the signed head but cannot recompute it. | If buyers must verify the chain themselves, keep two chains or expose event hashes without bodies. | 05 §7.4 |
+| A-26 | `prefer: "lowest_price"` compares price excl. tax per requested unit as converted by the gateway (the same conversion that sets the sales units), not upstream's `comparisonPrice` field, so products whose comparison unit differs from the request can still be compared. Added 2026-11-14. | Switch the sort key to `comparisonPrice` where its unit matches. | 03 §5, 05 §4 |
+| A-27 | A corrected offer request may withdraw the agent's earlier unused offer (`replaces_offer_id`). Withdrawal is explicit; the gateway never withdraws an offer on its own. Added 2026-11-14. | An agent that forgets it competes with its own holds until the first offer expires (15 minutes). | 03 §5, 05 §6 |
 | A-24 | If live stock does not produce a split for 1,000 L, the demo may pre-create a committed hold to force one, and the team says so. | None, provided it is disclosed. | 09 §5 |
 
 ### Tooling and team

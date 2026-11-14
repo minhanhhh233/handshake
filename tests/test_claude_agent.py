@@ -399,7 +399,7 @@ class StubHS:
         return {"mandate_id": "mnd_x", "version": 1, "limits": {"max_order_total_excl_tax": "1000.00"},
                 "approvers": [{"name": "Maria Virtanen"}]}
 
-    def request_offer(self, delivery_date, lines, max_options=1):
+    def request_offer(self, delivery_date, lines, max_options=1, replaces_offer_id=None):
         self.calls.append("request_offer")
         raise self.offer_error  # type: ignore[misc]
 

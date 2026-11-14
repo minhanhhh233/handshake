@@ -281,9 +281,13 @@ class HandshakeClient:
         return data
 
     def request_offer(
-        self, delivery_date: str, lines: list[dict[str, Any]], max_options: int = 1
+        self, delivery_date: str, lines: list[dict[str, Any]], max_options: int = 1,
+        replaces_offer_id: str | None = None,
     ) -> dict[str, Any]:
-        body = {"delivery_date": delivery_date, "lines": lines, "max_options": max_options}
+        body: dict[str, Any] = {"delivery_date": delivery_date, "lines": lines,
+                                "max_options": max_options}
+        if replaces_offer_id:
+            body["replaces_offer_id"] = replaces_offer_id
         resp = self._request("POST", "/v1/offers", json_body=body)
         if not self.trace_id:
             self.trace_id = resp.headers.get("X-Trace-Id") or None

@@ -301,12 +301,18 @@ class OfferRequestLine(_Model):
     requirements: Requirements = Field(default_factory=Requirements)
     fulfilment: Literal["exact", "allow_split"] = "allow_split"
     substitution: Literal["none", "allowed"] = "none"
+    #: listed_order: fill in the agent's order (default). lowest_price: the gateway sorts the
+    #: surviving listed candidates by price per requested unit before filling (2026-11-14).
+    prefer: Literal["listed_order", "lowest_price"] = "listed_order"
 
 
 class OfferRequest(_Model):
     delivery_date: date
     lines: list[OfferRequestLine] = Field(min_length=1, max_length=10)
     max_options: int = Field(default=1, ge=1, le=3)
+    #: An active, unused offer of the same agent to withdraw (holds released) before this
+    #: request is filled, so a corrected request does not compete with its own holds.
+    replaces_offer_id: str | None = Field(default=None, pattern=r"^off_[a-z2-7]{20}$")
 
 
 class Conversion(_Model):

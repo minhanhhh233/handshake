@@ -113,7 +113,8 @@ def run_tool(hs: HandshakeClient, name: str, args: dict[str, Any]) -> tuple[Any,
             res = hs.get_mandate()
         elif name == "request_offer":
             res = _trim_offer(hs.request_offer(args["delivery_date"], args["lines"],
-                                               args.get("max_options", 1)))
+                                               args.get("max_options", 1),
+                                               args.get("replaces_offer_id")))
         elif name == "dry_run_order":
             res = hs.dry_run_order(str(args["offer_id"]))
         elif name == "place_order":

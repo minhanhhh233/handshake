@@ -144,7 +144,7 @@ Options:
 | `better` | Fill by ascending comparison price (cheapest), if different from `best` |
 | `good` | Fill using the fewest distinct products, if different from the others |
 
-Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order. **Cut for the deadline (document 08, section 0).** T-501 is not built, so only the P0 behaviour exists and `preferences` has no effect.
+Each option is a separate offer with its own ID, holds and signature. P0 returns only `best`, filled in the agent's preference order, or, for a line with `prefer: "lowest_price"` (added 2026-11-14, FR-21), by ascending price excl. tax per requested unit among the listed candidates that passed all filters (substitutes after them). That ordering never changes the policy outcome. **Cut for the deadline (document 08, section 0).** T-501 is not built, so only the P0 behaviour exists and `preferences` has no effect.
 
 ## 5. Signing
 
@@ -198,6 +198,7 @@ While an offer is `active`, the gateway MUST accept an order for it at the signe
 |---|---|
 | Offer issued | One hold per line: `held`, `expires_at` = offer `expires_at` |
 | Offer expires unused | `released` (applied lazily; an expired `held` row is ignored in arithmetic even before it is updated) |
+| Offer withdrawn by `replaces_offer_id` (added 2026-11-14) | `released`; the offer becomes `expired` |
 | Order `confirmed` (accepted) | `committed`, `expires_at` = NULL |
 | Order `pending_approval` | Stays `held`; `expires_at` moved to the approval's `expires_at` |
 | Approval approved | `committed` |

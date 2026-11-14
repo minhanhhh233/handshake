@@ -266,6 +266,12 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                         "fulfilment": {"type": "string", "enum": ["exact", "allow_split"],
                                        "description": "exact = one product or fail; allow_split "
                                        "(default) = several products may fill the quantity."},
+                        "prefer": {"type": "string", "enum": ["listed_order", "lowest_price"],
+                                   "description": "listed_order (default) fills in your "
+                                   "order of preference; lowest_price lets the gateway fill "
+                                   "from the cheapest listed product per litre or kilogram "
+                                   "first. Use lowest_price when the user asks for the best "
+                                   "or lowest price."},
                         "substitution": {"type": "string", "enum": ["none", "allowed"],
                                          "description": "allowed = the gateway may add products "
                                          "not listed; default none."},
@@ -273,6 +279,9 @@ def tool_definitions(category_hint: bool = True) -> list[dict[str, Any]]:
                 },
                 "max_options": {"type": "integer", "description": "1 to 3; the gateway currently "
                                 "always returns one option."},
+                "replaces_offer_id": {"type": "string", "description": "Your earlier, unused "
+                                      "offer that this request corrects. The gateway withdraws "
+                                      "it and releases its stock holds first."},
             }, ["delivery_date", "lines"]),
         },
         {
@@ -475,7 +484,8 @@ class ToolExecutor:
                 res = hs.get_mandate()
             elif name == "request_offer":
                 res = _trim_offer(hs.request_offer(args["delivery_date"], args["lines"],
-                                                   args.get("max_options", 1)))
+                                                   args.get("max_options", 1),
+                                                   args.get("replaces_offer_id")))
                 opts = res.get("options") or []
                 if opts:
                     self.offer_id = (opts[0].get("offer") or {}).get("offer_id")

@@ -32,7 +32,7 @@ def milk_script(date: str):
         resp(thinking(), text("Plan:\n- lactose-free milk: 1000 L"), tool("get_mandate"),
              tool("search_products", category="10400", claims=["FREE_FROM_LACTOSE"], limit=50)),
         resp(tool("request_offer", delivery_date=date, lines=[{
-            "product_ids": public_demo.SHORTLIST,  # 8 candidates: the server keeps 5
+            "product_ids": public_demo.SHORTLIST + ["464073", "464119"],  # 10: server keeps 8
             "quantity": {"value": 1000, "unit": "L"}, "fulfilment": "allow_split"}])),
         lambda req: resp(tool("dry_run_order", offer_id=_offer_id(req))),
         lambda req: resp(tool("place_order", offer_id=req["messages"][-1]["content"] and
@@ -60,9 +60,9 @@ def test_live_run_end_to_end(client, monkeypatch):  # noqa: F811
     verify = next(s for s in v["steps"] if s["kind"] == "verify")
     assert verify["detail"]["verified"] is True and verify["detail"]["header"]["alg"] == "EdDSA"
     offer_call = next(s for s in v["steps"] if s["kind"] == "call" and s["title"] == "request_offer")
-    assert len(offer_call["request"]["input"]["lines"][0]["product_ids"]) == 5
+    assert len(offer_call["request"]["input"]["lines"][0]["product_ids"]) == live_demo.MAX_CANDIDATES == 8
     search_call = next(s for s in v["steps"] if s["title"] == "search_products")
-    assert search_call["request"]["input"]["limit"] == 5
+    assert search_call["request"]["input"]["limit"] == live_demo.MAX_SEARCH_RESULTS == 20
     # The loop stopped at pending approval: the model was not asked to poll.
     assert len(fake.requests) == 4
     assert v["state"] == "done" and v["order"]["status"] == "pending_approval"

@@ -10,7 +10,7 @@ never carry an approval link. When an order waits for approval, the loop stops a
 not the model, watches the order (on each poll of the page).
 
 Limits (code, not prompt): 3 runs per 10 minutes per visitor, 500 characters of input, 25 tool
-calls and 120 seconds per run, 5 candidates per ingredient, and a daily spend budget on the
+calls and 120 seconds per run, 8 candidates per ingredient, and a daily spend budget on the
 Claude API recorded as `demo.cost` events.
 """
 
@@ -39,7 +39,13 @@ WINDOW_SECONDS = 600
 MAX_PROMPT_CHARS = 500
 MAX_TOOL_CALLS = 25
 TIME_LIMIT_SECONDS = 120
-MAX_CANDIDATES = 5
+#: Candidate products per offer line (ingredient): 8, the size of the brief's milk shortlist,
+#: so a price-driven request can reach the cheapest product (raised from 5 at stage 0).
+MAX_CANDIDATES = 8
+#: Search results per call. Search has no prices, so this only bounds the reply size.
+MAX_SEARCH_RESULTS = 20
+#: The first offer plus one retry for ingredients whose candidates were all unorderable.
+MAX_OFFER_REQUESTS = 2
 MAX_CONCURRENT = 3
 #: A run with no end step after this long is shown as stopped (e.g. the container was replaced).
 STALE_SECONDS = TIME_LIMIT_SECONDS + 60
@@ -68,15 +74,25 @@ EXTRA_SYSTEM = """Public live demo (this run is shown step by step on a public w
   request, one line each as "- ingredient: quantity unit", in kg or L where possible, at most
   12 lines, main ingredients only.
 - Read your mandate with get_mandate. Then search each ingredient with search_products, limit
-  5. Prefer structured filters (category, claims, exclude_allergens) over name text: a first
+  20. Prefer structured filters (category, claims, exclude_allergens) over name text: a first
   search by name shows the category code to use in a filtered second search. Make independent
   searches in parallel in one turn.
 - Put all ingredients in ONE request_offer call: one line per ingredient, listing every
-  suitable candidate you found (up to 5) in order of preference, because some products may not
+  suitable candidate you found (up to 8) in order of preference, because some products may not
   be deliverable on the date and the offer then falls back to the next one; quantity in KG or
   L (SALES_UNIT for items sold by the piece), fulfilment allow_split, and the delivery date
   given in the user message.
-- If no suitable product is found for an ingredient, or the offer excludes every candidate,
+- When the visitor asks for the best or lowest price, or to choose on price, set prefer
+  "lowest_price" on every line: the gateway then fills from the cheapest listed product. Search
+  results carry no prices, so for such a line search by category and claims without name text
+  (use name_excludes to drop clearly different products, such as coffee, portion or flavoured
+  ones) and list up to 8 products of the requested kind, plain everyday packs included.
+- If the offer leaves an ingredient unfilled because every candidate was excluded as not
+  orderable (out_of_stock, not_deliverable_by_date, price_unavailable, sales_blocked), retry
+  that ingredient once: search again differently (its category code, or another name) for
+  products not tried yet, then call request_offer one more time with all ingredients. The
+  first offer is withdrawn for you. At most one retry offer per run.
+- If no suitable product is found for an ingredient, or it is still unfilled after the retry,
   skip that ingredient and say so. Never guess, and never substitute an unrelated product.
 - Then dry_run_order, then place_order with reference "PUBLIC-LIVE". After place_order do not
   call get_order: the server watches the order and shows its status to the visitor.
@@ -226,15 +242,29 @@ def _run_agent(r: Any, prompt: str, delivery: str, anthropic_client: Any) -> Non
     from agent.handshake_client import HandshakeClient
 
     class LiveExecutor(claude_agent.ToolExecutor):
-        """At most 5 candidates per ingredient and 5 search results (code, not prompt)."""
+        """At most 8 candidates per ingredient and 20 search results, and at most one retry
+        offer per run, which replaces the first one (code, not prompt)."""
+
+        offer_requests = 0
+
+        def run(self, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+            if name == "request_offer":
+                if self.offer_requests >= MAX_OFFER_REQUESTS:
+                    return {"error": "retry_limit", "detail": (
+                        f"Only {MAX_OFFER_REQUESTS} offer requests (one retry) are allowed per "
+                        f"run. Continue with the latest offer and skip what it lacks.")}, True
+                self.offer_requests += 1
+            return super().run(name, args)
 
         def prepare(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+            if name == "request_offer" and self.offer_id:
+                args["replaces_offer_id"] = self.offer_id
             if name == "search_products":
                 try:
-                    args["limit"] = max(1, min(int(args.get("limit") or MAX_CANDIDATES),
-                                               MAX_CANDIDATES))
+                    args["limit"] = max(1, min(int(args.get("limit") or MAX_SEARCH_RESULTS),
+                                               MAX_SEARCH_RESULTS))
                 except (TypeError, ValueError):
-                    args["limit"] = MAX_CANDIDATES
+                    args["limit"] = MAX_SEARCH_RESULTS
             if name == "request_offer":
                 for line in args.get("lines") or []:
                     if isinstance(line, dict) and isinstance(line.get("product_ids"), list):
