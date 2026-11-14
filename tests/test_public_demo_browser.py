@@ -172,8 +172,21 @@ def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noq
     errors: list[str] = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.goto(demo_server + "/")
-    assert page.get_by_text("Valio Aimo interface").first.is_visible()
+    assert page.get_by_text("Handshake: the Valio Aimo interface").first.is_visible()
+    assert page.get_by_text("not part of Handshake").first.is_visible()
     assert page.get_by_text("Live API").first.is_visible()
+    # Persona bar and mandate card (stage 1).
+    page.locator('.pb[data-persona="hotel"][aria-pressed="true"]').wait_for(timeout=10000)
+    page.locator("#lv-card").get_by_text("Revontuli Hotels").wait_for(timeout=10000)
+    assert _no_hscroll(page)
+    page.locator('.pb[data-persona="restaurant"]').click()
+    page.locator("#lv-card").get_by_text("Bistro Kallio").wait_for(timeout=10000)
+    page.fill("#cap-input", "250")
+    page.get_by_role("button", name="Save cap").click()
+    page.locator("#lv-card").get_by_text("Saved as mandate version 2").wait_for(timeout=10000)
+    page.screenshot(path=str(SCREENS / f"persona-card-{tag}.png"), full_page=False)
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator("#lv-card").get_by_text("Revontuli Hotels").wait_for(timeout=10000)
     page.locator(".chip").nth(1).click()
     assert "lactose-free" in page.locator("#lv-prompt").input_value()
     page.get_by_role("button", name="Run the agent").click()
@@ -181,6 +194,8 @@ def test_live_agent_panels(browser, demo_server, monkeypatch, w, h, tag):  # noq
     assert page.locator(".lv-row.verify").count() == 1
     assert page.locator(".lv-row.call").count() == 5
     assert page.locator(".lv-card img").get_attribute("src").startswith("data:image/svg+xml")
+    assert page.locator("#lv-timer .t-label").inner_text() == "Time to order"
+    assert page.locator("#lv-timer-val").inner_text().endswith(" s")
     assert _no_hscroll(page)
     page.locator("#live").screenshot(path=str(SCREENS / f"live-pending-{tag}.png"))
     approve = page.locator(".lv-card a.btn").get_attribute("href")

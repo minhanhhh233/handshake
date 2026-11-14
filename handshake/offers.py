@@ -290,26 +290,39 @@ def substitute_ids(
 # ================================================================ holds
 
 
+def agent_sandbox(conn: Connection, agent_id: str) -> str | None:
+    """The public-demo sandbox an agent belongs to, or None for a real customer's agent."""
+    return db.q(conn, "SELECT c.sandbox_id FROM agents a JOIN customers c "
+                      "ON c.customer_id = a.customer_id WHERE a.agent_id = :a",
+                a=agent_id).scalar()
+
+
 def held_quantities(
     conn: Connection, product_ids: list[str], delivery_date: date, *, lock: bool = False,
-    now: datetime | None = None,
+    now: datetime | None = None, sandbox_id: str | None = None,
 ) -> dict[str, Decimal]:
     """Sales units committed or held (unexpired) per product for the date (document 04, 4).
 
-    An expired `held` row counts as released even before it is updated (A-12).
+    An expired `held` row counts as released even before it is updated (A-12). Holds are
+    counted within one scope: a public-demo sandbox sees only its own holds, and real
+    customers see only holds of agents outside any sandbox (document 09, section 6c).
     """
     ids = sorted(set(product_ids))
     if not ids:
         return {}
     now = now or timeutil.now()
-    sql = ("SELECT product_id, quantity_sales_units FROM stock_holds "
-           "WHERE product_id IN :ids AND delivery_date = :d AND (status = 'committed' "
-           "OR (status = 'held' AND expires_at > :now))")
+    sql = ("SELECT h.product_id, h.quantity_sales_units FROM stock_holds h "
+           "LEFT JOIN offers o ON o.offer_id = h.offer_id "
+           "LEFT JOIN agents a ON a.agent_id = o.agent_id "
+           "LEFT JOIN customers c ON c.customer_id = a.customer_id "
+           "WHERE h.product_id IN :ids AND h.delivery_date = :d AND (h.status = 'committed' "
+           "OR (h.status = 'held' AND h.expires_at > :now)) AND c.sandbox_id <=> :sbx")
     if lock:
         sql += " FOR UPDATE"
     out: dict[str, Decimal] = {}
     for pid, qty in conn.execute(_in(sql, ids),
-                                 {"ids": ids, "d": delivery_date, "now": timeutil.to_db(now)}):
+                                 {"ids": ids, "d": delivery_date, "now": timeutil.to_db(now),
+                                  "sbx": sandbox_id}):
         out[pid] = out.get(pid, Decimal(0)) + Decimal(qty)
     return out
 
@@ -747,7 +760,8 @@ def build_offer(req: OfferRequest, *, agent_id: str, customer_id: str, trace_id:
     with db.transaction() as conn:
         limited = [p.cand.product.product_id for ok in prepared for p in ok
                    if p.capacity is not None]
-        held = held_quantities(conn, limited, req.delivery_date, lock=True, now=now)
+        held = held_quantities(conn, limited, req.delivery_date, lock=True, now=now,
+                               sandbox_id=agent_sandbox(conn, agent_id))
         used: dict[str, Decimal] = {}
         filled: list[list[FilledLine]] = []
         for line, ok in zip(req.lines, prepared, strict=True):

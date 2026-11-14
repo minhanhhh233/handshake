@@ -126,6 +126,89 @@
   var status = document.getElementById("lv-status");
   var available = form.getAttribute("data-available") === "yes";
   var run = null, after = 0, rows = {}, timer = null, startedAt = 0, lastOrder = "", ended = false;
+  var cardBox = document.getElementById("lv-card");
+  var timerBox = document.getElementById("lv-timer");
+  var timerVal = document.getElementById("lv-timer-val");
+  var tick = null, persona = "hotel";
+  try { persona = sessionStorage.getItem("handshake.persona") || "hotel"; } catch (e) { persona = "hotel"; }
+
+  // ---- timer: from "Run the agent" to the gateway's answer to place_order
+  function timerStart() {
+    clearInterval(tick);
+    timerBox.hidden = false;
+    timerBox.querySelector(".t-label").textContent = "Time to order";
+    tick = setInterval(function () { timerVal.textContent = ((Date.now() - startedAt) / 1000).toFixed(1) + " s"; }, 100);
+  }
+  function timerStop(label) {
+    if (tick === null) return;
+    clearInterval(tick);
+    tick = null;
+    timerVal.textContent = ((Date.now() - startedAt) / 1000).toFixed(1) + " s";
+    if (label) timerBox.querySelector(".t-label").textContent = label;
+  }
+
+  // ---- personas and the mandate card
+  function renderCard(c, sandbox) {
+    cardBox.textContent = "";
+    var head = el("p", "who-is", c.label);
+    if (c.customer) head.appendChild(el("span", "", " for " + c.customer));
+    cardBox.appendChild(head);
+    cardBox.appendChild(el("p", "", c.blurb));
+    if (c.rules) {
+      var dl = el("dl");
+      c.rules.forEach(function (r) { dl.appendChild(el("dt", "", r.name)); dl.appendChild(el("dd", "", r.value)); });
+      cardBox.appendChild(dl);
+      var f = el("form");
+      var lab = el("label", "", "Per-order cap (EUR)");
+      lab.setAttribute("for", "cap-input");
+      var inp = el("input");
+      inp.id = "cap-input"; inp.type = "number"; inp.step = "0.01"; inp.min = "0.01"; inp.max = "100000";
+      inp.value = c.cap || "";
+      var save = el("button", "save", "Save cap");
+      save.type = "submit";
+      var msg = el("span", "msg", "");
+      f.appendChild(lab); f.appendChild(inp); f.appendChild(save); f.appendChild(msg);
+      f.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        save.disabled = true;
+        fetch("/demo/sandbox/cap", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ persona: persona, cap: inp.value }), credentials: "same-origin" })
+          .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+          .then(function (res) {
+            save.disabled = false;
+            if (res.status !== 200) { msg.className = "msg bad"; msg.textContent = res.body.message || "Not saved."; return; }
+            renderCard(res.body.card, res.body.sandbox);
+            var m = cardBox.querySelector(".msg");
+            if (m) m.textContent = "Saved as mandate version " + res.body.card.mandate_version + ". Run the agent again.";
+          })
+          .catch(function () { save.disabled = false; msg.className = "msg bad"; msg.textContent = "Not saved."; });
+      });
+      cardBox.appendChild(f);
+    }
+    if (sandbox && sandbox.expires_at) {
+      var t = new Date(sandbox.expires_at);
+      cardBox.appendChild(el("p", "", "Your sandbox lasts until " + t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) + "."));
+    }
+  }
+  function choose(slug) {
+    persona = slug;
+    try { sessionStorage.setItem("handshake.persona", slug); } catch (e) { /* private mode */ }
+    document.querySelectorAll(".pb[data-persona]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-persona") === slug ? "true" : "false");
+    });
+    fetch("/demo/sandbox?persona=" + encodeURIComponent(slug), { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+      .then(function (res) {
+        if (res.status !== 200) { cardBox.textContent = ""; cardBox.appendChild(el("p", "", res.body.message || "The sandbox could not be loaded.")); return; }
+        renderCard(res.body.card, res.body.sandbox);
+      })
+      .catch(function () { cardBox.textContent = ""; cardBox.appendChild(el("p", "", "The sandbox could not be loaded.")); });
+  }
+  document.querySelectorAll(".pb[data-persona]").forEach(function (b) {
+    b.addEventListener("click", function () { if (!go.disabled || !available) choose(b.getAttribute("data-persona")); });
+  });
+  if (!document.querySelector('.pb[data-persona="' + persona + '"]')) persona = "hotel";
+  choose(persona);
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -189,7 +272,7 @@
   function fillRes(r, title, value, bad) {
     r.res.className = "lv-cell res" + (bad ? " bad" : "");
     r.res.textContent = "";
-    r.res.appendChild(who("Valio Aimo interface", title));
+    r.res.appendChild(who("Handshake", title));
     r.res.appendChild(jsonBlock(value));
   }
   function addStep(s) {
@@ -200,17 +283,18 @@
       r.req.appendChild(el("p", "say", s.summary));
     } else if (s.kind === "text") {
       r = row("text");
-      r.req.appendChild(who("Buyer agent"));
+      r.req.appendChild(who("External buyer agent"));
       r.req.appendChild(el("p", "say", s.summary));
     } else if (s.kind === "call") {
       r = row("call");
-      r.req.appendChild(who("Buyer agent", "call " + s.n));
+      r.req.appendChild(who("External buyer agent", "call " + s.n));
       r.req.appendChild(el("p", "tool", s.title));
       r.req.appendChild(jsonBlock((s.request || {}).input || {}));
       r.res.className = "lv-cell res";
       r.res.appendChild(el("p", "wait", "Waiting for the gateway..."));
       rows[s.n] = r;
     } else if (s.kind === "result") {
+      if (s.title === "place_order") timerStop("Time to order");
       r = rows[s.n];
       if (!r) { r = row("call"); r.req.appendChild(el("p", "tool", s.title)); }
       fillRes(r, s.status === "bad" ? "error" : "response", s.detail, s.status === "bad");
@@ -221,6 +305,7 @@
       r.req.appendChild(jsonBlock(s.request || {}));
       fillRes(r, s.status === "bad" ? "not verified" : "verified", s.detail, s.status === "bad");
     } else if (s.kind === "end") {
+      timerStop("Run time, no order");
       ended = true;
       setStatus(s.summary, s.status === "bad");
     }
@@ -328,7 +413,7 @@
     fetch("/demo/live", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: text }),
+      body: JSON.stringify({ prompt: text, persona: persona }),
       credentials: "same-origin"
     }).then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
       .then(function (res) {
@@ -339,6 +424,7 @@
         }
         run = res.body;
         startedAt = Date.now();
+        timerStart();
         setStatus("The agent is working...");
         poll();
       })

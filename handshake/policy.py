@@ -78,6 +78,14 @@ def mandate_product_reasons(facts: ProductFacts, mandate: Mandate) -> list[Reaso
             details={"product_id": pid, "category": facts.category_code,
                      "allowed_categories": list(allowed)},
         ))
+    elif facts.category_code in (mandate.forbidden_categories or []):
+        reasons.append(Reason(
+            rule="R2", code="category_not_allowed", effect="rejected",
+            message=(f"Product {pid} is in category {facts.category_code}, which this mandate "
+                     f"forbids."),
+            details={"product_id": pid, "category": facts.category_code,
+                     "forbidden_categories": list(mandate.forbidden_categories)},
+        ))
     fa = mandate.forbidden_allergens
     statements = facts.allergens if facts.has_allergen_data else {}
     for code in fa.codes:

@@ -72,6 +72,43 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 }
 @media (max-width: 899px) { .lv-cell.empty { display: none; } }
 
+
+/* Persona bar and mandate card (stage 1) */
+.personas { position: sticky; top: 0; z-index: 5; margin: 0 calc(-1 * var(--gutter)); padding: 10px var(--gutter);
+  background: var(--paper); border-bottom: 1px solid var(--frost); display: flex; gap: 10px; align-items: center; }
+.pb-label { flex: none; font-size: 12px; font-weight: 600; color: var(--slate); }
+.pb-row { display: flex; gap: 8px; overflow-x: auto; min-width: 0; padding-bottom: 2px; scrollbar-width: thin; }
+.pb-sep { flex: none; width: 1px; background: var(--frost); margin: 4px 2px; }
+.pb { flex: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--frost); border-radius: 999px; padding: 7px 14px; cursor: pointer; min-height: 38px; }
+.pb:hover { border-color: var(--slate); }
+.pb[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.pb.role { border-style: dashed; color: var(--slate); cursor: not-allowed; }
+.pb-note { font-size: 12px; color: var(--slate); margin-top: 8px; }
+.lv-panel h3 .sub-h { font-size: 12px; font-weight: 600; color: var(--slate); border: 1px solid var(--frost);
+  border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.mcard { border: 1px solid var(--frost); background: var(--raised); border-radius: 10px; padding: 12px 14px;
+  display: grid; gap: 8px; }
+.mcard:empty { display: none; }
+.mcard .who-is { font-weight: 700; }
+.mcard .who-is span { font-weight: 400; color: var(--slate); }
+.mcard p { color: var(--slate); font-size: var(--step--1); }
+.mcard dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: var(--step--1); margin: 0; }
+.mcard dt { color: var(--slate); }
+.mcard dd { margin: 0; }
+.mcard form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mcard label { font-size: var(--step--1); color: var(--slate); }
+.mcard input { width: 8.5rem; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--frost);
+  border-radius: 8px; padding: 6px 10px; min-height: 38px; }
+.mcard .save { font: inherit; font-weight: 700; min-height: 38px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--white); cursor: pointer; }
+.mcard .msg { font-size: 12px; color: var(--accent-text); }
+.mcard .msg.bad { color: var(--lingon); }
+.lv-timer { margin-top: 12px; display: inline-flex; gap: 10px; align-items: baseline; border: 1px solid var(--frost);
+  border-radius: 999px; padding: 4px 14px; font-size: var(--step--1); }
+.lv-timer .t-label { color: var(--slate); }
+.lv-timer .t-val { font-family: var(--mono); color: var(--accent-text); font-variant-numeric: tabular-nums; }
+
 /* Hero */
 .hero { padding-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 52rem; }
 .eyebrow { color: var(--accent-text); font-weight: 600; font-size: var(--step--1); }
@@ -196,6 +233,15 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
 {% set svg = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' %}
 <div class="shell">
   <p class="brand"><strong>Handshake</strong> agent gateway</p>
+  <nav class="personas" id="personas" aria-label="Who you are in the demo">
+    <span class="pb-label">You are</span>
+    <div class="pb-row">
+      {% for slug, p in personas.items() %}<button type="button" class="pb" data-persona="{{ slug }}" aria-pressed="false">{{ p.label }}</button>{% endfor %}
+      <span class="pb-sep" aria-hidden="true"></span>
+      {% for slug, label in roles.items() %}<button type="button" class="pb role" disabled title="This view arrives in a later stage">{{ label }}</button>{% endfor %}
+    </div>
+  </nav>
+  <p class="pb-note">Each visitor gets a private sandbox: its own copy of every persona's customer, agent and limits, for 2 hours. No sign-in.</p>
 
   <section class="hero" aria-labelledby="hero-title">
     <p class="eyebrow">Agent gateway prototype for Junction 2026</p>
@@ -221,7 +267,8 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
     <p class="intro">Type what a kitchen needs. A Claude buyer agent plans the ingredients, then calls the gateway: every tool call on the left, the gateway's raw JSON answer on the right. Orders over the agent's limit wait for you to approve them.</p>
     <div class="lv-grid">
       <div class="lv-panel panel">
-        <h3>Buyer agent</h3>
+        <h3>External buyer agent <span class="sub-h">not part of Handshake</span></h3>
+        <div class="mcard" id="lv-card" aria-live="polite"></div>
         <form id="lv-form" data-available="{{ 'yes' if live.available else 'no' }}">
           <label class="visually-hidden" for="lv-prompt">Purchasing request</label>
           <textarea id="lv-prompt" name="prompt" maxlength="{{ live_max }}" required placeholder="What should the agent buy?"{% if not live.available %} disabled{% endif %}></textarea>
@@ -236,15 +283,16 @@ code.inline { padding: 1px 6px; font-size: 0.9em; }
         {% if not live.available %}
         <p class="lv-off" role="status">{% if live.code == "budget" %}Today's budget for the live agent is used up.{% else %}The live agent is not available right now.{% endif %} The <a href="#demo">scripted demos below</a> show the same flow without it.</p>
         {% else %}
-        <p>Runs as a separate demo customer. Up to 3 runs every 10 minutes per visitor; each run stops after 25 tool calls or 2 minutes.</p>
+        <p>A Claude agent acting for the persona above, in your sandbox. Up to 3 runs every 10 minutes per visitor; each run stops after 25 tool calls or 2 minutes.</p>
         {% endif %}
         <noscript><p>The live agent needs JavaScript. The <a href="#demo">scripted demos</a> work without it.</p></noscript>
       </div>
       <div class="lv-panel panel">
-        <h3>Valio Aimo interface <span class="badge-live">Live API</span></h3>
+        <h3>Handshake: the Valio Aimo interface <span class="badge-live">Live API</span></h3>
         <p>Each response is the gateway's real JSON, next to the call that produced it. Offers are signed; the signature check appears as its own step.</p>
       </div>
     </div>
+    <p class="lv-timer" id="lv-timer" hidden><span class="t-label">Time to order</span> <span class="t-val" id="lv-timer-val">0.0 s</span></p>
     <ol class="lv-steps" id="lv-steps" aria-live="polite"></ol>
     <div class="lv-human" id="lv-human"></div>
     <p id="lv-status" role="status"></p>

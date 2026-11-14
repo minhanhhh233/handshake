@@ -13,9 +13,16 @@ from dataclasses import dataclass
 
 from fastapi import Header, Query, Request
 
-from .. import db
+from .. import db, timeutil
 from ..config import get_settings
 from ..errors import HandshakeError, forbidden, unauthenticated
+
+
+#: How an agent gets a key (401 `next`, and the discovery document's authentication section).
+REGISTER_HINT = (
+    "Agent keys are issued by Valio Aimo per agent: each key is bound to one customer and to "
+    "the mandate (limits) that customer sets. Register the agent with Valio Aimo, then send "
+    "Authorization: Bearer <agent_key>. See authentication in /.well-known/handshake.json.")
 
 
 @dataclass(frozen=True)
@@ -37,8 +44,9 @@ def lookup_agent(key: str) -> AgentContext | None:
             conn,
             "SELECT a.agent_id, a.customer_id, c.name AS customer_name, a.name, a.status "
             "FROM agents a JOIN customers c ON c.customer_id = a.customer_id "
-            "WHERE a.key_sha256 = :h",
-            h=key_hash(key),
+            "LEFT JOIN sandboxes s ON s.sandbox_id = c.sandbox_id "
+            "WHERE a.key_sha256 = :h AND (c.sandbox_id IS NULL OR s.expires_at > :now)",
+            h=key_hash(key), now=timeutil.to_db(timeutil.now()),
         ).mappings().first()
     return AgentContext(**row) if row else None
 
@@ -71,7 +79,10 @@ def require_agent(
 ) -> AgentContext:
     agent = optional_agent(request, authorization)
     if agent is None:
-        raise unauthenticated()
+        raise unauthenticated(
+            "Prices, availability, offers and orders need an agent key. Without one you can "
+            "only search products and read their public attributes.",
+            next=REGISTER_HINT)
     return agent
 
 

@@ -30,7 +30,8 @@ Handshake defines and implements the interface and operating model through which
 | Purchasing agent | Software acting for a customer | Calls the API: search, offer, dry-run, order, status, receipt |
 | Purchasing manager (approver) | Human at the customer | Sets the mandate; approves or declines orders on a phone |
 | Valio Aimo operations | Human at Valio Aimo | Reviews receipts and agent activity |
-| Anonymous agent | Unregistered software | May search public product data only |
+| Anonymous agent | Unregistered software | May search public product data only; a refused call says how an agent gets a key |
+| Demo visitor | A person on the public landing page | Picks a persona (Visitor, Hotel chain, Restaurant, School kitchen, Hospital kitchen, New agent on probation) and works in a private 2-hour sandbox (document 09, section 6c) |
 
 ## 4. Functional requirements
 
@@ -78,6 +79,7 @@ Each requirement has an ID, a priority, and the brief item it answers. "Core 1/2
 | FR-36 | P0 | The agent MUST be able to poll order status. |
 | FR-37 | P0 | A hard allergen constraint MUST be enforced on every line, and missing allergen data MUST be treated as not confirmed safe. |
 | FR-38 | P1 | An agent SHOULD be able to read its own mandate. |
+| FR-39 | P1 | A mandate MAY forbid single categories (`forbidden_categories`) as well as list the allowed ones; R2 rejects both (added 2026-11-14). |
 
 ### 4.4 Comparison (Optional 1)
 

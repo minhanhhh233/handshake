@@ -52,6 +52,8 @@ When an item is resolved: record the answer here with the date, then update the 
 | A-23 | The buyer's receipt view omits `aimo_only` events but the chain covers all events, so the buyer can check the signed head but cannot recompute it. | If buyers must verify the chain themselves, keep two chains or expose event hashes without bodies. | 05 §7.4 |
 | A-26 | `prefer: "lowest_price"` compares price excl. tax per requested unit as converted by the gateway (the same conversion that sets the sales units), not upstream's `comparisonPrice` field, so products whose comparison unit differs from the request can still be compared. Added 2026-11-14. | Switch the sort key to `comparisonPrice` where its unit matches. | 03 §5, 05 §4 |
 | A-27 | A corrected offer request may withdraw the agent's earlier unused offer (`replaces_offer_id`). Withdrawal is explicit; the gateway never withdraws an offer on its own. Added 2026-11-14. | An agent that forgets it competes with its own holds until the first offer expires (15 minutes). | 03 §5, 05 §6 |
+| A-28 | Public demo sandboxes count stock holds per sandbox, so visitors cannot exhaust each other's (or real customers') stock in the gateway's arithmetic. Upstream stock is shared and real; a sandbox order never reaches Valio Aimo (A-01). Added 2026-11-14. | Count holds globally if sandbox orders ever become real. | 04 §4, 09 §6c |
+| A-29 | Sandbox rows are not deleted when they expire: their agents' keys stop working and the page starts a new sandbox. `scripts/reset_demo.py` clears trading data as before. Added 2026-11-14. | Add a cleanup job if the table grows. | 09 §6c |
 | A-24 | If live stock does not produce a split for 1,000 L, the demo may pre-create a committed hold to force one, and the team says so. | None, provided it is disclosed. | 09 §5 |
 
 ### Tooling and team
@@ -113,6 +115,7 @@ New question raised by T-005:
 - No rate limiting (T-504 cut). Candidate limits (25 per line, 10 lines) still apply.
 - No MCP server (T-502 cut) and one option per offer request (T-501 cut).
 - The live demo cannot show an `unconfirmed` (Terminal) line: every Terminal shortlist product's cut-off has passed (Q-11). The behaviour is covered by test F-04.
+- `prefer: "lowest_price"` chooses among the agent's listed products only (up to 25 per line; 8 in the live demo). It cannot find the cheapest product in the whole catalogue: search uses static data only and never calls the upstream price API (FR-02), and upstream must not be asked to price products the caller has not shortlisted (NFR-02). An agent that wants the cheapest product must therefore shortlist widely, for example by category and claims rather than name text (accepted 2026-11-14).
 - The upstream cache is per process; several gateway containers may each call upstream.
 - Category, unit and some allergen names are inferred.
 

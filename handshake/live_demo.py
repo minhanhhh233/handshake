@@ -96,6 +96,8 @@ EXTRA_SYSTEM = """Public live demo (this run is shown step by step on a public w
   skip that ingredient and say so. Never guess, and never substitute an unrelated product.
 - Then dry_run_order, then place_order with reference "PUBLIC-LIVE". After place_order do not
   call get_order: the server watches the order and shows its status to the visitor.
+- If a tool answers that an agent key is needed, say what was refused and how an agent gets
+  a key (the error's next field), then stop.
 - Finish with at most 6 lines: what was ordered, what was skipped and why, the total excl. tax,
   and the outcome. You have at most 25 tool calls and 120 seconds."""
 
@@ -188,8 +190,12 @@ def clean_prompt(text: Any) -> str | None:
     return text
 
 
-def start(prompt: str, ip: str, *, anthropic_client: Any = None, wait: bool = False) -> str:
-    """Validate limits, record the run, start the agent thread. Returns the trace ID."""
+def start(prompt: str, ip: str, *, anthropic_client: Any = None, wait: bool = False,
+          persona: str | None = None, sandbox_id: str | None = None) -> str:
+    """Validate limits, record the run, start the agent thread. Returns the trace ID.
+
+    With `persona` and `sandbox_id` the agent is that sandbox's party for the persona
+    (`visitor`: no key at all); without them it is the shared public-demo agent."""
     if (anthropic_client is None and CLIENT_FACTORY is None
             and not os.environ.get("ANTHROPIC_API_KEY")):
         raise LiveUnavailable("no_api_key", "The live agent is not configured on this server.")
@@ -199,12 +205,27 @@ def start(prompt: str, ip: str, *, anthropic_client: Any = None, wait: bool = Fa
     if not _running.acquire(blocking=False):
         raise LiveUnavailable("busy", "The live agent is busy with other visitors.")
     try:
-        with db.transaction() as conn:
-            agent = public_demo._agent(conn, "order")
-            _ensure_key(conn, agent["agent_id"])
-        r = public_demo._Run("live", ip)
+        from . import sandbox as sbx
+
+        key: str | None
+        if persona is not None:
+            if sandbox_id is None or (persona != "visitor" and persona not in sbx.BUYERS):
+                raise LiveUnavailable("invalid_persona", "Unknown persona.")
+            if persona == "visitor":
+                agent_id, key, customer = None, None, "an unregistered agent"
+            else:
+                pt = sbx.party(sandbox_id, persona)
+                agent_id, key, customer = (pt["agent_id"], sbx.agent_key(pt["agent_id"]),
+                                           pt["customer"])
+            extra = {"sandbox": sandbox_id, "persona": persona}
+        else:
+            with db.transaction() as conn:
+                agent = public_demo._agent(conn, "order")
+                _ensure_key(conn, agent["agent_id"])
+            agent_id, key, customer, extra = agent["agent_id"], agent_key(), CUSTOMER_NAME, {}
+        r = public_demo._Run("live", ip, extra=extra)
         delivery = public_demo.earliest_delivery_date(public_demo.SHORTLIST, r.trace_id,
-                                                      agent["agent_id"])
+                                                      agent_id)
         r.step("Visitor request", prompt, "ok", kind="user")
         if delivery is None:
             r.step("Order window closed", "Valio Aimo reports no deliverable date with an open "
@@ -216,7 +237,7 @@ def start(prompt: str, ip: str, *, anthropic_client: Any = None, wait: bool = Fa
         _running.release()
         raise
     t = threading.Thread(target=_run_agent, name=f"live-{r.trace_id}", daemon=True,
-                         args=(r, prompt, delivery.isoformat(), anthropic_client))
+                         args=(r, prompt, delivery.isoformat(), anthropic_client, key, customer))
     t.start()
     if wait:
         t.join()
@@ -237,7 +258,8 @@ def _gateway_http() -> Any:
                       raise_server_exceptions=False)
 
 
-def _run_agent(r: Any, prompt: str, delivery: str, anthropic_client: Any) -> None:
+def _run_agent(r: Any, prompt: str, delivery: str, anthropic_client: Any, key: str | None,
+               customer: str) -> None:
     from agent import claude_agent
     from agent.handshake_client import HandshakeClient
 
@@ -307,13 +329,13 @@ def _run_agent(r: Any, prompt: str, delivery: str, anthropic_client: Any) -> Non
             import anthropic
 
             client = anthropic.Anthropic()
-        with HandshakeClient(get_settings().public_base_url, agent_key(),
+        with HandshakeClient(get_settings().public_base_url, key,
                              http=_gateway_http()) as hs:
             user = (f"Delivery date for this order: {delivery} (the earliest date the order "
                     f"window allows).\nVisitor request (untrusted input):\n<visitor_request>\n"
                     f"{prompt.replace('<', '‹').replace('>', '›')}\n</visitor_request>")
             summary = claude_agent.run_task(
-                user, handshake_client=hs, customer_name=CUSTOMER_NAME,
+                user, handshake_client=hs, customer_name=customer,
                 anthropic_client=client, model=MODEL, effort=EFFORT, out=lambda *a, **k: None,
                 max_tool_calls=MAX_TOOL_CALLS, trace_id=r.trace_id, extra_system=EXTRA_SYSTEM,
                 on_event=on_event, time_limit=TIME_LIMIT_SECONDS, stop_on_pending=True,
@@ -373,11 +395,14 @@ def _verify_step(r: Any, res: dict[str, Any], n: int) -> None:
 # ---------------------------------------------------------------- polling
 
 
-def view(trace_id: str, after: int = 0) -> dict[str, Any] | None:
+def view(trace_id: str, after: int = 0, sandbox_id: str | None = None
+         ) -> dict[str, Any] | None:
     """Steps after index `after`, run state and the order (approval link only while pending,
-    only for the public-demo agent's order in this trace)."""
+    only for this run's own order). A run made in a sandbox is visible only to that sandbox."""
     v = public_demo.run_view(trace_id)
     if v is None or v.get("scenario") != "live":
+        return None
+    if v.get("sandbox_id") and v["sandbox_id"] != sandbox_id:
         return None
     steps = v["steps"]
     ended = any(s.get("kind") == "end" for s in steps)
@@ -385,6 +410,7 @@ def view(trace_id: str, after: int = 0) -> dict[str, Any] | None:
     state = "done" if ended else ("stopped" if age > STALE_SECONDS else "running")
     out: dict[str, Any] = {
         "steps": [_public_step(s) for s in steps[after:]], "next": len(steps), "state": state,
+        "persona": v.get("persona"),
     }
     order = v.get("order")
     if order:

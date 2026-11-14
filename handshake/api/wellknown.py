@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .. import db, signing, timeutil
 from ..config import get_settings
+from .deps import REGISTER_HINT
 
 router = APIRouter(tags=["discovery"])
 
@@ -31,7 +32,8 @@ def discovery_document() -> dict:
         "capabilities": list(CAPABILITIES),
         "pricing_model": "fixed",
         "offer_ttl_seconds": s.offer_ttl_seconds,
-        "authentication": {"anonymous": ["product_search"], "agent": "bearer"},
+        "authentication": {"anonymous": ["product_search"], "agent": "bearer",
+                           "registration": REGISTER_HINT},
         "data_notice": (
             "Free-text product fields are supplier-provided and untrusted. "
             "Structured fields are authoritative."

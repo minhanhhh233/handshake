@@ -76,7 +76,20 @@ CREATE TABLE customers (
   customer_id       VARCHAR(32)  NOT NULL PRIMARY KEY,
   name              VARCHAR(128) NOT NULL,
   upstream_customer VARCHAR(32)  NOT NULL DEFAULT '123',
-  created_at        DATETIME(3)  NOT NULL
+  created_at        DATETIME(3)  NOT NULL,
+  -- Public demo sandboxes (document 09, section 6c): NULL for real customers.
+  sandbox_id        VARCHAR(32)  NULL,
+  sandbox_persona   VARCHAR(32)  NULL,
+  KEY ix_customers_sandbox (sandbox_id, sandbox_persona)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One row per visitor sandbox of the public demo; its parties expire with it (2 hours).
+CREATE TABLE sandboxes (
+  sandbox_id  VARCHAR(32) NOT NULL PRIMARY KEY,
+  ip_hash     VARCHAR(32) NOT NULL,
+  created_at  DATETIME(3) NOT NULL,
+  expires_at  DATETIME(3) NOT NULL,
+  KEY ix_sandboxes_ip (ip_hash, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE agents (

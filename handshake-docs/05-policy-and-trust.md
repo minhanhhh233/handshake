@@ -51,6 +51,7 @@ One mandate per agent (A-10). Stored in `mandates.document`; `mandate_id` and `v
 | `limits.max_order_total_excl_tax` | money or null | Above this, an order needs approval. Compared with the offer total excluding tax (A-03). Null means no cap. |
 | `limits.max_weekly_total_excl_tax` | money or null | P1. Sum of confirmed and pending orders in the current ISO week plus this order. |
 | `allowed_categories` | array of codes or null | Null means all categories. |
+| `forbidden_categories` | array of codes | Categories that may never be bought; default empty. Added 2026-11-14 so one category can be excluded without listing the others. |
 | `forbidden_allergens.codes` | array of GS1 codes | Allergens that must not be bought. |
 | `forbidden_allergens.states` | subset of `CONTAINS`, `MAY_CONTAIN` | Which statements count as a violation. |
 | `forbidden_allergens.unknown` | `reject`, `needs_approval`, `allow` | What to do when a product has no statement for a forbidden code. Default `reject`. |
@@ -71,7 +72,7 @@ All rules are evaluated and every firing rule is reported. The outcome is `rejec
 | Rule | Code | Fires when | Effect | Priority |
 |---|---|---|---|---|
 | R1 | `mandate_inactive` | Agent is suspended, or now is outside the mandate's validity window | rejected | P0 |
-| R2 | `category_not_allowed` | A line's category is not in `allowed_categories` (when not null) | rejected | P0 |
+| R2 | `category_not_allowed` | A line's category is not in `allowed_categories` (when not null), or is in `forbidden_categories` | rejected | P0 |
 | R3 | `forbidden_allergen` | A line's product has a forbidden code in one of the listed states | rejected | P0 |
 | R4 | `allergen_data_missing` | A line's product has no statement for a forbidden code | per `forbidden_allergens.unknown`: rejected, needs_approval, or does not fire | P0 |
 | R5 | `requirement_not_met` | A line's product fails the request line's own `requirements` | rejected | P0 |

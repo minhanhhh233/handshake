@@ -142,7 +142,8 @@ def check_rate(ip: str) -> None:
 
 
 class _Run:
-    def __init__(self, scenario: str, ip: str, trace_id: str | None = None) -> None:
+    def __init__(self, scenario: str, ip: str, trace_id: str | None = None,
+                 extra: dict[str, Any] | None = None) -> None:
         self.scenario = scenario
         if trace_id:  # resume an existing session (playground)
             self.trace_id = trace_id
@@ -150,7 +151,8 @@ class _Run:
         self.trace_id = new_id("trc")
         with db.transaction() as conn:
             events.append(conn, trace_id=self.trace_id, type="demo.run", actor_type="gateway",
-                          audience="aimo_only", body={"scenario": scenario, "ip": ip_hash(ip)},
+                          audience="aimo_only",
+                          body={"scenario": scenario, "ip": ip_hash(ip), **(extra or {})},
                           text=f"Public demo run started: {scenario.replace('_', ' ')}.")
 
     def step(self, title: str, summary: str, status: str = "ok",
@@ -336,17 +338,24 @@ def run_view(trace_id: str) -> dict[str, Any] | None:
         return None
     view: dict[str, Any] = {
         "trace_id": trace_id, "scenario": evs[0]["body"].get("scenario"),
+        "sandbox_id": evs[0]["body"].get("sandbox"), "persona": evs[0]["body"].get("persona"),
         "started_at": evs[0]["at"],
         "steps": [e["body"] | {"at": e["at"]} for e in evs if e["type"] == "demo.step"],
         "order": None,
     }
     with db.transaction() as conn:
         public = public_agent_ids(conn)
-        row = db.q(conn, "SELECT order_id, agent_id FROM orders WHERE trace_id = :t",
+        row = db.q(conn, "SELECT o.order_id, o.agent_id, c.sandbox_id FROM orders o "
+                         "JOIN agents a ON a.agent_id = o.agent_id JOIN customers c ON "
+                         "c.customer_id = a.customer_id WHERE o.trace_id = :t",
                    t=trace_id).first()
-        if row and row[1] in public:  # only the public demo agents' orders, never any other
+        # Only the public demo agents' orders, or an order of this run's own sandbox; never
+        # any other order.
+        ok = row is not None and (row[1] in public or (
+            row[2] is not None and row[2] == view["sandbox_id"]))
+        if ok:
             orders.expire_approval_if_due(conn, row[0])
-    if row and row[1] in public:
+    if ok:
         with db.connection() as conn:
             o = orders.load_order(conn, row[0])
             appr = orders.load_approval(conn, row[0])

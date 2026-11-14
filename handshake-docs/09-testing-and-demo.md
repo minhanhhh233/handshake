@@ -188,6 +188,18 @@ Rules: separate public-demo customer and agents (rehearsal data untouched); no C
 | Upstream API down | Play the recorded video; explain that offers are never issued from stale data |
 | Approval page will not load on the phone | Open the approval link in a desktop browser from the console |
 
+### 6c. Personas and sandboxes (stage 1, added 2026-11-14)
+
+- Persona bar, sticky at the top of the page, no login: Visitor, Hotel chain, Restaurant, School kitchen, Hospital kitchen, New agent on probation; Approver and Valio Aimo operations are shown but disabled until stages 2 and 4.
+- Each visitor gets a private sandbox (cookie `hs_sbx`, 2 hours): per-session copies of each persona's customer, agent and mandate, created on first use. Holds, orders, weekly totals and events belong to those parties; holds are counted per sandbox.
+- Mandates (approver: you): Hotel chain (Revontuli Hotels) 1000 EUR per order, all categories, any day. Restaurant (Bistro Kallio) 300 EUR per order and 800 EUR per week, Monday to Friday. School kitchen (Metsälä) 600 EUR, never milk (AM) or tree nuts (AN) in CONTAINS or MAY_CONTAIN, unknown allergen data rejected, category 22701 forbidden (energy and sports drinks: 78 products such as Red Bull, Monster and protein milkshakes), Monday to Friday. Hospital kitchen (Saari) 1500 EUR, never peanuts, tree nuts, sesame, crustaceans or molluscs, unknown rejected, `substitution.auto_approve: none`. New agent on probation (Pilot Café) 50 EUR, Monday to Friday.
+- Mandate card for the active persona with an editable per-order cap (a new mandate version); the visitor can change it and rerun.
+- Visitor persona: the agent has no key; search works, and the mandate, prices, availability and offers are refused with `401` and the registration guidance.
+- Panels labelled "External buyer agent (not part of Handshake)" and "Handshake: the Valio Aimo interface"; a time-to-order timer per run (to the gateway's answer to place_order; "Run time, no order" otherwise).
+- The three original scripted buttons stay until stage 2.
+
+Tests: `tests/test_sandbox.py` (cookie flags and reuse, every persona's card, cap edit and its checks, forged cookie, isolation of parties, expiry stops the key and renews the sandbox, holds counted per sandbox while real customers still share theirs, live run as the persona and invisible to another sandbox, Visitor refused with the registration guidance, R2 on `forbidden_categories`) and the browser test (persona bar, Restaurant card, cap saved as version 2, timer label, at 390 and 1280 px). Verified on the hosted gateway with the real model: Restaurant Bolognese went to approval (over 300 EUR) with time to order 18.2 s; Visitor got search results and the refusal with how to register; School was refused Red Bull for category 22701.
+
 ### 6b. Live agent demo (added 2026-11-14, time-boxed to 18:00 the same day)
 
 The centrepiece of the landing page, above the scripted demos (which stay as the fallback). Two panels:

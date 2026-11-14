@@ -264,6 +264,9 @@ class MandateBody(_Model):
     approvers: list[Approver] = Field(min_length=1)
     limits: Limits = Field(default_factory=Limits)
     allowed_categories: list[str] | None = None
+    #: Categories that may never be bought, checked like allowed_categories (R2). Added
+    #: 2026-11-14 so a mandate can exclude one category without listing all the others.
+    forbidden_categories: list[str] = Field(default_factory=list)
     forbidden_allergens: ForbiddenAllergens = Field(default_factory=ForbiddenAllergens)
     substitution: SubstitutionPolicy = Field(default_factory=SubstitutionPolicy)
     delivery: DeliveryPolicy = Field(default_factory=DeliveryPolicy)

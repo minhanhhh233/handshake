@@ -55,7 +55,8 @@ def test_discovery_document(client: TestClient):
                             "typ_receipt": "handshake-receipt+jwt"}
     assert d["offer_ttl_seconds"] == s.offer_ttl_seconds
     assert d["pricing_model"] == "fixed"
-    assert d["authentication"] == {"anonymous": ["product_search"], "agent": "bearer"}
+    assert d["authentication"]["anonymous"] == ["product_search"]
+    assert d["authentication"]["agent"] == "bearer" and "Register" in d["authentication"]["registration"]
     assert d["currency"] == "EUR" and d["time_zone"] == "Europe/Helsinki"
     assert d["version"] == "1.0" and d["name"] and d["data_notice"]
     assert r.headers["X-Trace-Id"].startswith("trc_")

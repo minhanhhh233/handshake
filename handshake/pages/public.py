@@ -17,7 +17,7 @@ from fastapi import APIRouter, Form, Request
 from jinja2 import Environment, FileSystemLoader
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 
-from .. import public_demo, timeutil
+from .. import public_demo, sandbox, timeutil
 from ..config import get_settings
 from ..ids import is_id
 from .common import APPROVAL_HEADERS, render
@@ -84,6 +84,7 @@ def landing() -> Response:
                   shortlist=public_demo.SHORTLIST,
                   max_searches=public_demo.MAX_SEARCHES_PER_SESSION,
                   live=_live_status(), live_examples=_live_examples(),
+                  personas=sandbox.PERSONAS, roles=sandbox.ROLES,
                   live_max=_live_max())
 
 
@@ -135,11 +136,15 @@ def demo_run(request: Request, scenario: str = Form(...)) -> Response:
 
 
 @router.get("/demo/runs/{trace_id}")
-def demo_view(trace_id: str, k: str | None = None) -> Response:
+def demo_view(request: Request, trace_id: str, k: str | None = None) -> Response:
     if not is_id(trace_id, "trc") or not public_demo.check_run_token(trace_id, k):
         return _not_found()
     view = public_demo.run_view(trace_id)
     if view is None:
+        return _not_found()
+    # A run made in a sandbox is visible only from that sandbox (stage 1 security review).
+    if view.get("sandbox_id") and view["sandbox_id"] != sandbox.parse_cookie(
+            request.cookies.get(sandbox.COOKIE)):
         return _not_found()
     order = view.get("order") or {}
     approval_url = order.get("approval_url")
@@ -232,16 +237,27 @@ async def live_start(request: Request) -> Response:
         body = await request.json()
     except ValueError:
         body = None
-    prompt = live_demo.clean_prompt(body.get("prompt") if isinstance(body, dict) else None)
+    body = body if isinstance(body, dict) else {}
+    prompt = live_demo.clean_prompt(body.get("prompt"))
     if prompt is None:
         return JSONResponse({"code": "invalid_prompt", "message": (
             f"Write a purchasing request of 1 to {live_demo.MAX_PROMPT_CHARS} characters.")},
             status_code=400, headers=headers)
+    persona = body.get("persona", "hotel")
+    if persona not in sandbox.PERSONAS:
+        return JSONResponse({"code": "unknown_persona", "message": "Choose a persona."},
+                            status_code=400, headers=headers)
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=headers)
     try:
         from starlette.concurrency import run_in_threadpool
 
-        trace_id = await run_in_threadpool(live_demo.start, prompt,
-                                           public_demo.client_ip(request))
+        trace_id = await run_in_threadpool(lambda: live_demo.start(
+            prompt, public_demo.client_ip(request), persona=persona,
+            sandbox_id=sb["sandbox_id"]))
     except public_demo.RateLimited as e:
         return JSONResponse({"code": "rate_limited", "message": (
             f"Each visitor can start {live_demo.RUNS_PER_WINDOW} live runs every "
@@ -259,7 +275,8 @@ async def live_start(request: Request) -> Response:
 
 
 @router.get("/demo/live/{trace_id}")
-def live_poll(trace_id: str, k: str | None = None, after: int = 0) -> Response:
+def live_poll(request: Request, trace_id: str, k: str | None = None, after: int = 0
+              ) -> Response:
     """Steps of a live run after index `after`, its state and the visitor's own order."""
     from .. import live_demo
 
@@ -268,9 +285,83 @@ def live_poll(trace_id: str, k: str | None = None, after: int = 0) -> Response:
     if not is_id(trace_id, "trc") or not public_demo.check_run_token(trace_id, k):
         return JSONResponse({"code": "not_found", "message": "Unknown run."}, status_code=404,
                             headers=headers)
-    v = live_demo.view(trace_id, max(0, after))
+    sid = sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE))
+    v = live_demo.view(trace_id, max(0, after), sandbox_id=sid)
     if v is None:
         return JSONResponse({"code": "not_found", "message": "Unknown run."}, status_code=404,
                             headers=headers)
     v["run_url"] = f"/demo/runs/{trace_id}?k={k}"
     return JSONResponse(v, headers=headers)
+
+
+# ---------------------------------------------------------------- personas and sandboxes
+
+
+_JSON_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                 "Referrer-Policy": "no-referrer"}
+
+
+def _with_cookie(resp: Response, sb: dict, is_new: bool) -> Response:
+    if is_new:
+        resp.set_cookie(sandbox.COOKIE, sandbox.cookie_value(sb["sandbox_id"]),
+                        max_age=int(sandbox.TTL.total_seconds()), path="/demo", httponly=True,
+                        samesite="lax",
+                        secure=get_settings().public_base_url.startswith("https://"))
+    return resp
+
+
+def _sandbox_json(sb: dict, card: dict) -> dict:
+    return {"sandbox": {"expires_at": timeutil.iso(sb["expires_at"])},
+            "personas": [{"slug": k, "label": v["label"]} for k, v in sandbox.PERSONAS.items()],
+            "card": card}
+
+
+@router.get("/demo/sandbox")
+def sandbox_state(request: Request, persona: str = "hotel") -> Response:
+    """The visitor's sandbox (created or renewed here) and the mandate card of a persona."""
+    if persona not in sandbox.PERSONAS:
+        return JSONResponse({"code": "unknown_persona", "message": "Unknown persona."},
+                            status_code=400, headers=_JSON_HEADERS)
+    try:
+        sb, is_new = sandbox.ensure(request.cookies.get(sandbox.COOKIE),
+                                    public_demo.client_ip(request))
+        card = sandbox.card(sb["sandbox_id"], persona)
+    except sandbox.SandboxError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    except public_demo.DemoUnavailable:
+        return JSONResponse({"code": "demo_unavailable", "message": "The demo is not set up."},
+                            status_code=503, headers=_JSON_HEADERS)
+    return _with_cookie(JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS), sb,
+                        is_new)
+
+
+@router.post("/demo/sandbox/cap")
+async def sandbox_cap(request: Request) -> Response:
+    """Change the per-order cap of the active persona's mandate in this sandbox."""
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse({"code": "invalid_request", "message": "Send JSON."}, status_code=415,
+                            headers=_JSON_HEADERS)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    body = body if isinstance(body, dict) else {}
+    persona = body.get("persona")
+    if persona not in sandbox.BUYERS:
+        return JSONResponse({"code": "unknown_persona", "message": "Choose a buyer persona."},
+                            status_code=400, headers=_JSON_HEADERS)
+    sb = sandbox.active(sandbox.parse_cookie(request.cookies.get(sandbox.COOKIE)))
+    if sb is None:
+        return JSONResponse({"code": "no_sandbox", "message": (
+            "Your demo sandbox has expired. Reload the page to start a new one.")},
+            status_code=409, headers=_JSON_HEADERS)
+    try:
+        from starlette.concurrency import run_in_threadpool
+
+        card = await run_in_threadpool(sandbox.set_cap, sb["sandbox_id"], persona,
+                                       body.get("cap"))
+    except sandbox.SandboxError as e:
+        return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status,
+                            headers=_JSON_HEADERS)
+    return JSONResponse(_sandbox_json(sb, card), headers=_JSON_HEADERS)

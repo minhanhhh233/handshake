@@ -64,10 +64,9 @@ def invalid_request(detail: str, errors: list[dict[str, Any]] | None = None) -> 
     return HandshakeError("invalid_request", detail, extra={"errors": errors or []})
 
 
-def unauthenticated(detail: str = "Missing or unknown agent key.") -> HandshakeError:
-    return HandshakeError(
-        "unauthenticated", detail, next="Send Authorization: Bearer <agent_key>."
-    )
+def unauthenticated(detail: str = "Missing or unknown agent key.",
+                    next: str = "Send Authorization: Bearer <agent_key>.") -> HandshakeError:
+    return HandshakeError("unauthenticated", detail, next=next)
 
 
 def forbidden(detail: str = "This resource belongs to another agent.") -> HandshakeError:
