@@ -271,7 +271,7 @@
   }
   function emptyBuyer() {
     var w = el("div", "empty");
-    w.appendChild(el("p", "lead", available ? "Try one of these, or write your own:" : "Example requests (the live agent is not available right now):"));
+    if (!available) w.appendChild(el("p", "lead", "The live agent is not available right now."));
     var ul = el("ul", "examples");
     examples().forEach(function (t) {
       var li = el("li"), b = el("button", "", t);
@@ -286,7 +286,6 @@
     ["school", "See a school refuse milk"], ["verify", "Verify a signature yourself"]];
   function emptyGateway() {
     var w = el("div", "empty");
-    w.appendChild(el("p", "lead", "Start here: four scripted first steps, in this order."));
     var ol = el("ol", "starts");
     STARTS.forEach(function (st) {
       var li = el("li"), b = el("button", "", st[1]);
@@ -297,6 +296,28 @@
     w.appendChild(ol);
     return w;
   }
+  // Avatars drawn with DOM calls (no markup strings): a person for your request, a bot for the agent.
+  var SVG = "http://www.w3.org/2000/svg";
+  var ICONS = {
+    person: [["circle", { cx: 12, cy: 8, r: 4 }], ["path", { d: "M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" }]],
+    bot: [["rect", { x: 4, y: 8, width: 16, height: 12, rx: 3 }], ["path", { d: "M12 8V4" }], ["circle", { cx: 12, cy: 3, r: 1 }],
+      ["circle", { cx: 9, cy: 14, r: 1.3 }], ["circle", { cx: 15, cy: 14, r: 1.3 }], ["path", { d: "M2 13v3M22 13v3" }]]
+  };
+  function avatar(kind) {
+    var wrap = el("span", "av av-" + kind);
+    wrap.setAttribute("aria-label", kind === "bot" ? "Buyer agent" : "You");
+    wrap.setAttribute("role", "img");
+    var svg = document.createElementNS(SVG, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("fill", "none"); svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.8"); svg.setAttribute("stroke-linecap", "round"); svg.setAttribute("aria-hidden", "true");
+    ICONS[kind].forEach(function (part) {
+      var n = document.createElementNS(SVG, part[0]);
+      Object.keys(part[1]).forEach(function (k) { n.setAttribute(k, String(part[1][k])); });
+      svg.appendChild(n);
+    });
+    wrap.appendChild(svg);
+    return wrap;
+  }
   function fill(frame, s, label, empty) {
     frame.textContent = "";
     frame.classList.remove("current", "bad");
@@ -304,6 +325,7 @@
     var idx = steps.indexOf(s);
     if (label) frame.appendChild(el("p", "who", label));
     var head = el("div", "head");
+    if (frame === frameBuyer) head.appendChild(avatar(s.kind === "user" ? "person" : "bot"));
     head.appendChild(el("p", "summary", summarize(s)));
     head.appendChild(el("span", "stepb", "Step " + (idx + 1)));
     frame.appendChild(head);

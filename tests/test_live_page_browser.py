@@ -74,6 +74,9 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
     page.wait_for_function("() => !document.getElementById('lv-go').disabled", timeout=20000)
     assert page.locator("#lv-human .qr img").is_visible()
+    # Agent messages carry a bot avatar; your own request a person avatar.
+    assert page.locator("#frame-buyer .av-bot").is_visible()
+    assert "Start here" not in page.inner_text("body")
     gw = page.locator("#frame-gw .summary").inner_text()
     assert gw, "the gateway frame has a summary"
     total = int(page.locator("#pb-count").inner_text().split(" of ")[1])

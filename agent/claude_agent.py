@@ -1,6 +1,6 @@
 """Claude buyer agent (task T-305; document 07, sections 2 to 4 and 7).
 
-A manual Claude tool-use loop over the eight Handshake tools. Every gateway call goes through
+A manual Claude tool-use loop over the ten Handshake tools. Every gateway call goes through
 `handshake_client` (one trace per task, verified offers, idempotent orders, untrusted supplier
 text kept in its delimited block). The limits that matter are enforced here in code, not left
 to the model:

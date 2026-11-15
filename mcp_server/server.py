@@ -1,6 +1,6 @@
 """Handshake MCP server (task T-502; document 07, sections 2, 3, 6 and 7).
 
-Exposes the eight Handshake tools to any MCP-capable assistant over stdio. It is an agent-side
+Exposes the ten Handshake tools to any MCP-capable assistant over stdio. It is an agent-side
 client like any other: every call goes through `agent/handshake_client.py` (one trace per
 session, verified offers, idempotent orders, untrusted text kept in delimited blocks) and it
 never imports the gateway package.
