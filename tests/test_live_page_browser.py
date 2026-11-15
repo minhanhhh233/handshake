@@ -51,9 +51,9 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     assert page.locator("#edit-box").is_hidden()
     assert _no_hscroll(page)
 
-    # Empty state: three example requests on the agent side, Start here on the Handshake side.
-    assert page.locator("#frame-buyer .examples button").count() == 3
-    assert page.locator("#frame-gw .starts button").count() == 4
+    # Empty state: one placeholder line per frame, no buttons.
+    assert page.locator("#frame-buyer button, #frame-gw button").count() == 0
+    assert "latest message appears here" in page.locator("#frame-buyer").inner_text()
     # Test the gateway: the rogue note appears only while the rogue agent is selected.
     assert page.locator("#rogue-note").is_hidden()
     page.get_by_text("Rogue agent", exact=True).click()
@@ -139,7 +139,7 @@ def test_home_then_live_full_run_with_playback(browser, demo_server, w, h, tag):
     page.locator("#live").wait_for(timeout=10000)
     assert page.locator("#live").is_visible() and page.locator("#playback").is_visible()
     assert page.locator("#pb-count").inner_text() == "No steps yet"
-    assert page.locator("#frame-gw .starts button").count() == 4
+    assert "latest answer appears here" in page.locator("#frame-gw").inner_text()
     assert _no_hscroll(page)
     assert not errors, errors
     ctx.close()
@@ -194,8 +194,10 @@ def test_decline_on_the_approval_page_and_rogue_preselect(browser, demo_server):
     assert page.locator('.pb[data-persona="restaurant"]').get_attribute("aria-pressed") == "true"
     assert page.locator("#rogue-note").is_visible()
     page.screenshot(path=str(SCREENS / "live-rogue-selected-390.png"), full_page=True)
-    # Start here, step 1 from the empty Handshake frame; then the person declines.
-    page.locator("#frame-gw .starts button").first.click()
+    # The hotel example order from the scenario menu; then the person declines.
+    page.locator('.pb[data-persona="hotel"]').click()
+    page.locator("#scen-toggle").click()
+    page.locator("#scen-groups .scen", has_text="Example milk order").first.click()
     page.get_by_text("Your turn: approve this order").wait_for(timeout=20000)
     href = page.get_by_role("link", name="Open the approval page").get_attribute("href")
     approval = ctx.new_page()

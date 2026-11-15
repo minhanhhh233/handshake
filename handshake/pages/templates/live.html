@@ -103,19 +103,6 @@
 .secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 .rogue-note { border: 1px solid rgba(211, 69, 92, 0.35); border-left: 4px solid var(--lingon); background: rgba(211, 69, 92, 0.06);
   border-radius: 12px; padding: 10px 14px; font-size: var(--step--1); color: var(--ink); line-height: 1.5; }
-/* Empty frames: examples and Start here */
-.empty { display: grid; gap: 10px; align-content: start; }
-.empty .lead { font-size: var(--step--1); color: var(--slate); }
-.examples { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-.examples button, .starts button { width: 100%; text-align: left; font: inherit; font-size: var(--step--1); color: var(--ink);
-  background: var(--surface); border: 1px solid var(--frost); border-radius: 12px; padding: 10px 12px; cursor: pointer; min-height: 44px; }
-.examples button:hover, .starts button:hover { border-color: var(--accent); }
-.examples button:disabled, .starts button:disabled { opacity: 0.55; cursor: not-allowed; }
-.starts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; counter-reset: st; }
-.starts li { counter-increment: st; }
-.starts button { display: flex; gap: 12px; align-items: center; font-weight: 650; }
-.starts button::before { content: counter(st); flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--accent); color: var(--white); font-size: 12px; font-weight: 800; }
 /* Scorecard after a rogue run */
 .score { padding: 18px 20px; display: grid; gap: 14px; }
 .score h3 { font-size: var(--step-1); font-weight: 750; color: var(--navy); }

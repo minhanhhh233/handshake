@@ -261,41 +261,13 @@
     f.appendChild(json(d));
     return f;
   }
-  // Empty frames: three example requests on the agent side, Start here on the Handshake side.
-  var DEFAULT_EXAMPLES = ["20 litres of lactose-free milk for Monday",
-    "5 kg of ground coffee for the office, cheapest first", "Rye bread for 120 lunches on Friday"];
-  function examples() {
-    var list = ((scen && scen.prompts) || []).slice(0, 3);
-    DEFAULT_EXAMPLES.forEach(function (t) { if (list.length < 3 && list.indexOf(t) < 0) list.push(t); });
-    return list;
-  }
+  // Empty frames: one placeholder line each. The ?start= steps stay reachable by link.
+  var STARTS = [["example"], ["misbehave"], ["school"], ["verify"]];
   function emptyBuyer() {
-    var w = el("div", "empty");
-    if (!available) w.appendChild(el("p", "lead", "The live agent is not available right now."));
-    var ul = el("ul", "examples");
-    examples().forEach(function (t) {
-      var li = el("li"), b = el("button", "", t);
-      b.type = "button"; b.setAttribute("data-live", "1"); b.disabled = running || !available;
-      b.addEventListener("click", function () { box.value = t; updateCount(); if (available && !running) startLive(t, behaviour()); });
-      li.appendChild(b); ul.appendChild(li);
-    });
-    w.appendChild(ul);
-    return w;
+    return el("p", "frame-empty", available ? "Your agent's latest message appears here."
+      : "The live agent is not available right now; the scripted scenarios still work.");
   }
-  var STARTS = [["example", "Order milk, then approve it"], ["misbehave", "Watch an agent misbehave"],
-    ["school", "See a school refuse milk"], ["verify", "Verify a signature yourself"]];
-  function emptyGateway() {
-    var w = el("div", "empty");
-    var ol = el("ol", "starts");
-    STARTS.forEach(function (st) {
-      var li = el("li"), b = el("button", "", st[1]);
-      b.type = "button"; b.disabled = running;
-      b.addEventListener("click", function () { if (!running) runStart(st[0]); });
-      li.appendChild(b); ol.appendChild(li);
-    });
-    w.appendChild(ol);
-    return w;
-  }
+  function emptyGateway() { return el("p", "frame-empty", "Handshake's latest answer appears here."); }
   // Avatars drawn with DOM calls (no markup strings): a person for your request, a bot for the agent.
   var SVG = "http://www.w3.org/2000/svg";
   var ICONS = {
