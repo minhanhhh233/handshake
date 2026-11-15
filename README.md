@@ -10,8 +10,6 @@ on their phone; the agent never sees the approval link.
 - **Demo video:** https://youtu.be/c0lLd0bgRUc
 - **Live gateway:** https://minhanhhh233--handshake-web.eu-west.modal.run
   (landing page `/`, live demo `/live`, API docs `/docs`)
-- **Specification:** [handshake-docs/README.md](handshake-docs/README.md) (ten documents; the
-  docs win over the code)
 
 Prototype only: not an official Valio Aimo service. Product data is challenge data and not fully
 accurate. All customers and people shown are fictional.
